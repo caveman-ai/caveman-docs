@@ -1,0 +1,111 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("evals");
+
+`@caveman/evals` is the public fail-closed grader package. Each grader takes one candidate and returns
+`{ passed, reason }`. Unknown types, invalid options, missing measurements, and unsafe execution paths fail.
+
+<Facts rows={[
+  ["Package", <code key="p">@caveman/evals</code>],
+  ["Runtime", "Node.js with no production package dependencies."],
+  ["Result", <code key="r">{'{ passed: boolean, reason: string }'}</code>],
+  ["Unknown grader", <code key="u">passed: false</code>],
+  ["Licence", "MIT."],
+]} />
+
+## Build from source
+
+No public registry install is documented for this package. Build the workspace package from source:
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+cd caveman
+pnpm install --frozen-lockfile
+pnpm --filter @caveman/evals build
+```
+
+## Grade a value
+
+```ts
+import { grade } from "@caveman/evals";
+
+const result = await grade(
+  { type: "exact_match", expected: "ready" },
+  "READY",
+);
+
+if (!result.passed) {
+  throw new Error(result.reason);
+}
+```
+
+Exact match is case-insensitive by default and compares structured values with sorted object keys. Optional
+`case_sensitive` and string-only `remove_punctuation` knobs change that behaviour. Invalid knob types fail.
+
+## Deterministic graders
+
+Text and structure:
+
+- `exact_match`, `contains`, `not_contains`
+- `regex`, `not_regex`, `blocklist`
+- `json_schema`, `json_path_assertion`
+- `bleu_score`, `rouge_score`, `context_f1`
+- `localization_f1`, `no_pii`
+
+Tool and request evidence:
+
+- `tool_called`, `tool_not_called`, `tool_sequence`
+- `tool_argument_assertion`
+- `http_status`, `latency_threshold`, `cost_threshold`, `token_threshold`
+
+Threshold graders require a present, finite, non-negative measurement. An absent cost, token count, or latency
+cannot pass a ceiling by being treated as zero.
+
+The JSON Schema grader implements a documented subset: primitive type, enum, required keys, properties, and
+items. An unknown schema type fails rather than being ignored.
+
+## Network graders
+
+`custom_webhook` posts `{ candidate }` and requires a JSON response with `passed`. Judge graders are
+`llm_judge`, `llm_score`, `llm_category`, `llm_pairwise`, and `llm_answer_match`.
+
+Network calls share a default ten-second deadline and refuse redirects. Private, loopback, link-local, and
+documentation IP ranges are blocked. A hostname requires an injected transport that pins the checked DNS result
+through connection setup; a normal fetch wrapper cannot claim that property.
+
+Model judges also fail when configured judge and subject model share a known family. A model grading its own
+family is a bias risk, not independent evidence.
+
+## Regex limits
+
+Patterns are capped at 1,024 characters and candidates at 64 KiB. Backreferences and risky quantified groups are
+rejected. Accepted patterns run in a worker with a 250 ms execution budget.
+
+These limits choose a failed grade over a process hang. They do not truncate the candidate and pretend the partial
+result is complete.
+
+## Localization evidence
+
+`localization_f1` accepts compact `path:start-end` lines or a structured file-to-ranges map. It scores both cited
+files and line overlap. Empty, unparseable, or zero-quality candidates fail even when a threshold is explicitly
+zero.
+
+This makes it suitable for checking repository explorer output without treating a correct filename and wrong
+lines as a full match.
+
+## Run engine fixtures
+
+The engine bundles a local fixture harness around the grader contract:
+
+```bash
+caveman tools evals run
+caveman tools evals run --fixtures ./fixtures
+```
+
+Caller-supplied fixture paths are confined to the supplied directory. A failing grader makes the command exit
+non-zero.
+
+<Note tone="honest" title="A passing grader proves its own contract">
+Exact match proves normalized equality. A token threshold proves a reported token field stayed under a ceiling.
+Neither proves general answer quality. Choose graders that cover the failure modes of the task and keep holdout
+cases separate from development cases.
+</Note>

@@ -1,0 +1,121 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("sdk/python");
+
+`caveman-sdk` is the Python client for the same connected surface as the TypeScript SDK. It uses only the Python
+standard library and includes type information.
+
+<Facts rows={[
+  ["Distribution", <code key="d">caveman-sdk</code>],
+  ["Import", <code key="i">caveman_cloud</code>],
+  ["Runtime", "Python 3.13 or newer."],
+  ["Dependencies", "None at runtime."],
+  ["Licence", "MIT."],
+]} />
+
+## Install
+
+```bash
+python -m pip install caveman-sdk
+```
+
+The `caveman` package on PyPI is unrelated. Distribution and import names are deliberately different.
+
+## Create a client
+
+```python
+import os
+from caveman_cloud import Cave
+
+cave = Cave(
+    api_key=os.environ["CAVE_API_KEY"],
+    base_url="http://127.0.0.1:8787",
+    agent="support-agent",
+)
+```
+
+`api_key`, `base_url`, and `agent` are required. URLs must be absolute HTTP or HTTPS service URLs without embedded
+credentials, a query, or a fragment.
+
+## Compress
+
+```python
+result = cave.compress("large payload")
+
+print(result.output)
+print(result.tokens_before, result.tokens_after)
+print(result.ratio, result.basis)
+print(result.recovery_handle)
+```
+
+`compress()` delegates to the configured service. A transport or response problem returns original payload, ratio
+zero, and no recovery handle. Python does not carry a second compressor implementation.
+
+Counts use `basis="inferred"`. They are local compressor estimates, not provider-reported usage.
+
+## Provider clients
+
+```python
+openai = cave.openai(upstream_key=os.environ.get("OPENAI_API_KEY"))
+anthropic = cave.anthropic(upstream_key=os.environ.get("ANTHROPIC_API_KEY"))
+gemini = cave.gemini(upstream_key=os.environ.get("GEMINI_API_KEY"))
+vertex = cave.vertex(upstream_key=os.environ.get("GOOGLE_ACCESS_TOKEN"))
+
+response = openai.responses.create({
+    "model": "gpt-5.6",
+    "input": "Summarize this incident",
+})
+```
+
+The provider wrappers expose native request paths through the configured provider prefix. `bedrock()` returns a
+validated configuration descriptor without making a network call.
+
+## Narrow one request
+
+```python
+cave.openai().responses.create(body, optimize="off")
+
+cave.openai().responses.create(
+    body,
+    optimize={"compress": False, "cache_hints": False},
+)
+```
+
+Boolean `True` asks for a capability and remains subject to project policy. It does not enable anything by itself.
+Unknown fields and invalid styles raise `ValueError` before a request.
+
+## Read disclosure headers
+
+```python
+from caveman_cloud import parse_receipt
+
+receipt = parse_receipt(response.headers)
+print(receipt.mode, receipt.optimizations)
+print(receipt.tokens_before, receipt.tokens_after)
+print(receipt.recovery_handle)
+```
+
+`parse_receipt` accepts urllib headers, a dictionary, or key-value pairs. Missing headers stay `None`.
+
+## Local helpers
+
+Python mirrors the TypeScript names in Python style:
+
+- `assemble()` orders context by stability
+- `retry_loop_breaker()` interrupts identical consecutive tool calls
+- `parse_receipt()` decodes response disclosure
+- `gateway_headers()` and `gateway_config()` build provider configuration
+- `policy_unit_fraction()` returns deterministic policy assignment input
+
+Tracing, OTLP export, deferred tool search, context packing, shared context, checkpoints, and artifacts are also
+available. Connected features use the configured service. The reserved jobs client raises
+`cave_async_jobs_unavailable` locally and performs no request.
+
+<Note tone="honest" title="Names differ on purpose">
+Install `caveman-sdk`, then `import caveman_cloud`. Avoid both bare `caveman` package names. They belong to other
+projects.
+</Note>
+
+## What it cannot do alone
+
+Installing the Python package does not install or start the local engine. It does not turn inferred compression
+counts into provider usage, currency, monthly savings, or `verified` results.

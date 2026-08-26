@@ -1,0 +1,142 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("cli");
+
+`caveman` is the command surface for local tools, supported coding agents, and connected account operations. The
+same binary is also available as `cave`.
+
+<Facts rows={[
+  ["npm package", <code key="p">@caveman-ai/cli</code>],
+  ["Runtime", "Node.js 22.13 or newer."],
+  ["Licence", "MIT."],
+  ["JavaScript dependencies", "None at runtime."],
+  ["Heavy work", "Companion Go binaries."],
+]} />
+
+## Install
+
+```bash
+npm install -g @caveman-ai/cli
+caveman setup
+```
+
+The bare `caveman` npm package is unrelated. Use the scoped package name.
+
+`setup` shows which companion binaries are available. Install or repair the signed local bundle with:
+
+```bash
+caveman setup --install
+```
+
+Artifacts are checked against a key-signed manifest and their own SHA-256 before atomic installation under
+`~/.caveman/bin`. Resolution checks an explicit `CAVEMAN_*_BIN` override, `PATH`, then that directory.
+
+## Command groups
+
+```bash
+caveman help
+caveman tools
+caveman cloud
+```
+
+`tools` contains local commands and needs no account. `cloud` contains connected commands and requires login.
+Compatibility aliases keep older top-level commands working, but grouped discovery is the clearest way to see the
+current surface.
+
+Common local commands:
+
+```bash
+caveman tools compress < payload.json
+caveman tools shrink -- npm test
+caveman tools toon encode < payload.json
+caveman tools mem recall "migration context"
+caveman tools retrieve ccr_xxxxxxxx
+caveman tools browse snapshot https://example.com
+caveman tools evals run
+caveman tools stats --json
+caveman tools config get
+```
+
+Some commands also keep their top-level form, such as `caveman learn`, `caveman stats`, `caveman mem`, and
+`caveman retrieve`.
+
+## Launch an agent
+
+```bash
+caveman claude
+caveman codex
+caveman gemini
+caveman aider
+caveman hermes
+caveman openclaw
+caveman opencode
+```
+
+Each shortcut calls `caveman wrap <agent>`. The profile registry decides binary name, protocol, setup method,
+hooks, and fallback.
+
+On the first interactive local wrap, the CLI can install the signed runtime bundle and continue the same command.
+Non-interactive runs do not change installation state without an explicit setup command.
+
+## Learn from local sessions
+
+```bash
+caveman learn
+caveman learn --plain
+caveman learn --json
+caveman learn implement claude
+```
+
+The profiler is read-only. Applying a proposed file change belongs to the consent-gated `caveman-learn` skill.
+See [caveman learn](/docs/skill/learn) for sink classes and edit gates.
+
+## Stable pipelines
+
+Compression writes payload bytes to stdout and accounting to stderr:
+
+```bash
+cat large.json | caveman tools compress > compact.json 2> report.json
+```
+
+When the engine binary is missing, this path emits original bytes and a structured zero-ratio warning. It does not
+break the pipe or claim compression.
+
+Use machine modes when output feeds another process:
+
+```bash
+caveman learn --json
+caveman learn --plain
+caveman stats --json
+caveman tools skills list --json
+```
+
+They do not open interactive menus or prompt for input.
+
+## Missing runtime behaviour
+
+Most affected local commands degrade to an explicit pass-through when a companion binary is missing. Output stays
+unchanged, reduction is zero, and the warning names the repair command.
+
+`wrap` needs extra care. It may point an agent at a local listener. If nothing is listening, requests cannot route.
+An interactive invocation offers to launch the agent directly. A script must ensure the listener is running or use
+`--no-proxy` when direct provider traffic is intended.
+
+<Note tone="honest" title="The CLI is a launcher, not the engine">
+The npm package does not contain compression, memory, browsing, or token-counting implementations. It resolves
+and drives the public binaries. `caveman setup` is the source of truth for what this machine can run.
+</Note>
+
+## Numbers and telemetry
+
+Local reduction figures stay `inferred`. Commands do not convert them into monthly savings or `verified` claims.
+
+Anonymous CLI telemetry covers command name, version, platform, duration, exit class, and aggregate local token
+counts. It excludes prompts, code, file paths, arguments, model names, credentials, and dollar fields. Disable it
+with any of these:
+
+```bash
+caveman telemetry off
+CAVEMAN_TELEMETRY=0 caveman learn
+DO_NOT_TRACK=1 caveman learn
+```
+
+See [Telemetry](/docs/telemetry) for the complete payload and precedence.

@@ -1,0 +1,128 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("sdk/typescript");
+
+`@caveman-ai/sdk` is a zero-runtime-dependency TypeScript client for provider calls, recoverable compression,
+tracing, deferred tools, and request policy. It talks to a Caveman service you configure; it does not embed the
+local engine.
+
+<Facts rows={[
+  ["Package", <code key="p">@caveman-ai/sdk</code>],
+  ["Runtime", "Node.js 22.13 or newer."],
+  ["Dependencies", "None at runtime."],
+  ["Module", "ES module with bundled TypeScript declarations."],
+  ["Licence", "MIT."],
+]} />
+
+## Install
+
+```bash
+npm install @caveman-ai/sdk
+```
+
+## Create a client
+
+```ts
+import { Cave } from "@caveman-ai/sdk";
+
+const cave = new Cave({
+  apiKey: process.env.CAVE_API_KEY!,
+  baseURL: "http://127.0.0.1:8787",
+  agent: "support-agent",
+});
+```
+
+`apiKey`, `baseURL`, and `agent` are required. Service URLs must be absolute HTTP or HTTPS URLs without embedded
+credentials, query strings, or fragments.
+
+## Compress
+
+```ts
+const result = await cave.compress("large payload");
+
+console.log(result.output);
+console.log(result.tokensBefore, result.tokensAfter);
+console.log(result.ratio, result.basis);
+console.log(result.recoveryHandle);
+```
+
+The SDK sends the payload to the configured compression endpoint and maps the engine report. On a transport or
+parse problem it returns original payload, ratio zero, and no recovery handle. It never reimplements a compressor
+inside JavaScript.
+
+`basis` is `inferred`. Token fields come from the compressor's local counter, not provider usage.
+
+## Provider clients
+
+```ts
+const openai = cave.openai({ upstreamKey: process.env.OPENAI_API_KEY });
+const anthropic = cave.anthropic({ upstreamKey: process.env.ANTHROPIC_API_KEY });
+const gemini = cave.gemini({ upstreamKey: process.env.GEMINI_API_KEY });
+const vertex = cave.vertex({ upstreamKey: process.env.GOOGLE_ACCESS_TOKEN });
+
+const response = await openai.responses.create({
+  model: "gpt-5.6",
+  input: "Summarize this incident",
+});
+```
+
+Provider clients constrain raw requests to their provider prefix. The separate `bedrock()` method returns a
+validated descriptor for AWS SDK configuration and performs no request.
+
+## Narrow one request
+
+Request options can switch project-enabled work off for one call:
+
+```ts
+await cave.openai().responses.create(body, {
+  cave: { optimize: "off" },
+});
+
+await cave.openai().responses.create(body, {
+  cave: { optimize: { compress: false, cacheHints: false } },
+});
+```
+
+Boolean `true` asks for the corresponding capability. It does not grant permission or bypass project policy.
+Unknown option fields and styles throw before the request.
+
+## Read disclosure headers
+
+```ts
+import { parseReceipt } from "@caveman-ai/sdk";
+
+const response = await cave.openai().raw("/v1/responses", {
+  method: "POST",
+  body,
+});
+
+const receipt = parseReceipt(response.headers);
+```
+
+The receipt may include mode, applied optimizations, cache status, request id, inferred compression counts, and a
+recovery handle. A missing header remains absent. The parser does not invent a default value.
+
+## Local helpers
+
+Several helpers run without a request:
+
+- `assemble()` orders stable, session, and volatile context slots
+- `retryLoopBreaker()` stops a consecutive identical tool-call loop
+- `parseReceipt()` decodes response headers
+- `gatewayHeaders()` and `gatewayConfig()` build provider client configuration
+- `policyUnitFraction()` produces deterministic policy assignment input
+
+`trace()` and `exporter()` create correlated spans. `tools()` can keep an initial subset of a catalog and load more
+through connected search. `context.pack()` is also connected and returns deferred item ids rather than silently
+discarding omitted context.
+
+The `jobs` surface is reserved. Its methods throw `cave_async_jobs_unavailable` locally and send no request.
+
+<Note tone="honest" title="Connected SDK and local engine are separate">
+This package needs a configured service for provider calls and `compress()`. Accountless local engine compression
+ships through the CLI and Go runtime. Installing the SDK alone does not start that runtime.
+</Note>
+
+## What it will not claim
+
+SDK compression counts are not provider counts. Response receipts are not invoices. No local SDK result becomes a
+monthly or `verified` saving.

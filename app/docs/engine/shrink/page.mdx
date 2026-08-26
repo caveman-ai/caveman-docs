@@ -1,0 +1,98 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("engine/shrink");
+
+`caveman-shrink` reduces MCP and OpenAI tool catalogs before a model reads them. It keeps the structural surface
+used to form a tool call and shortens model-visible annotation text.
+
+<Facts rows={[
+  ["Input", "MCP or OpenAI tool-catalog JSON."],
+  ["Stdin limit", "32 MiB."],
+  ["Core licence", "BSL 1.1."],
+  ["npm launcher", "MIT."],
+  ["Reports", <code key="r">inferred</code>],
+]} />
+
+## Build the documented source
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+go build -o ./bin/caveman-shrink ./public/shrink/cmd/caveman-shrink
+```
+
+A published npm launcher also downloads a matching binary and verifies a key-signed manifest plus artifact
+SHA-256. The registry release may trail the source documented here.
+
+```bash
+npx -y caveman-shrink lint tools.json
+```
+
+## Compress a catalog
+
+```bash
+cat tools.json | caveman-shrink > tools.min.json
+```
+
+Compressed JSON goes to stdout. The JSON accounting report goes to stderr, so a pipeline receives catalog bytes
+only. The report includes tokens before, tokens after, ratio, basis, content type, and a recovery handle when a
+lossy result was emitted.
+
+Accepted shapes include an MCP `{ "tools": [...] }` object, an OpenAI tool array, a `{ "functions": [...] }`
+object, and a single named tool object.
+
+## What survives
+
+The structural selection profile preserves:
+
+- Tool and parameter names
+- Parameter types
+- Enum values
+- Required fields
+- Default and constant values
+- Internal reference targets
+
+Short descriptions remain whole. Long descriptions keep their lead and recognized constraint sentences.
+Examples, titles, comments, and other annotation bloat may be removed.
+
+```bash
+caveman-shrink lint tools.json
+```
+
+`lint` prints inferred before and after counts per tool and for the complete catalog. It does not commit a recovery
+record or replace the file.
+
+<Note tone="honest" title="Same schema does not guarantee same choice">
+Tests prove that names, parameters, enums, and required fields survive. Description text remains model-visible,
+so only a model eval can show that a given model selects the same tool for your cases.
+</Note>
+
+## Recover
+
+```bash
+caveman-shrink recover ccr_xxxxxxxx > tools.original.json
+```
+
+Before returning a lossy view, shrink stores exact original bytes in the shared CCR database. The default is
+`~/.caveman/ccr.db`; `CAVEMAN_CCR_DB` selects another path. Recovery works from a later process.
+
+Malformed input, an unavailable recovery store, or a candidate that is not smaller returns the original catalog
+unchanged with ratio zero and no handle. Input beyond 32 MiB fails with `cave_input_too_large`.
+
+## CLI wrapper
+
+The main CLI exposes two different shrink paths:
+
+```bash
+caveman tools shrink -- npm test
+caveman tools compress catalog < tools.json
+caveman tools compress catalog lint tools.json
+caveman tools compress catalog recover ccr_xxxxxxxx
+```
+
+The first command compresses command output. The catalog commands delegate to `caveman-shrink`. They are separate
+because terminal output and tool definitions have different structures and safety contracts.
+
+## Licence boundary
+
+The npm launcher is MIT. Go source and downloaded binary use BSL 1.1 with the first-party self-hosting grant.
+Offering the core functionality to third parties as a hosted, managed, or embedded service needs a commercial
+licence.

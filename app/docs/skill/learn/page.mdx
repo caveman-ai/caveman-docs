@@ -1,0 +1,101 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("skill/learn");
+
+`caveman learn` reads local agent sessions and shows where tokens are being spent. The command measures and
+prepares candidates. The `caveman-learn` skill is the separate, consent-gated part that can edit a file.
+
+<Facts rows={[
+  ["Input", "Local Claude Code, Codex, and Caveman session records."],
+  ["Default window", "The last 30 days."],
+  ["Report basis", <code key="b">inferred</code>],
+  ["Edits", "One approved change at a time."],
+  ["Protected class", <code key="p">load_bearing</code>],
+]} />
+
+## Run the profiler
+
+```bash
+caveman learn
+```
+
+In an interactive terminal this shows a local Setup Score, grouped top moves, and a menu for the full report or
+the editing flow. Stable output modes are available for scripts and pipes:
+
+```bash
+caveman learn --plain
+caveman learn --all
+caveman learn --json
+caveman learn --md
+caveman learn --since 7d --sources codex,claude,caveman
+```
+
+`--plain` has no animation or keyboard menu. `--all` includes every finding, its internal id, its basis, and its
+suggestion. JSON uses the `caveman.learn.v1` schema.
+
+If no matching sessions exist, the command returns no score. Repeated-context findings need the same block in
+three or more sessions, so a new installation may need several sessions before that class appears.
+
+## Read the sink classes
+
+| Class | Meaning | Automatic edit |
+| --- | --- | --- |
+| `reducible` | A heavy instruction file or an installed skill that local evidence says can be smaller. | Candidate only. The skill still asks first. |
+| `recurring_context` | A block re-established across sessions that may fit local memory better. | Candidate only. Recall must work before source text is removed. |
+| `behavioral` | An observation about how the agent or user works. | None. Repetition does not prove the behaviour is wrong. |
+| `load_bearing` | Context that must remain available on every turn. | Never. It stays in the score so the score remains honest. |
+
+Rates such as `tokens_per_turn` and `tokens_per_day_rate` describe the observed local pattern. The daily field is
+a rate, not a historical total and not a monthly projection.
+
+## Review fixes with an agent
+
+```bash
+caveman learn implement
+caveman learn implement claude
+caveman learn implement codex --prompt "focus on project instructions"
+```
+
+This installs the safety guide when it is missing, opens Claude Code or Codex, and asks the agent to read the
+current JSON report. It does not grant permission to apply every finding.
+
+You can also install the guide directly:
+
+```bash
+caveman tools skills install caveman-learn --agent claude
+caveman tools skills install caveman-learn --agent codex
+```
+
+## Preview one candidate
+
+```bash
+caveman learn apply <sink_id> --dry-run
+caveman learn apply <sink_id>
+```
+
+Both commands prepare information for review. The second writes a candidate under `~/.caveman/candidates`; it
+does not edit your repository. Only the installed skill performs an edit, after showing the proposed change and
+asking for consent.
+
+For a reducible item, the skill compares inferred tokens per turn before and after. If the result is not smaller,
+it restores the original.
+
+For recurring context, the skill re-reads the source block, verifies its SHA-256 locator, stores the raw block in
+cavemem, and confirms that recall returns it. The source is trimmed only after the pointer and recall path both
+work. A failed recall removes the new memory and leaves the source in place.
+
+<Note tone="honest" title="Prepared does not mean applied">
+`caveman learn apply` materializes a candidate. It does not edit a file, move a block, or prove a reduction. The
+proof happens after an approved edit is measured again.
+</Note>
+
+## What it will not do
+
+- Apply all fixes behind one confirmation
+- Edit a `load_bearing` finding
+- Treat a behavioral finding as an instruction
+- Remove recurring context without a working pointer and recall path
+- Keep an edit whose measured result is not net token negative
+- Attach currency, monthly savings, or `verified` to a local result
+
+Reports are also written under `~/.caveman/reports`, including HTML and JSON forms. They contain local analysis,
+so review them before sharing them outside your machine.

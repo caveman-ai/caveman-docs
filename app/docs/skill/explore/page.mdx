@@ -1,0 +1,80 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("skill/explore");
+
+`caveman-explore` is a read-only repository scout for Claude Code. It answers one localization question with
+small `path:line` citations, so the main agent can inspect the right code without carrying every exploratory read
+in its conversation.
+
+<Facts rows={[
+  ["Host", "Claude Code only."],
+  ["Tools", <code key="t">Read, Glob, Grep</code>],
+  ["Model", <code key="m">haiku</code>],
+  ["Output", <code key="o">path/to/file.ext:START-END reason</code>],
+  ["Licence", "MIT."],
+]} />
+
+## Install
+
+```bash
+caveman explore install --agent claude
+```
+
+The command is a compatibility alias for installing the `caveman-explore` skill. It writes the canonical
+`SKILL.md` unchanged and disables pixel conversion for this file.
+
+You can choose a destination explicitly:
+
+```bash
+caveman explore install --agent claude --dir ./path/to/caveman-explore
+```
+
+<Note tone="warning" title="Codex installation is refused">
+`caveman explore install --agent codex` exits non-zero and writes no skill. Transcript isolation for this pattern
+has not been verified on Codex, so the installer does not claim support.
+</Note>
+
+## When to use it
+
+Use the explorer when you need to locate code before you can solve the task:
+
+- A cold start in an unfamiliar repository
+- A question that spans several files or packages
+- A direct search that did not reveal the owning code
+- A request that names behaviour but no file or symbol
+
+Skip it when the task already names the exact file or symbol, or when a previous turn already returned usable
+line citations. The explorer is a localization step, not a second opinion on a known location.
+
+## What it returns
+
+The response contains citations only:
+
+```text
+src/router/pick.go:42-71 route selection lives here
+src/router/pick_test.go:18-40 table test covering selection
+```
+
+Every range must have been read. The range may not extend beyond the file. If no relevant code exists, the only
+valid answer is:
+
+```text
+no relevant locations found
+```
+
+This narrow output contract matters. The solving agent gets evidence it can open directly, without inheriting a
+summary, a proposed fix, or a large search transcript.
+
+## How it searches
+
+The explorer starts with several complementary reads in parallel: likely path patterns, symbol or string
+matches, and the most promising file contents. It follows the evidence for one or two short rounds, then stops as
+soon as it can name the locations.
+
+The fixed tool list enforces the boundary. It cannot run a command, edit a file, write a patch, or test a proposed
+solution.
+
+## What it cannot prove
+
+A citation proves that code exists at a location the explorer read. It does not prove that the code is correct,
+that a test passes, or that the cited path is the only implementation. The solving agent still owns diagnosis,
+changes, and verification.

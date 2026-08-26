@@ -1,0 +1,103 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("mcp");
+
+`caveman-mcp` exposes engine compression, recovery, statistics, and TOON conversion to any MCP host. It speaks
+line-delimited JSON-RPC over stdin and stdout and opens no network connection.
+
+<Facts rows={[
+  ["Transport", "MCP over stdio."],
+  ["Protocol version", <code key="p">2024-11-05</code>],
+  ["Tools", "Compression, recovery, session stats, TOON encode, and TOON decode."],
+  ["Reports", <code key="r">inferred</code>],
+  ["Core licence", "BSL 1.1."],
+]} />
+
+## Build from source
+
+`caveman-mcp` is not published on npm today. Build the server from the public source:
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+go build -o ./bin/caveman-mcp ./public/mcp/cmd/caveman-mcp
+```
+
+Register the resulting binary with an MCP host:
+
+```json
+{
+  "mcpServers": {
+    "caveman": {
+      "command": "/absolute/path/to/bin/caveman-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+The main CLI can install host configuration after the binary is available:
+
+```bash
+caveman tools mcp install claude --server caveman
+caveman tools mcp uninstall claude --server caveman
+```
+
+## Tools
+
+| Tool | Input | Result |
+| --- | --- | --- |
+| `caveman_compress` | `input`, optional `content_type` | Smaller text or original input, counts, ratio, basis, content type, method, and optional handle. |
+| `caveman_retrieve` | `recovery_handle`, optional `query` | Exact original for an empty query, or a query-selected view. |
+| `caveman_stats` | None | Session requests, tokens before and after, ratio, and `basis: "inferred"`. |
+| `caveman_toon_encode` | JSON string in `input` | TOON text plus input and output byte counts, or original input with a note. |
+| `caveman_toon_decode` | TOON string in `input` | Decoded JSON, or an explicit invalid-TOON error. |
+
+Compression detects content type unless the caller forces one. Malformed, incompressible, or non-smaller input
+passes through with ratio zero. A recovery persistence error also passes through only when the returned bytes and
+accounting prove that no lossy view escaped.
+
+## Recovery
+
+The server opens the shared store at `~/.caveman/ccr.db`. `CAVEMAN_CCR_DB` selects another path, and
+`CAVEMAN_HOME` changes the default parent directory.
+
+```text
+caveman_compress({ input: largePayload })
+caveman_retrieve({ recovery_handle: "ccr_..." })
+```
+
+Set `CAVEMAN_MCP_EPHEMERAL=1` for an in-memory store. Handles from that process stop resolving when the process
+exits.
+
+Use recovery as a last resort. Elision markers and visible invariants often answer count or field questions
+without adding another agent turn. When recovery is needed, one broad query is usually cheaper than many narrow
+calls.
+
+An unknown handle returns `cave_unknown_handle`. It never becomes an empty successful result.
+
+## TOON conversion
+
+TOON encoding is explicit and checks JSON round-trip. Encoding may return a valid TOON result even when it is not
+smaller, because the caller asked for conversion and receives both sizes. Invalid or unsupported JSON returns
+unchanged input with a note.
+
+Decoding fails with `cave_invalid_toon` on invalid input. It never emits raw TOON while claiming the result is
+JSON.
+
+## Protocol limits
+
+Inbound JSON-RPC lines and ordinary tool results are capped at 16 MiB. Oversized values return
+`cave_payload_too_large` and the server continues serving later requests. Exact recovery is exempt from the result
+cap so a valid original is never made unrecoverable by the MCP framing limit.
+
+Handler panics become `cave_tool_panicked` tool errors instead of terminating the server. Unknown tools also return
+an explicit tool error.
+
+<Note title="Keep stdout clean">
+stdout carries JSON-RPC only. Logs and diagnostics go to stderr. Wrapping this binary with a script that prints a
+banner to stdout breaks MCP framing.
+</Note>
+
+## What it cannot do
+
+The server does not browse, store durable semantic memories, call a model, or connect to a hosted account. Its
+session stats are local inferred compression accounting, not provider usage or `verified` savings.

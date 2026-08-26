@@ -1,0 +1,94 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("engine/recoverable");
+
+Recoverable compression lets the model see a smaller view without destroying source bytes. Caveman calls the
+local store CCR, short for Context Recovery.
+
+<RequestPath />
+
+## Store before showing less
+
+A lossy transform follows this order:
+
+<Steps>
+<div>
+The compressor creates a smaller candidate and the token counter confirms that it is smaller.
+</div>
+
+<div>
+The engine writes the original bytes and accounting metadata to CCR.
+</div>
+
+<div>
+Only after that write commits does the engine return the smaller view and its handle.
+</div>
+</Steps>
+
+If step two fails, step three never publishes a lossy view. The caller receives the original bytes, a zero ratio,
+and no recovery handle.
+
+## Handle format
+
+CCR hashes the original with SHA-256 and uses the first 16 digest bytes in the public handle:
+
+```text
+ccr_<32 lowercase hexadecimal characters>
+```
+
+The same input produces the same handle and is stored once. A handle identifies content, not a session or a
+filename.
+
+## Persistent store
+
+<Facts rows={[
+  ["Default path", <code key="p">~/.caveman/ccr.db</code>],
+  ["Override", <code key="o">CAVEMAN_CCR_DB</code>],
+  ["Default budget", "512 MiB of retained payload and metadata bytes."],
+  ["Budget override", <code key="b">CAVEMAN_CCR_MAX_BYTES</code>],
+  ["Host backend", "SQLite with WAL and a busy timeout."],
+]} />
+
+`CAVEMAN_HOME` changes the parent directory when `CAVEMAN_CCR_DB` is absent. WASM uses an in-memory store because
+the host SQLite implementation is unavailable there. A WASM handle lasts only as long as that in-memory store.
+
+The budget accepts a positive byte count. At the limit, new lossy transforms pass through. Existing handles are
+not evicted to make room, because eviction would invalidate a recovery promise already shown to an agent.
+
+## Retrieve
+
+```bash
+caveman-engine retrieve ccr_xxxxxxxx > original.bin
+caveman-engine retrieve ccr_xxxxxxxx "connection pool" > relevant.txt
+```
+
+An empty query returns the stored original byte for byte. A query asks for a deterministic BM25-selected view of
+the original and is useful when full recovery would refill the context window.
+
+The MCP surface exposes the same distinction:
+
+```text
+caveman_retrieve({ recovery_handle: "ccr_..." })
+caveman_retrieve({ recovery_handle: "ccr_...", query: "connection pool" })
+```
+
+Unknown handles fail with an explicit error. Retrieval never guesses, returns a nearby payload, or treats a
+missing handle as empty content.
+
+<Note tone="honest" title="Query recovery is another view">
+Only empty-query retrieval is byte exact. Query recovery selects complete relevant sections from stored original
+bytes. Use full retrieval when exact order, omitted records, or a byte-for-byte comparison matters.
+</Note>
+
+## Shared and separate stores
+
+The engine CLI, MCP server, and caveman-shrink use the shared CCR path by default, so a handle minted by one can
+resolve in a later process through another.
+
+cavemem keeps its recovery data under `~/.caveman/mem/ccr.db`. Recover a memory hit with `cavemem recover` or
+`caveman mem recover`; do not send that handle to the engine store.
+
+## What recovery does not prove
+
+Recovery proves that omitted bytes remain available. It does not prove that the model will ask for them, that a
+compressed answer has equal quality, or that the local token count matches a provider bill. Those are separate
+grader, behaviour, and accounting questions.

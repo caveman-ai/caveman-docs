@@ -1,0 +1,143 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("agent-sdk");
+
+`@caveman-ai/agent` is a TypeScript framework for defining an agent, its tools, context, memory, output contract,
+and evals in one source graph. The runtime can operate directly against a provider or use local Caveman transforms
+when a verified local runtime is available.
+
+<Facts rows={[
+  ["Version in source", <code key="v">0.2.0</code>],
+  ["Runtime", "Node.js 22.19 or newer."],
+  ["Licence", "MIT."],
+  ["Registry status", "Not published to npm yet."],
+  ["CLI", <code key="c">caveman-agent</code>],
+]} />
+
+## Build from source
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+cd caveman
+pnpm install --frozen-lockfile
+pnpm --filter @caveman-ai/agent build
+```
+
+The initializer and Agent SDK release are still source-only. Do not use `npm create @caveman-ai/agent` until the
+package is published.
+
+## Smallest definition
+
+```ts
+import { agent, auto } from "@caveman-ai/agent";
+
+export default agent({
+  id: "support",
+  instructions: "Answer from policy. Never invent policy.",
+  model: auto(),
+});
+```
+
+`auto()` resolves a configured model. It does not classify tasks or route between models.
+
+Run from code:
+
+```ts
+import support from "./agent.js";
+import { run } from "@caveman-ai/agent";
+
+const result = await run(support, "Can I get a refund?");
+console.log(result.text);
+console.log(result.mode);
+```
+
+Use `stream()` for typed run, context, tool, completion, and error events.
+
+## Define tools explicitly
+
+```ts
+import { schema, tool } from "@caveman-ai/agent";
+
+const lookupPolicy = tool({
+  name: "lookup_policy",
+  description: "Read one policy by id.",
+  input: schema.object({ id: schema.string() }),
+  effect: "read",
+  result: "compress",
+  async execute({ id }) {
+    return loadPolicy(id);
+  },
+});
+```
+
+Every tool declares an effect, result policy, timeout, and input schema. Result policies are `auto`, `inline`,
+`page`, `compress`, or `exact_ccr`. Tool names beginning with `cave_` are reserved by the framework.
+
+Repeated identical calls stop by default unless a polling tool opts into `allowRepeat`.
+
+## Sandbox modes
+
+| Mode | Behaviour |
+| --- | --- |
+| `required` | Default. Tool closures run in isolated, network-denied Node workers from a staged source graph. |
+| `fixture` | Trusted tests only. Tools run in the host process, and write effects are blocked. |
+| `host` | Explicit opt-in. Tools run with host access and write effects may execute. |
+
+Host mode is not eligible for a locked build. A required-sandbox parent also prevents a subagent from selecting
+host mode.
+
+## Context and memory
+
+`context()` labels each segment by kind, stability, safety class, priority, recovery contract, cache region, and
+privacy class. `memory()` currently accepts local, local-only memory with a positive `m`, `h`, or `d` TTL. Shared
+memory settings fail during construction rather than after a model call.
+
+Artifacts declare paging or exact recovery. Output definitions can attach a schema and token budget.
+
+## Run modes
+
+Without a trusted local runtime, an unlocked agent calls its provider directly in `observe-only` mode. No local
+transform or Caveman telemetry runs, and no efficiency result is claimed.
+
+With the CLI and local runtime available:
+
+```bash
+npm install -g @caveman-ai/cli
+caveman start
+```
+
+Eligible calls may run in `optimized` mode. Listener identity, process state, and executable ownership are checked
+before provider credentials can be sent to a loopback endpoint. A locked plan refuses silent downgrade.
+
+## Check before spending a provider call
+
+```bash
+caveman-agent doctor
+caveman-agent doctor --json
+caveman-agent check
+```
+
+Doctor checks Node version, sandbox containment, local runtime identity, engine registry, configuration, context,
+and provider selection. Missing local transforms are warnings when observe-only execution remains valid. Broken
+sandbox containment, invalid config, or lock drift fails.
+
+## Evals and builds
+
+```bash
+caveman-agent dev
+caveman-agent build
+caveman-agent check
+```
+
+An eval declares approved profile, development, or holdout cases plus quality graders. A build profiles work,
+selects on development cases, freezes a plan, then opens untouched holdout cases. Successful builds write local
+lock, workload-profile, and report artifacts under `.caveman/`.
+
+This source slice has exact compiled behaviour for its native Pi lane. Other adapters remain baseline-equivalent
+or have explicit limits, and Claude build locking is refused. A hash binds reviewed bytes and policy; it is not a
+signature or runtime attestation.
+
+<Note tone="honest" title="Framework status is partial">
+Core authoring, runtime, sandbox, doctor, and source build paths exist. npm publication and broader locked-adapter
+parity do not. Use observe-only mode or the documented native lane, and do not publish a savings percentage from a
+local build report.
+</Note>

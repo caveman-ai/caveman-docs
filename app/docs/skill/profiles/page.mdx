@@ -1,0 +1,101 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("skill/profiles");
+
+Agent profiles are the registry entries that tell the CLI how a coding agent is installed, launched, and given
+local Caveman tools. Seven profiles ship in the registry. The JSON files are compiled into the CLI, so source and
+distributed behaviour stay tied together.
+
+<Facts rows={[
+  ["Schema", <code key="s">schema_version: "1"</code>],
+  ["Profiles", "Aider, Claude Code, Codex CLI, Gemini CLI, Hermes, OpenClaw, and opencode."],
+  ["Fallback", <code key="f">generic-env</code>],
+  ["Validation", "Unknown hook or injection methods fail compilation."],
+  ["Licence", "MIT."],
+]} />
+
+## Registered agents
+
+| Profile id | Wire protocol | Configuration shape | Command-output hook |
+| --- | --- | --- | --- |
+| `aider` | OpenAI Chat | Environment | Manual |
+| `claude` | Anthropic Messages | Environment | Claude Code hook |
+| `codex` | OpenAI Responses | Host-specific code path | Codex hook |
+| `gemini` | Gemini generateContent | Environment | Gemini hook |
+| `hermes` | OpenAI Chat | Environment plus builder | Hermes plugin |
+| `openclaw` | OpenAI Chat | Config file overlay | OpenClaw plugin |
+| `opencode` | OpenAI Chat | Config content overlay | opencode plugin |
+
+This table describes declared integration shape. It does not say that every host version or provider credential
+has been tested. Each profile carries a tested version, and profiles that need code beyond their JSON declaration
+say so with `builder-assisted` or `code-only`.
+
+## What one profile contains
+
+Every profile has an id, display name, binary names, install hint, wire protocol, injection description,
+attribution header, tested agent version, completeness label, and fallback. Optional fields describe command
+hooks, memory hooks, on-disk skill directories, and config overlays.
+
+The completeness labels have exact meanings:
+
+| Label | Meaning |
+| --- | --- |
+| `declarative` | Profile data alone describes routing setup. |
+| `builder-assisted` | Profile data is the base, and CLI code adds host-specific setup. |
+| `code-only` | Declared injection is inert; host setup lives in reviewed CLI code. |
+
+The registry compiler cross-checks these labels against the real builders. A profile cannot call itself
+declarative when it depends on code.
+
+## Inspect what is installed
+
+```bash
+caveman status
+caveman doctor claude
+caveman doctor codex
+caveman setup
+```
+
+`status` shows local state. `doctor <agent>` checks the selected host integration. `setup` reports companion
+binary availability and repair commands.
+
+Launch shortcuts use profile ids:
+
+```bash
+caveman claude
+caveman codex
+caveman gemini
+caveman aider
+caveman hermes
+caveman openclaw
+caveman opencode
+```
+
+Each shortcut is equivalent to `caveman wrap <id>`.
+
+## Hooks are capabilities, not assumptions
+
+Command hooks rewrite noisy shell output through `caveman shrink` before the model reads it. A profile without a
+verified hard hook surface stays manual and receives command guidance instead.
+
+Memory hooks are stricter. They are off by default, and a profile may declare one only when the host exposes a
+verified live user-prompt hook. Today only Claude Code declares that capability.
+
+Skill directories are also explicit. Claude Code declares user and project skill roots. Codex declares its user
+skill root. A profile with no verified convention omits the field, and conversion skips it.
+
+## Failure behaviour
+
+Registry compilation rejects duplicate ids, unknown methods, false completeness labels, invalid tested-version
+metadata, and schema drift. Runtime detection falls back to `generic-env` when a declared setup path cannot be
+used.
+
+<Note tone="honest" title="Cataloged is not verified everywhere">
+A profile means the CLI knows the host's integration shape. Live support still depends on installed host version,
+credential path, protocol, and available recovery surface. Use `doctor` on the machine that will run it.
+</Note>
+
+## Adding a profile
+
+New profiles begin as JSON that passes the shared schema and compiler. A profile also needs runtime tests for its
+launch path, configuration injection, fallback, and any hook it claims. Adding a name to the registry without
+those paths does not make an agent supported.

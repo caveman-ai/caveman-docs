@@ -1,0 +1,108 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("provider-catalog");
+
+The provider catalog is the public, source-backed table of model prices and operational facts. Cost calculations
+read a specific catalog version instead of scattering model prices through application code.
+
+<Facts rows={[
+  ["Package", <code key="p">@caveman/provider-catalog</code>],
+  ["Source", <code key="s">catalog/current.yaml</code>],
+  ["Snapshots", "Immutable files named by price verification date."],
+  ["Currency", "Declared per row, currently USD rows."],
+  ["Licence", "MIT."],
+]} />
+
+## What a row says
+
+One row identifies provider, model, region, currency, prices, capabilities, source links, and verification times.
+Typed fields may also describe lifecycle, aliases, historical price intervals, tokenizer support, count surface,
+and cache behaviour.
+
+Support facts use three states:
+
+| State | Meaning |
+| --- | --- |
+| `supported` | Reviewed source says the capability exists. |
+| `unsupported` | Reviewed source says it does not exist. |
+| `unknown` | No reviewed fact is available. |
+
+Unknown is not false and not permission to guess.
+
+## Read generated data
+
+Build consumers use generated JSON rather than parsing YAML on a request path:
+
+```text
+generated/catalog.json
+generated/manifest.json
+```
+
+The catalog carries a semantic digest, price-provenance digest, source digest, and content digest per entry. The
+manifest records snapshot digests and entry counts. These hashes detect drift; they do not prove that a provider
+served a request or charged a particular invoice.
+
+Use the generated manifest to read current counts. Do not copy a fixed model or provider count into dependent
+code, because rows change as providers publish and retire models.
+
+## Unknown prices fail closed
+
+An unknown provider, model, or region combination is zero-priced with `unpriced:` provenance. Callers must not
+borrow a nearby model's price or assume two regions match.
+
+Zero in this case means no supported price entered the calculation. It does not mean the model is free.
+
+<Note tone="honest" title="Zero plus provenance, never a guessed price">
+Any total containing an unpriced row is incomplete. Surface the `unpriced:` tag next to the total so a reader can
+distinguish missing price data from a real zero rate.
+</Note>
+
+## Price provenance
+
+`verified_at` is an RFC3339 timestamp tied to price sources. Current rows may not be future-dated or older than
+120 days.
+
+Every current row must match an immutable `catalog/YYYY-MM-DD.yaml` snapshot selected by its verification date.
+A price change adds a new dated file. It never rewrites an old snapshot.
+
+Sources use provider-owned HTTPS pricing or model documentation. Automated proposals carry a review marker and
+cannot pass default validation until a person confirms each changed row against its sources and removes the
+marker.
+
+Capability provenance has its own timestamp. Updating a non-price capability does not pretend that price was
+re-verified on that day.
+
+## Validate a change
+
+From the catalog package directory:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 validate_catalog.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+From repository root:
+
+```bash
+pnpm --filter @caveman/provider-catalog build
+pnpm --filter @caveman/provider-catalog lint
+pnpm --filter @caveman/provider-catalog test
+```
+
+Validation rejects duplicate YAML keys, duplicate provider/model/region identities, unsafe identifiers, invalid
+rates, stale provenance, broken aliases, unavailable replacements, unknown fields, and price changes without a
+matching snapshot.
+
+## Lifecycle and routing
+
+Lifecycle distinguishes discovery, review, routing eligibility, and retirement. A reviewed price row is not
+automatically eligible for routing. Routing needs its own capability and evidence gates outside this data file.
+
+Aliases stay provider-local, may not collide with canonical model ids, may not form cycles, and may not resolve to
+a retired or missing model.
+
+## What this catalog does not prove
+
+The table can support list-price accounting from observed usage. It does not turn inferred local token reductions
+into saved money, prove a contract rate, or compare against an invoice. Those claims need observed traffic and the
+right accounting authority.

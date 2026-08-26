@@ -1,0 +1,97 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("engine/tokens");
+
+The engine needs a stable local token count to decide whether a transform is smaller. Its default counter uses an
+offline `o200k_base` tokenizer and records enough identity to say exactly which counter produced a result.
+
+<Facts rows={[
+  ["Backend", <code key="b">tiktoken-go/o200k_base</code>],
+  ["Pinned revision", <code key="r">github.com/tiktoken-go/tokenizer@v0.8.0</code>],
+  ["Input surface", "Raw text, with no normalization."],
+  ["Network", "None."],
+  ["Product basis", <code key="p">inferred</code>],
+]} />
+
+## What exact means here
+
+For valid UTF-8, the counter returns the exact result of the pinned `o200k_base` codec on the raw string. That is
+exact for this local backend and this input surface.
+
+It is not an exact provider bill. Providers may count a request envelope, messages, tools, cached input, or model-
+specific tokens differently. Provider-reported usage from the real response remains authoritative for spend.
+
+The code keeps these two claims separate:
+
+```text
+local tokenizer result   -> deterministic local evidence
+provider response usage  -> observed provider evidence
+```
+
+Public compression reports still use `basis: "inferred"` because a local counter did not observe the bill.
+
+## Fallback counter
+
+If the codec cannot be constructed, or if a count fails, the engine uses a deterministic approximation:
+
+```text
+max(1, floor(UTF-8 rune count / 4))
+```
+
+Empty input counts as zero. Invalid UTF-8 also takes the approximation path. Detailed count evidence labels this
+backend `approx/chars-per-four`, marks it modeled rather than exact, and records the fallback reason.
+
+<Note tone="honest" title="Approximation is visible">
+The fallback is not presented as an `o200k_base` result. Backend, revision, semantic digest, exactness, and reason
+travel with detailed evidence so callers can reject modeled counts when their gate needs a pinned tokenizer.
+</Note>
+
+## Provider-specific registry
+
+The token package also supports exact provider, model, and surface bindings. A binding must name a reviewed local
+backend. Unknown or unsupported tuples return `unmeasured`.
+
+They do not silently fall back to a nearby model or the default counter. A caller that wants a modeled fallback
+must choose it explicitly.
+
+Supported surfaces are:
+
+- Raw text
+- Messages
+- Tools
+- Full request envelope
+
+A backend may support one surface without supporting the others. Exactness never expands beyond the surface in
+its descriptor.
+
+## How compression uses it
+
+The engine counts input and candidate output with the same counter. A candidate is used only when output count is
+strictly lower. Equal counts pass through.
+
+```bash
+cat payload.json | caveman-engine compress > compact.txt
+caveman-engine stats
+```
+
+Reports include tokens before, tokens after, ratio, and basis. The ratio is a property of that payload and run. It
+is not annualized, converted to currency, or relabeled `verified`.
+
+## Determinism and cache identity
+
+The `o200k_base` descriptor pins backend name, module revision, semantic contract digest, artifact digest, and
+surface. That identity lets caches and build locks distinguish a real counter change from the same name backed by
+different code.
+
+No Unicode normalization runs before counting. The same byte sequence and counter identity produce the same
+result.
+
+## What the counter cannot tell you
+
+- What a provider charged for a request
+- How cached input was billed
+- Which model answered
+- Whether compression preserved answer quality
+- A monthly or dollar saving
+
+Use provider usage for observed token accounting and graders for quality. Keep local token estimates labeled
+`inferred`.

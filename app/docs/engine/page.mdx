@@ -47,12 +47,11 @@ original that match, ranked by BM25, which is usually what an agent actually wan
 Detection reads the bytes and answers with a content type. The type selects the compressor. There is no
 model call and no configuration step in that path.
 
-`json` · `log` · `code` · `diff` · `search-result` · `text` · `toon` · `html` · `a11y` · `terminal` ·
-`tabular` · `config`
+`json` · `log` · `code` · `diff` · `search-result` · `text` · `html` · `terminal` · `tabular` · `config`
 
-Two compressors are reachable only by asking for them: the tool-schema compressor and the TOON encoder.
-Neither is ever selected automatically, because guessing that a caller wanted a different wire format
-would be a surprise rather than an optimisation.
+Five routes require an explicit type: `toolschema`, `toolschema-annotations`, `toon`, `a11y`, and `repetition`.
+None is selected automatically because each needs caller intent or an input contract that byte detection cannot
+prove. See [Compressors](/docs/engine/compressors) for route-specific behaviour.
 
 <Note title="Code parsing depends on how you built it">
 Built with cgo, the code compressor uses tree-sitter and handles Go, Python and JavaScript or TypeScript.
@@ -62,9 +61,9 @@ languages pass through untouched rather than being mangled.
 
 ## Recovery
 
-Before any lossy result is emitted, the original bytes are written to a local store under a handle that is
-the SHA-256 of those bytes. Because the handle is the content hash, compressing the same payload twice
-produces the same handle and stores it once.
+Before any lossy result is emitted, the original bytes are written to a local store. Its public handle contains
+the first 16 bytes of the payload's SHA-256 digest as 32 hexadecimal characters after `ccr_`. Compressing the
+same payload twice produces the same handle and stores it once.
 
 <Facts rows={[
   ["Store", <code key="s">~/.caveman/ccr.db</code>],

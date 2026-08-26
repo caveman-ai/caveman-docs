@@ -1,0 +1,97 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("engine/compressors");
+
+The engine routes each payload to a compressor built for its shape. Detection and compression are deterministic
+local code. Neither step calls a model.
+
+## Automatic routes
+
+Detection checks stronger structural signals first and falls back to `text` when confidence is low.
+
+| Content type | What the compressor keeps |
+| --- | --- |
+| `json` | Object keys, error subtrees, array edges, error items, anomalies, change points, and query-relevant items. |
+| `terminal` | Final progress state, head and tail context, warnings, errors, and failure lines. ANSI control bytes are removed. |
+| `diff` | File and hunk headers, every changed line, and nearby unchanged context. |
+| `html` | Main readable article content rather than scripts, styles, navigation, and repeated chrome. |
+| `tabular` | Table structure and signal-bearing rows from CSV, TSV, or Markdown tables. |
+| `code` | Imports, declarations, signatures, and type structure. Function bodies may be elided. |
+| `log` | Head and tail context, warnings, errors, stack frames, and query-relevant lines. |
+| `search-result` | Top and bottom hits, diagnostic lines, and query-relevant results. |
+| `config` | Structure and selected values from YAML, TOML, and INI. |
+| `text` | Headings, opening and closing sections, marked important sections, and query-relevant prose. |
+
+The order matters. Raw terminal escape sequences are conclusive, for example, so terminal output is recognized
+before code or logs. Plain prose containing one code keyword does not become code. Unknown input takes the
+conservative `text` path.
+
+## Forced routes
+
+Some transforms are available only when a caller names them:
+
+| Type | Why it is explicit |
+| --- | --- |
+| `toolschema` | Changes model-visible tool descriptions and annotations. The caller must identify a tool catalog. |
+| `toolschema-annotations` | Strips a reviewed allowlist of schema annotations without treating arbitrary JSON as schema. |
+| `toon` | Re-encodes JSON into another wire format. Automatic selection would surprise a JSON caller. |
+| `a11y` | Expects a Chrome accessibility tree and emits a compact UID view. Ordinary JSON must not enter this path. |
+| `repetition` | Collapses consecutive identical lines. Repetition alone does not identify the payload's meaning. |
+
+Do not depend on a published compressor count. The registry changes as content shapes and safety contracts
+change. Depend on the named type you need, or ask the engine for its current registry.
+
+```bash
+caveman-engine registry
+caveman-engine detect < payload.txt
+```
+
+## Elision markers
+
+Lossy compressors replace dropped runs with explicit markers. A marker states how much was removed, and some
+compressors attach invariants calculated from those exact units.
+
+```text
+… 42 lines elided (caveman) …
+… 18 context lines elided (caveman) …
+```
+
+Markers are part of the idempotence contract. Compressing an already compressed view does not keep collapsing
+its own markers or append a second contract line.
+
+## Query-aware selection
+
+JSON, logs, search results, and text can receive a query. Query-aware compressors use deterministic BM25 to keep
+matching units alongside their fixed safety anchors. They do not use embeddings or a model call.
+
+A query may change which records remain visible. It may not make the output larger than the queryless view. Exact
+original bytes remain behind the same recovery handle.
+
+## Code builds
+
+With cgo enabled, the code route uses tree-sitter for Go, Python, JavaScript, and TypeScript. A build without cgo,
+including WASM, uses Go's standard parser and compresses Go only. Unsupported languages pass through.
+
+Comment removal is opt-in. Default code compression keeps comments and Python docstrings, elides bodies, then
+parses the result again. A result that no longer parses is rejected.
+
+## Shared safety rules
+
+Every compressor returns either a candidate or `ok: false`. The engine applies the remaining gates around it:
+
+```text
+parse or shape mismatch  -> original bytes
+recovery write failure   -> original bytes
+candidate not smaller    -> original bytes
+unknown forced type      -> original bytes
+```
+
+<Note tone="honest" title="Structural retention is not semantic proof">
+Keeping errors, names, keys, signatures, or tool parameters reduces risk. It does not prove that every model will
+answer identically from every compressed view. Use task graders for that claim, and keep recovery available.
+</Note>
+
+## Reduction figures
+
+Content-type ranges shown on the engine overview are targets, not guarantees. Payload size, repetition, query,
+and important-line density decide whether a result is smaller. The engine reports the result of each run as
+`inferred`; it passes through when no reduction survives the gates.

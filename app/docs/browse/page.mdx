@@ -1,0 +1,138 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("browse");
+
+`caveman-browse` is a local Chrome driver for agents. It reads Chrome's accessibility tree, turns it into compact
+UID-addressed text, and stores raw tree bytes behind a recovery handle.
+
+<Facts rows={[
+  ["Transport", "MCP over stdio, with a direct CLI helper."],
+  ["Browser path", "Chrome DevTools Protocol."],
+  ["Snapshots", "Compressed accessibility text, not raw HTML."],
+  ["Basis", <code key="b">inferred</code>],
+  ["Licence", "BSL 1.1."],
+]} />
+
+## Build from source
+
+`caveman-browse` is not published on npm today.
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+go build -o ./bin/caveman-browse ./public/browse/cmd/caveman-browse
+```
+
+Run with no arguments to serve MCP over stdio:
+
+```bash
+./bin/caveman-browse
+```
+
+## MCP tools
+
+| Tool | Purpose |
+| --- | --- |
+| `browser_snapshot` | Navigate when a URL is supplied, wait, then return a compact accessibility view. |
+| `browser_act` | Click, type, select, scroll, or wait using a UID from the latest snapshot. |
+| `browser_eval` | Evaluate a JavaScript expression in the page. |
+| `browser_recover` | Return raw accessibility bytes, or a query-selected view of them. |
+
+Configure an MCP host with the absolute binary path:
+
+```json
+{
+  "mcpServers": {
+    "caveman-browse": {
+      "command": "/absolute/path/to/bin/caveman-browse",
+      "args": []
+    }
+  }
+}
+```
+
+## Take a useful snapshot
+
+Large pages should include the task as a query:
+
+```text
+browser_snapshot({
+  url: "https://example.com/settings",
+  query: "save notification settings"
+})
+```
+
+The query keeps matching accessible nodes and their ancestors. CCR retains full raw tree. This usually costs less
+than taking a full snapshot and recovering later.
+
+`interactive: true` keeps UID-bearing nodes and their ancestors only. It is useful for dense control surfaces but
+hides most page text. Query focus remains the better default when the agent must read.
+
+Snapshot output is text:
+
+```text
+[a1] button "Save"
+[a2] checkbox "Email alerts"
+caveman before=... view=... after=... ratio=... basis=inferred handle=ccr_...
+```
+
+Only actionable or unknown custom roles receive UID tokens. The trailing line counts the exact result delivered to
+the agent. `view` isolates compact tree cost; `after` includes the accounting line.
+
+## Act, then resnapshot
+
+```text
+browser_act({ action: "click", uid: "a1" })
+browser_act({ action: "type", uid: "a3", text: "alerts@example.com" })
+browser_act({ action: "select", uid: "a4", option: "Daily" })
+browser_act({ action: "scroll", uid: "a5" })
+browser_act({ action: "wait" })
+```
+
+UIDs belong to the latest successful snapshot. Unknown or stale UIDs fail explicitly.
+
+Click, type, select, and scroll report that dispatch succeeded, but they do not prove application state settled.
+Take another focused snapshot to verify the result. `wait` is a fixed short delay, not a condition-based page
+assertion.
+
+## Direct CLI
+
+```bash
+caveman-browse snapshot https://example.com "save settings"
+caveman-browse snapshot -i https://example.com
+caveman-browse act <uid> click
+caveman-browse eval "document.title"
+caveman-browse recover <handle>
+caveman-browse close
+```
+
+Direct commands share one detached, isolated Chrome until `close`.
+
+## Navigation and limits
+
+Navigation accepts HTTP, HTTPS, `about:blank`, and bounded `data:text/html` URLs. Local files and privileged browser
+schemes fail with `cave_browser_url_denied`.
+
+Snapshot wait is limited to 30 seconds. Query text is limited to 4 KiB, and a data URL to 1 MiB. A snapshot that
+cannot produce a smaller recovery-backed UID view fails and keeps the previous UID map rather than dumping raw AX
+JSON into model context.
+
+## Browser selection
+
+Environment variables select runtime behaviour:
+
+```text
+CAVEMAN_BROWSE_CHROME          explicit Chrome executable
+CAVEMAN_BROWSE_CDP             attach to an existing CDP endpoint
+CAVEMAN_BROWSE_USER_DATA_DIR   profile directory
+CAVEMAN_BROWSE_HEADFUL=1       show the browser window
+CAVEMAN_BROWSE_EPHEMERAL=1     use in-memory recovery
+```
+
+Default mode is headless. The recovery store otherwise uses the shared CCR path.
+
+<Note tone="honest" title="Accessibility is not vision">
+This tool exposes accessibility structure and page JavaScript. It does not prove visual layout, screenshot
+appearance, animation, or pointer geometry. Use a visual browser tool when those properties matter.
+</Note>
+
+`browser_eval` runs caller-supplied JavaScript in the active page. Treat it as code execution in that browser
+session and use it only on pages you intend to control.
