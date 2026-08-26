@@ -55,12 +55,44 @@ for (const m of navSource.matchAll(/capability:\s*"([^"]+)"/g)) {
  * The nav is the only place that decides what is a link and what is marked
  * "soon". Without this check a typo there ships as a 404 in the sidebar, the
  * sitemap and llms.txt at once. */
+const navSlugs = new Set();
 for (const m of navSource.matchAll(/\{\s*title:[^}]*?slug:\s*"([^"]*)"([^}]*)\}/g)) {
-  if (/soon:\s*true/.test(m[2])) continue;
+  const soon = /soon:\s*true/.test(m[2]);
+  navSlugs.add(m[1]);
   const page = join(ROOT, "app/docs", m[1], "page.mdx");
-  if (!existsSync(page)) {
+  const exists = existsSync(page);
+
+  if (!soon && !exists) {
     errors.push(`lib/docs-nav.ts links "/docs/${m[1]}" but app/docs/${m[1]}/page.mdx does not exist.`);
   }
+  /* The reverse is just as broken and much easier to miss: the page builds and
+   * is reachable, while the sidebar still calls it planned and the sitemap,
+   * llms.txt and the machine index all leave it out. Finishing a page means
+   * removing `soon: true`, not only writing the file. */
+  if (soon && exists) {
+    errors.push(
+      `app/docs/${m[1]}/page.mdx exists but lib/docs-nav.ts still marks it soon: true, so nothing links to it. Remove the flag.`,
+    );
+  }
+}
+
+/* A page with no nav entry at all is worse: it is in no index anywhere. */
+for (const file of walkPages(join(ROOT, "app/docs"))) {
+  if (!navSlugs.has(file)) {
+    errors.push(`app/docs/${file}/page.mdx has no entry in lib/docs-nav.ts, so it appears in no index.`);
+  }
+}
+
+function walkPages(dir, prefix = "") {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (!statSync(full).isDirectory()) continue;
+    const slug = prefix ? `${prefix}/${entry}` : entry;
+    if (existsSync(join(full, "page.mdx"))) out.push(slug);
+    out.push(...walkPages(full, slug));
+  }
+  return out;
 }
 
 /* -- 2 and 3. scan authored content -------------------------------------- */

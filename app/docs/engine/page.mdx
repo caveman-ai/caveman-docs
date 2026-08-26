@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("engine");
+
+<DocSchema slug="engine" />
 
 The engine reduces a payload before it reaches a model. It is written in Go, it links into other tools as
 a library, and it also runs as a standalone binary that reads stdin and writes stdout.

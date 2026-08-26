@@ -57,16 +57,22 @@ in any agent that can read files and run commands.
 ## Adding a page
 
 1. Add the entry to `lib/docs-nav.ts` with its `capability` and `license`.
-2. Create `app/docs/<slug>/page.mdx`, starting with:
+2. Create `app/docs/<slug>/page.mdx`, starting with exactly:
    ```mdx
    import { docMetadata } from "@/lib/site";
+   import { DocSchema } from "@/components/seo/doc-schema";
    export const metadata = docMetadata("<slug>");
+
+   <DocSchema slug="<slug>" />
    ```
 3. Remove `soon: true` from the entry.
 4. `npm run build`.
 
-A nav entry that is not `soon` and has no `page.mdx` fails the gate, so a broken
-sidebar link cannot ship.
+The gate refuses both directions of drift: a nav entry that is not `soon` with
+no `page.mdx`, and a `page.mdx` whose entry still says `soon` or which has no
+entry at all. The second is the easy one to miss, because the page builds and
+is reachable while the sidebar, the sitemap and every machine index leave it
+out.
 
 ## Commands
 
@@ -107,15 +113,39 @@ Full rules are in the authoring skill's `references/writing-rules.md`.
 
 ## For machines
 
-Every page is also plain text, generated from the same `.mdx` source the HTML
-renders from, so the two cannot drift.
+This is a first-class surface, not an afterthought. Everything below is
+generated from the same sources the HTML renders from, so nothing can drift.
 
 | Path | What |
 |---|---|
-| `/llms.txt` | Index, one line per page, grouped by layer |
-| `/llms-full.txt` | The whole site in one file |
-| `/docs/<slug>.md` | Any page as Markdown |
-| `/sitemap.xml` | Only pages that exist |
+| `/llms.txt` | The reading index. Spec shape: H1, summary, prose, H2 link lists. Carries the measurement vocabulary. |
+| `/llms-full.txt` | Every page in one file, with a contents list |
+| `/llms-index.json` | The routing index: headings, anchors, licences, capabilities, word counts, last-changed dates, public surfaces |
+| `/docs/<slug>.md` | Any page as Markdown, with YAML front matter |
+| `/og?title=&summary=&eyebrow=` | Social card for any page |
+| `/sitemap.xml` | Only pages that exist, each with a real `lastmod` |
+
+**Content negotiation.** `middleware.ts` answers a page URL with a 303 to its
+`.md` twin when `Accept` prefers `text/markdown` over `text/html` by q-value.
+The decision is made on `Accept` alone, never on the user agent, because
+serving different content by agent is cloaking. It redirects rather than
+rewrites: Next owns `Vary` on rendered pages, so one URL cannot safely carry
+two representations, and the redirect is `no-store` so the worst a cache can
+do is hand HTML to a Markdown client. Do not turn this back into a rewrite.
+
+Every doc response also carries
+`Link: </docs/x.md>; rel="alternate"; type="text/markdown"`, so one HEAD is
+enough to discover the twin.
+
+**Structured data.** Each page emits `TechArticle` plus `BreadcrumbList` from
+`<DocSchema slug="..." />`, a server component, so the JSON-LD is in the HTML
+source for scrapers that do not run JavaScript. `/docs/counting` also emits a
+`DefinedTermSet` for the measurement vocabulary, because a summariser that
+flattens `inferred` into "saves money" is wrong in a way that propagates.
+
+**Anchors.** `lib/page-index.ts` slugs headings from the Markdown source and
+`mdx-components.tsx` slugs them from rendered text. The two must agree or a
+published anchor points at nothing. Change one, change the other.
 
 ## Deploying
 

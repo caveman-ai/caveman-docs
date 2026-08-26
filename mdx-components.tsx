@@ -17,11 +17,20 @@ import { StackDiagram, RequestPath, OpenCoreBoundary } from "@/components/docs/d
  *  <StackDiagram /> without an import line at the top of the Markdown.
  * ======================================================================== */
 
+/* Recurse into elements so a heading containing inline code or a link slugs
+ * from its full text. `lib/page-index.ts` reproduces this on the Markdown
+ * source, and the two must agree or a published anchor points at nothing. */
+function textOf(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (React.isValidElement(node)) {
+    return textOf((node.props as { children?: React.ReactNode }).children);
+  }
+  return "";
+}
+
 function slugify(children: React.ReactNode): string {
-  const text = React.Children.toArray(children)
-    .map((c) => (typeof c === "string" || typeof c === "number" ? String(c) : ""))
-    .join(" ");
-  return text
+  return textOf(children)
     .toLowerCase()
     .replace(/[^\w\s-]/g, "")
     .trim()

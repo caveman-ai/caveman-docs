@@ -11,22 +11,51 @@ export const SITE = {
     "Documentation for the open Caveman stack: the agent skill, the compression engine, and cavemem. What each layer does, what it costs, and how every number is counted.",
 } as const;
 
+export function ogUrl(title: string, summary: string, eyebrow?: string): string {
+  const params = new URLSearchParams({ title, summary });
+  if (eyebrow) params.set("eyebrow", eyebrow);
+  return `${SITE.url}/og?${params.toString()}`;
+}
+
 /** Page metadata, read from the nav so a page never restates its own title. */
 export function docMetadata(slug: string): Metadata {
   const doc = DOCS_FLAT.find((d) => d.slug === slug);
   if (!doc) return {};
   const layer = layerOf(doc.layer);
-  const title = layer && doc.slug === layer.id ? `${doc.title}: ${layer.name}` : doc.title;
+  const title = layer && doc.slug === layer.id ? layer.name : doc.title;
   const url = `${SITE.url}${docPath(slug)}`;
+  const markdown = `${url}.md`;
+  const eyebrow = layer ? `${String(layer.rank).padStart(2, "0")} ${layer.name}` : "Caveman docs";
+  const image = ogUrl(title, doc.blurb, eyebrow);
+
   return {
     title,
     description: doc.blurb,
     alternates: {
       canonical: url,
-      // The plain-text mirror, announced so agents can find it without guessing.
-      types: { "text/markdown": `${url}.md` },
+      // The plain-text twin, announced so a machine can find it without
+      // guessing a URL scheme or parsing the page.
+      types: { "text/markdown": markdown },
     },
-    openGraph: { title: `${title} · Caveman docs`, description: doc.blurb, url, type: "article" },
-    twitter: { card: "summary_large_image", title: `${title} · Caveman docs`, description: doc.blurb },
+    openGraph: {
+      title: `${title} · Caveman docs`,
+      description: doc.blurb,
+      url,
+      type: "article",
+      images: [{ url: image, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} · Caveman docs`,
+      description: doc.blurb,
+      images: [image],
+    },
+    other: {
+      // Read by tools that scan meta tags rather than link relations.
+      "caveman:markdown": markdown,
+      ...(doc.license ? { "caveman:license": doc.license } : {}),
+      ...(doc.capability ? { "caveman:capability": doc.capability } : {}),
+      ...(layer ? { "caveman:layer": `${layer.rank} ${layer.name}` } : {}),
+    },
   };
 }

@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("telemetry");
+
+<DocSchema slug="telemetry" />
 
 The CLI sends anonymous usage counts. It is on by default, it is disclosed on the first run that would
 send anything, and there are three separate ways to turn it off.
