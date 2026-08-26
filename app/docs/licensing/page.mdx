@@ -1,0 +1,81 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("licensing");
+
+Caveman uses three licences, one per kind of surface. Which one applies depends on what a piece of code
+is, not on how much you use it. Nothing here has a usage threshold that changes your terms.
+
+<OpenCoreBoundary />
+
+## MIT: adoption and interop
+
+Anything a developer installs to work with Caveman is MIT, and stays MIT inside your commercial product.
+
+The skill, the CLI, the TypeScript and Python SDKs, the Agent SDK and its initialiser, cavekit, the eval
+graders, the extension shell, the wire contracts, the provider catalog, and the JavaScript and Python
+clients for cavemem.
+
+## BSL 1.1: the engine-linked runtime
+
+The compression engine and everything that links it: the cavemem core, the caveman-shrink core, the MCP
+server core, caveman-browse, and the shared platform libraries.
+
+BSL 1.1 is source available, not open source. The distinction is one paragraph long.
+
+### What you may do
+
+Read the source, modify it, run it. Internal evaluation, local development, CI, integration work, and
+self-hosted use for your own first-party traffic, production included.
+
+### What needs a commercial licence
+
+Offering Caveman or its functionality to third parties as a hosted, managed or embedded service. That is
+the OEM and platform boundary, and it is the only restriction.
+
+### When it becomes Apache 2.0
+
+Each BSL version converts on the earlier of 21 June 2030, or the fourth anniversary of that version's
+first public distribution under BSL. The conversion is per release, so an old version converts before a
+new one.
+
+## Commercial: Caveman Cloud
+
+Multi-tenancy, verified accounting, governance, billing and the hosted dashboards. These run on our
+machines under an account and are not distributed.
+
+## Mixed directories
+
+Two packages ship an MIT launcher around a BSL binary: the MCP server and caveman-shrink. In those
+directories the launcher terms are in `LICENSE.launcher`, and the Go source plus downloaded-binary terms
+are in `LICENSE` and `BINARY_LICENSE.md`.
+
+## The default for new code
+
+One sentence, quoted because the wording is the rule:
+
+> A new module that imports, links, embeds, or ships as part of Engine-linked runtime is BSL 1.1 unless a
+> later ADR explicitly classifies it as MIT adoption surface.
+
+## Contributing
+
+In MIT areas, inbound equals outbound. Your contribution is MIT.
+
+In BSL areas, contributions need a DCO sign-off and a relicense grant to Julius Brussee. That grant is
+what makes the eventual Apache 2.0 conversion possible, since a licence cannot be changed on code the
+project does not have the rights to change.
+
+## Third-party code
+
+The pixel renderer is a Go port of pxpipe, which is MIT, and uses glyph atlases from Spleen 5x8
+(BSD 2-Clause) and GNU Unifont (OFL 1.1, or GPLv2 with the font embedding exception). caveman-browse
+vendors chromedp, which is MIT. Notices ship next to the code in each case.
+
+## Trademarks
+
+"Caveman" and the Caveman logos are trademarks of Julius Brussee. A code licence grants no trademark
+rights. Nominative use is fine when it is true: "Powered by Caveman" and "Optimized by Caveman" are both
+allowed if that is what your product does.
+
+<Note title="This page is a summary">
+The authoritative text is `LICENSING.md` and `TRADEMARKS.md` in the repository, alongside the licence
+files themselves. Where this page and those files disagree, those files win.
+</Note>

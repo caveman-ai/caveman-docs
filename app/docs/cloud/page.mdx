@@ -1,0 +1,46 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("cloud");
+
+Everything else on this site runs on your machine and reports `inferred`. Caveman Cloud is the layer
+across the network boundary, and it exists to answer one question the local tools structurally cannot.
+
+## The question local tools cannot answer
+
+A local tool sees your bytes. It does not see your invoice.
+
+It can tell you a payload got 82 percent smaller. It cannot tell you what that was worth, because the
+price depends on the model, the provider, the cache state at the time, and your contract. It also cannot
+tell you whether the smaller payload produced the same answer, because it only saw one arm of the
+comparison.
+
+That gap is the whole reason the managed plane exists. It runs both arms, holds the price table, and
+compares against traffic that actually happened.
+
+<Note tone="honest" title="Status">
+Caveman Cloud is in private development and the waitlist is open. This page describes what it is for, not
+how it is built. When it opens, its own surfaces get documented here in full.
+</Note>
+
+## What it adds
+
+<Facts rows={[
+  ["Fleet visibility", "One view across every agent, developer and workflow, instead of one local database per laptop."],
+  ["Spend attribution", "Which person, project, agent or branch produced which part of the bill."],
+  ["Eval gates", "An optimisation is only applied to traffic that passed a grader on that traffic."],
+  ["Verified numbers", "The only place the word verified is allowed, because it is the only place with both arms of the comparison."],
+]} />
+
+## The vocabulary does not change
+
+The same rules that bind the local tools bind the managed plane. `inferred` stays `inferred` when it
+arrives from a laptop. A number does not get promoted by crossing a network.
+
+The four money figures are kept separate and are never added together: measured spend, inferred headroom,
+verified savings, and observed outcome. There is no fifth bucket, and in particular there is no
+"realised savings" figure that quietly blends the others.
+
+## Getting access
+
+The waitlist and contact details are on [caveman.so](https://caveman.so). Self-hosting the open layers
+needs no account and no waitlist. If all you want is compression on your own machine, you already have
+everything you need in the three layers below this one.

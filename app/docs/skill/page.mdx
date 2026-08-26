@@ -1,0 +1,113 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("skill");
+
+The skill is the cheapest layer in the stack because it is not software. It is a file your agent reads,
+and it changes how the agent writes for the rest of the session.
+
+<Facts rows={[
+  ["What it is", "One Markdown instruction file, plus optional commands and subagent presets."],
+  ["Runtime", "None. No process, no port, no config file."],
+  ["Account", "Not required."],
+  ["Licence", "MIT."],
+  ["Install", <code key="i">npx skills add JuliusBrussee/caveman</code>],
+]} />
+
+## Install
+
+```bash
+npx skills add JuliusBrussee/caveman
+```
+
+Without `-g` this writes into `./.agents/skills` under your current directory rather than a global
+location. Several agents have their own native path:
+
+```bash
+# Claude Code
+claude plugin marketplace add JuliusBrussee/caveman
+claude plugin install caveman@caveman
+
+# Gemini CLI
+gemini extensions install https://github.com/JuliusBrussee/caveman
+
+# Codex CLI
+npx skills add JuliusBrussee/caveman -a codex
+
+# Cursor, which needs -g
+npx skills add JuliusBrussee/caveman -a cursor -g
+
+# opencode
+npx -y github:JuliusBrussee/caveman -- --only opencode
+```
+
+There is also a full installer that wires up hooks and a status line for Claude Code. It is pinned to a
+tag, it is safe to re-run, and it supports `--dry-run`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.3.1/install.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.3.1/install.ps1 | iex
+```
+
+## What it removes
+
+Articles, filler, pleasantries, hedging and tool-call narration. Sentence fragments are allowed.
+Decorative tables and emoji are not.
+
+## What it will not touch
+
+This list is the reason the skill is safe to leave on.
+
+- Code blocks, verbatim
+- Function, method and API names
+- CLI commands and flags
+- Commit type keywords
+- Exact error strings
+- The language you are writing in
+
+It also refuses to invent abbreviations. `cfg`, `impl`, `req`, `res` and `fn` are banned, and so are
+arrow characters standing in for words. The reason is measurable rather than stylistic: the tokenizer
+splits those the same way it splits the full word, so the abbreviation saves nothing and costs clarity.
+
+## When it steps aside
+
+The skill drops out of terse mode on its own for:
+
+- Security warnings
+- Confirmations of anything irreversible
+- Ambiguous multi-step sequences
+- Any case where compressing the answer would create the ambiguity
+
+## Levels
+
+```text
+/caveman lite
+/caveman full          # default
+/caveman ultra
+/caveman wenyan-lite
+/caveman wenyan-full
+/caveman wenyan-ultra
+/caveman off
+```
+
+`off`, "stop caveman" and "normal mode" all do the same thing.
+
+## What else comes with it
+
+One install also brings a set of commands and work-pattern skills.
+
+<Facts rows={[
+  ["Commands", <code key="c">/caveman-commit · /caveman-review · /caveman-compress · /caveman-stats · /caveman-help</code>],
+  ["Subagent presets", "cavecrew-investigator, cavecrew-builder, cavecrew-reviewer"],
+  ["Work patterns", "investigate-first, lean-build, surgical-patch, safe-refactor, migration, verify-and-stop"],
+]} />
+
+## What it saves
+
+On the committed benchmark suite of ten prompts, output tokens drop by about 65 percent on average, with
+a range of 22 to 87 percent. That is a per-run inferred estimate measured on that suite. It is not a
+promise about your bill, and it covers output tokens only.
+
+The range matters more than the average here. A tightly scoped refactor prompt saved 22 percent. A long
+explanatory answer saved 87 percent. Which end you land on depends on how much of your traffic is prose.

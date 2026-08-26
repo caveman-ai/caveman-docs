@@ -1,0 +1,103 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("counting");
+
+Every number Caveman shows you carries a word that says how it was obtained. The words are not
+interchangeable and the code does not let them blur.
+
+## Three words, kept apart
+
+<Facts rows={[
+  ["inferred", "A local estimate from bytes, token counters and local records. Every public offline tool emits this."],
+  ["measured", "Observed traffic. Real, but not proof that a dollar was saved."],
+  ["verified", "Reserved for hosted rollout systems that can compare against a bill. No tool on this site emits it."],
+]} />
+
+If you install anything documented here and it shows you a percentage, that percentage is `inferred`.
+There is no configuration that upgrades it.
+
+## The four rules
+
+### 1. No fake savings
+
+Headline figures in these docs are local examples or target ranges. They stay labelled `inferred`, and
+they are never multiplied out into a monthly saving. Where the code only supports a range, the docs show
+the range rather than picking a number from inside it.
+
+### 2. Byte safe
+
+`record` mode is pass-through. On a parse problem, an unsupported input, a missing recovery store, or an
+output that is not actually smaller, the engine keeps the original bytes.
+
+```text
+record mode        -> never transforms
+transform error    -> forward the original bytes
+result not smaller -> keep the original
+```
+
+### 3. No placeholders, fail closed
+
+No stub responses on shippable paths, and unknown cases resolve toward the conservative answer.
+
+```text
+unknown engine mode    -> record, which is pass-through
+low-confidence content -> text
+unknown grader         -> passed: false
+unknown route          -> 404
+unknown model price    -> zero, plus an "unpriced:" tag
+```
+
+An unpriced model contributes zero to a cost figure and says so. It does not get a guessed price.
+
+### 4. Recoverable, so lossy stays honest
+
+Compressors drop bytes from the model-visible payload. A lossy result is emitted only after the original
+has been stored under a content-addressed handle, and `retrieve(handle)` returns the original byte for
+byte.
+
+<Note tone="honest" title="Why this is a rule and not a feature">
+If a tool lies about savings, every report and every rollout decision downstream inherits that lie.
+Public Caveman tools report what they can support locally, and stop there.
+</Note>
+
+## Per run, never per month
+
+An inferred ratio is a property of one payload on one run. Projecting it forward assumes your next month
+looks like that payload, which nobody can know.
+
+So the engine reports a ratio and does not offer to annualise it. There is no setting for this.
+
+## Tokens are not money
+
+On the local path, savings are counted in tokens and have no dollar field anywhere in the data structure.
+There is no token-to-dollar multiplication at any layer.
+
+This matters because token prices differ per model, per provider, per cache state and per contract. A
+local tool that has not seen your invoice cannot convert one into the other, so it does not try.
+
+## What the counter actually is
+
+The default token counter is a real BPE tokenizer using the `o200k_base` encoding, with the vocabulary
+compiled into the binary. It is deterministic, so the same bytes always produce the same count, and it is
+offline, so it works air-gapped and never sends your payload anywhere.
+
+If the embedded codec fails to load, it degrades to a characters-divided-by-four approximation. That
+approximation errs low. It never guesses high.
+
+Provider-reported usage from your actual API response stays authoritative for spend. The local counter is
+an estimate of that, and the two are kept in separate fields.
+
+## Numbers you will see quoted
+
+Both of these are real measurements with real limits, and the limits travel with the number.
+
+**The skill, output tokens.** About 65 percent fewer on average across ten prompts, ranging from 22 to 87
+percent. Measured on the committed benchmark suite. Output tokens only. A per-run inferred estimate, not
+a bill-savings promise.
+
+**The wrap path, input tokens.** 33.2 percent fewer provider-reported input tokens across 18 paired runs
+of six cases, with a case-clustered 95 percent interval of 14.6 to 48.5 percent. All 18 exact-answer
+checks passed. One of the six cases regressed by 9.9 percent and stays in the aggregate, because dropping
+a negative case would make the average a fiction.
+
+That second result is controlled benchmark evidence on a pinned agent build. It is not production
+traffic, not a provider invoice, and not `verified`.

@@ -1,0 +1,111 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("telemetry");
+
+The CLI sends anonymous usage counts. It is on by default, it is disclosed on the first run that would
+send anything, and there are three separate ways to turn it off.
+
+This page lists the exact contents. Nothing here is a summary of a longer policy: this is the payload.
+
+<Note tone="honest" title="Why this exists">
+The local tools are free and stay free. Anonymous counts are how we see which commands people actually
+reach for, which ones fail, and whether anyone comes back after the first day. That is what tells us
+where to spend the work, and it is the reason the open layers can stay free instead of needing a licence
+to justify themselves. If you would rather not be counted, the switch is one line and we do not treat it
+as a loss.
+</Note>
+
+## What is sent
+
+Two kinds of event, both counts.
+
+**Command events.** One per command you run.
+
+<Facts rows={[
+  ["Event name", "Which of the known command names ran."],
+  ["CLI version", "The version of @caveman-ai/cli."],
+  ["Platform", "Operating system, architecture, and Node major version."],
+  ["Duration", "How long the command took."],
+  ["Exit class", "Whether it succeeded, and if not, which class of failure."],
+]} />
+
+**Engine session events.** One aggregate after a local wrapped session that was eligible for
+compression.
+
+<Facts rows={[
+  ["Counts", "Request count and token counts."],
+  ["Eligibility", "How much of the session was eligible for compression."],
+  ["Before and after", "Measured totals and the amount cut."],
+  ["Cache counters", "Hit and miss counts."],
+  ["Coverage flags", "Which parts of the session could be measured at all."],
+  ["Mode", "observe or compress."],
+]} />
+
+There is also a one-time `first_run` event carrying scan aggregates.
+
+## What is never sent
+
+This list is enforced server side by an allowlist, not by convention on the client.
+
+- Prompts, completions, or any model output
+- Your code, file paths, or URLs
+- Command arguments
+- Provider or model names
+- Request, session or account identifiers
+- Payload hashes
+- Any dollar figure
+
+The token figures in a session event are local `inferred` measurements. They cannot become a verified
+saving, because there is no account attached to them and no bill to compare against.
+
+## The anonymous id
+
+The first interactive run of a real command writes a stable anonymous id to your config, so a returning
+user is not counted as a new one. It is not linked to an account, and there is nothing on our side that
+can turn it back into a person.
+
+Automation never mints one. CI and non-interactive runs default to off and do not persist a decision,
+because generating an anonymous identity for a build machine would corrupt the counts it is meant to
+inform.
+
+## Turning it off
+
+Any one of these is enough.
+
+```bash
+caveman telemetry off
+```
+
+```bash
+export CAVEMAN_TELEMETRY=0
+```
+
+```bash
+export DO_NOT_TRACK=1
+```
+
+`DO_NOT_TRACK` is the cross-tool convention and it is honoured here without needing to know that Caveman
+exists. Setting `CAVEMAN_TELEMETRY=1` turns it on for a single automated run without persisting a
+decision.
+
+## If you already answered the old prompt
+
+Earlier versions asked a yes or no question on first run. Whichever way you answered, that answer is kept
+and is never rewritten by the current default. Opting out once means opting out permanently.
+
+## The disclosure line
+
+On the first interactive run that would send anything, the CLI prints this and does not hide it behind a
+flag:
+
+```text
+anonymous usage stats on — command + aggregate engine counts only,
+never prompts, code, or file paths · caveman telemetry off
+```
+
+## What is deliberately outside this
+
+Agent SDK economic receipts contain a per-call spend tree. They are never sent to this endpoint. Moving
+them anywhere would need an authenticated, account-scoped transport with explicit consent, and that is a
+different decision from this one.
+
+Download counts come from the npm registry. They are not collected by the client.

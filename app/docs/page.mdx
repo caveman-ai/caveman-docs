@@ -1,0 +1,70 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("");
+
+Caveman is an efficiency stack for AI agents. It sits between an agent and the model API it calls, and it
+removes cost at four different points. Each point is a separate piece of software with its own licence,
+and you can adopt any one of them without the others.
+
+<StackDiagram />
+
+The layer at the bottom is a set of instructions. It has no runtime, no daemon, and no account. The layer
+at the top runs on our machines and is the only paid part. This site documents everything below the
+network boundary in full. For the managed plane it documents the shape, not the internals.
+
+## What each layer does
+
+### 00 Skill
+
+A skill is a persistent instruction set your coding agent reads before it answers. It cuts filler,
+narration and hedging out of the agent's own output, and it is explicit about what it must never touch:
+code blocks, function names, CLI commands and exact error strings stay byte for byte.
+
+It costs nothing to run because it is not software. It is text your agent already reads.
+
+### 01 Engine
+
+The engine compresses payloads on their way to a model. It detects what a payload is, routes it to a
+compressor built for that shape, and stores the original bytes under a content-addressed handle before it
+removes anything. If the agent needs what was dropped, it asks for the handle and gets the original back
+exactly.
+
+### 02 Memory
+
+cavemem holds the context you would otherwise paste into every session. It stores text once, recalls the
+parts a question actually needs, and compresses each hit through the engine on the way out.
+
+### 03 Cloud
+
+Caveman Cloud is the managed plane. It is where a fleet's numbers stop being local estimates and become
+something a finance team can read. It is in private development and the waitlist is open.
+
+## What the numbers mean
+
+Every local tool on this site reports `inferred`. That word is load bearing. It means a per-run estimate
+computed on your machine from an offline token counter, and it is never turned into a monthly figure or
+a dollar amount.
+
+No tool in this repository can emit `verified`. That label is reserved for hosted rollout systems that
+can compare against a real bill.
+
+<Note tone="honest" title="The short version">
+If a number here has no basis label next to it, treat it as an example rather than a promise.
+[How numbers are counted](/docs/counting) explains the four rules the code follows.
+</Note>
+
+## Where to go next
+
+<CardGrid>
+  <Card href="/docs/quickstart" title="Quickstart" meta="5 min">
+    Install the skill, then compress something real and read the report.
+  </Card>
+  <Card href="/docs/architecture" title="Architecture">
+    The path one request takes, and where the open-core line falls.
+  </Card>
+  <Card href="/docs/skill" title="The skill" meta="MIT">
+    One command, thirty agents, no runtime.
+  </Card>
+  <Card href="/docs/engine" title="The engine" meta="BSL 1.1">
+    Content-aware compression that keeps what an answer depends on.
+  </Card>
+</CardGrid>

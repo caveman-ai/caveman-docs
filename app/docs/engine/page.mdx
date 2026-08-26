@@ -1,0 +1,112 @@
+import { docMetadata } from "@/lib/site";
+export const metadata = docMetadata("engine");
+
+The engine reduces a payload before it reaches a model. It is written in Go, it links into other tools as
+a library, and it also runs as a standalone binary that reads stdin and writes stdout.
+
+<Facts rows={[
+  ["Licence", "BSL 1.1, converting to Apache 2.0 after four years."],
+  ["Distribution", "Source only. There is no npm, pip, Docker or Homebrew package."],
+  ["Binary", <code key="b">caveman-engine</code>],
+  ["Input limit", "64 MiB on stdin, refused with cave_input_too_large."],
+  ["Reports", <>Always <code>inferred</code>. It cannot emit <code>verified</code>.</>],
+]} />
+
+## Build it
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+go build -o ./bin/caveman-engine ./public/engine/cmd/caveman-engine
+```
+
+## Use it
+
+The engine reads stdin and writes the result to stdout. The accounting report goes to stderr, so you can
+pipe the output without stripping the numbers out of it.
+
+```bash
+cat large-payload.json | caveman-engine compress > compressed.txt
+```
+
+```bash
+caveman-engine detect < payload.txt
+caveman-engine retrieve <handle> > original.txt
+caveman-engine retrieve <handle> "connection pool" > narrowed.txt
+caveman-engine stats
+caveman-engine registry
+```
+
+`retrieve` with no query returns the original bytes exactly. With a query it returns the sections of the
+original that match, ranked by BM25, which is usually what an agent actually wanted.
+
+## How it picks a compressor
+
+Detection reads the bytes and answers with a content type. The type selects the compressor. There is no
+model call and no configuration step in that path.
+
+`json` · `log` · `code` · `diff` · `search-result` · `text` · `toon` · `html` · `a11y` · `terminal` ·
+`tabular` · `config`
+
+Two compressors are reachable only by asking for them: the tool-schema compressor and the TOON encoder.
+Neither is ever selected automatically, because guessing that a caller wanted a different wire format
+would be a surprise rather than an optimisation.
+
+<Note title="Code parsing depends on how you built it">
+Built with cgo, the code compressor uses tree-sitter and handles Go, Python and JavaScript or TypeScript.
+Built without cgo, or as WASM, it falls back to the Go standard library parser and handles Go only. Other
+languages pass through untouched rather than being mangled.
+</Note>
+
+## Recovery
+
+Before any lossy result is emitted, the original bytes are written to a local store under a handle that is
+the SHA-256 of those bytes. Because the handle is the content hash, compressing the same payload twice
+produces the same handle and stores it once.
+
+<Facts rows={[
+  ["Store", <code key="s">~/.caveman/ccr.db</code>],
+  ["Backend", "SQLite on host platforms, an in-memory map under WASM. Same contract."],
+  ["Budget", "512 MiB of payloads by default, tunable with CAVEMAN_CCR_MAX_BYTES."],
+  ["At the cap", "New lossy transforms pass through instead. Existing handles are never evicted."],
+]} />
+
+The last row is the one to read twice. When the store fills, the engine stops compressing rather than
+dropping old originals to make room. Losing a recovery handle would turn an earlier honest compression
+into an unrecoverable one after the fact, so it does not happen.
+
+## Token counting
+
+Ratios come from a real BPE tokenizer using the `o200k_base` encoding, with the vocabulary compiled into
+the binary. It is deterministic and offline.
+
+Every ratio the engine produces is `inferred`. Provider-reported usage from your actual response stays
+authoritative for spend, and the two live in different fields.
+
+## Targets by content type
+
+These are honest reduction targets, not measured guarantees. What you get depends on your payload.
+
+| Content type | Target reduction |
+| --- | --- |
+| `search-result` | 80 to 95 percent |
+| `log` | 85 to 95 percent |
+| `json` | 70 to 90 percent |
+| `diff` | 60 to 80 percent |
+| `text` and HTML | 50 to 80 percent |
+| `code` | 40 to 70 percent |
+
+For one concrete measurement: on a committed tool-output fixture, 1,366 tokens became 246, a reduction of
+82 percent. That figure is `inferred` and the original is recoverable. It is one fixture, and it is not a
+`verified` saving.
+
+## Other subcommands
+
+```bash
+caveman-engine toon encode | decode
+caveman-engine pixel render --density balanced <file>
+caveman-engine pixel simulate --model anthropic <request.json>
+caveman-engine evals run --fixtures ./fixtures
+```
+
+Pixel mode renders text as an image, which is cheaper than text for some models and much more expensive
+for others. `pixel simulate` exists so you can check which case you are in before switching anything on.

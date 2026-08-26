@@ -1,0 +1,238 @@
+{
+  "generatedFrom": "PRODUCTS.yaml",
+  "public": [
+    {
+      "id": "agent-profiles",
+      "name": "Native agent profile registry",
+      "path": "public/agents",
+      "language": "js",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "agent-sdk",
+      "name": "Caveman Agent SDK",
+      "path": "public/agent",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "binary-installer",
+      "name": "Shared binary installer",
+      "path": "public/shared/binary-installer",
+      "language": "js",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "browse",
+      "name": "caveman-browse",
+      "path": "public/browse",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "cli",
+      "name": "Caveman CLI",
+      "path": "public/cli",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "code",
+      "name": "caveman-code",
+      "path": "external:JuliusBrussee/caveman-code",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "contracts",
+      "name": "Wire Contracts",
+      "path": "public/shared/contracts",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "create-agent",
+      "name": "@caveman-ai/create-agent",
+      "path": "public/create-caveman-agent",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "engine",
+      "name": "Caveman Engine",
+      "path": "public/engine",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "evals",
+      "name": "Eval Graders",
+      "path": "public/evals",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "extension",
+      "name": "Caveman Browser",
+      "path": "public/extension",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "integration-recipes",
+      "name": "Framework integration recipe registry",
+      "path": "public/integrations",
+      "language": "js",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "kit",
+      "name": "cavekit",
+      "path": "public/kit",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "mastra",
+      "name": "@caveman/mastra",
+      "path": "public/mastra",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "mcp",
+      "name": "Caveman MCP Server",
+      "path": "public/mcp",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "mem",
+      "name": "cavemem",
+      "path": "public/mem",
+      "language": "mixed",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "platform",
+      "name": "Platform (Go shared libs)",
+      "path": "public/shared/platform",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "live"
+    },
+    {
+      "id": "provider-catalog",
+      "name": "Provider Catalog",
+      "path": "public/shared/provider-catalog",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "rewriter",
+      "name": "Aged-zone reflection rewriter",
+      "path": "public/rewriter",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "sdk-python",
+      "name": "Caveman SDK (Python)",
+      "path": "public/sdk/python",
+      "language": "python",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "sdk-ts",
+      "name": "Caveman SDK (TypeScript)",
+      "path": "public/sdk/typescript",
+      "language": "ts",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "shrink",
+      "name": "caveman-shrink",
+      "path": "public/shrink",
+      "language": "go",
+      "license": "BSL-1.1",
+      "status": "partial"
+    },
+    {
+      "id": "skill",
+      "name": "Caveman Skill",
+      "path": "external:JuliusBrussee/caveman",
+      "language": "md",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "skill-caveman-explore",
+      "name": "caveman-explore skill",
+      "path": "public/skills/caveman-explore",
+      "language": "md",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "skill-caveman-learn",
+      "name": "caveman-learn skill",
+      "path": "public/skills/caveman-learn",
+      "language": "md",
+      "license": "MIT",
+      "status": "partial"
+    },
+    {
+      "id": "subagent-tax",
+      "name": "subagent-tax",
+      "path": "public/subagent-tax",
+      "language": "js",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "ui",
+      "name": "UI utils (cavekit base)",
+      "path": "public/ui",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    }
+  ],
+  "privateIds": [
+    "cacheengine",
+    "catalog",
+    "cave-agent",
+    "cavebench",
+    "control-api",
+    "database",
+    "deployment",
+    "emailkit",
+    "gateway",
+    "metering",
+    "optimizer",
+    "planengine",
+    "proxy",
+    "web",
+    "worker"
+  ]
+}
