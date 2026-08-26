@@ -64,7 +64,8 @@ export function GET() {
   }
 
   lines.push("## Optional", "");
-  lines.push(`- [Caveman](${SITE.app}): the product site, and the Cloud waitlist.`);
+  lines.push(`- [Caveman](${SITE.app}): the product site, pricing, and the Cloud waitlist.`);
+  lines.push(`- [Product index for machines](${SITE.app}/llms.txt): that site's own llms.txt.`);
   lines.push(`- [Source](${SITE.github}): the public repository behind everything documented here.`);
   lines.push("");
 

@@ -2,8 +2,11 @@ import Link from "next/link";
 import { CaveMark } from "@/components/site/mark";
 import { SITE } from "@/lib/site";
 
+/* The way back. Documentation is one of three origins, and a reader who
+ * arrived here from a search result has no other route to the rest. */
 const LINKS: { label: string; href: string; external?: boolean }[] = [
-  { label: "Caveman", href: SITE.app, external: true },
+  { label: "Product", href: SITE.app, external: true },
+  { label: "Pricing", href: `${SITE.app}/pricing`, external: true },
   { label: "Console", href: SITE.console, external: true },
   { label: "GitHub", href: SITE.github, external: true },
   { label: "Licensing", href: "/docs/licensing" },

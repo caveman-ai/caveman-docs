@@ -29,11 +29,27 @@ export const metadata: Metadata = {
  * publishes it, and where the machine-readable index lives. */
 const siteJsonLd = {
   "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: SITE.name,
-  url: SITE.url,
-  description: SITE.description,
-  publisher: { "@type": "Organization", name: "Caveman", url: SITE.app },
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE.app}#organization`,
+      name: "Caveman",
+      url: SITE.app,
+      // Binds this origin to the product site and the source repository as one
+      // entity. Without it a crawler sees three unrelated sites sharing a word.
+      sameAs: [SITE.app, SITE.github],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.url}#website`,
+      name: SITE.name,
+      url: SITE.url,
+      description: SITE.description,
+      inLanguage: "en",
+      publisher: { "@id": `${SITE.app}#organization` },
+      isPartOf: { "@type": "WebSite", name: "Caveman", url: SITE.app },
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
