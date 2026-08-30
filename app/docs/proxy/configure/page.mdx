@@ -1,0 +1,179 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/configure");
+
+<DocSchema slug="proxy/configure" />
+
+Two files, two jobs. Feature configuration tells `caveman wrap` which switches are on. Proxy
+configuration tells `caveman start` how the listener binds and which provider endpoints it may
+call. API keys belong in neither file.
+
+<Facts rows={[
+  ["Feature file", <>Printed by <code key="f">caveman tools config path</code></>],
+  ["Proxy file", <code key="p">~/.caveman/caveman.yaml</code>],
+  ["Usage store", <code key="u">~/.caveman/caveman.db</code>],
+  ["Recovery store", <code key="r">~/.caveman/ccr.db</code>],
+]} />
+
+## Feature configuration
+
+Inspect the resolved path and a single key:
+
+```bash
+caveman tools config path
+caveman tools config get think.mode
+caveman tools config set think.mode compress
+```
+
+A project may add a restricted overlay at `./.caveman/config.json`. The overlay can set
+`think.toon`, `think.shrink`, `remember.*`, and `execute.*`. It cannot change `think.mode`,
+`think.core`, or pixel settings. A checked-in project file is not allowed to silently turn on a
+more invasive transform.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `think.mode` | `compress` | `compress`, `record`, or `pixel` |
+| `think.core` | `true` | Core context compression |
+| `think.toon` | `true` | Allow TOON when it is smaller |
+| `think.shrink` | `true` | Shrink command output where supported |
+| `think.pixel.models` | `[]` | Models allowed to receive pixel context |
+| `think.pixel.density` | `balanced` | `conservative`, `balanced`, or `max` |
+| `remember.mem` | `true` | Local memory integration |
+| `remember.offload` | `auto` | `auto`, `on`, or `off` |
+| `remember.recall` | `false` | Automatic memory recall |
+| `execute.mcp` | `auto` | MCP recovery wiring |
+| `execute.browse_tool` | `true` | Browser tool integration |
+| `execute.browse_cli` | `false` | Browser command integration |
+| `execute.delegate` | `false` | Delegation integration |
+| `execute.proxy` | `true` | Route supported agents through the local proxy |
+
+Environment overrides beat the stored file. Use them for one session; use `config set` for a
+choice you want to keep.
+
+| Variable | Key |
+| --- | --- |
+| `CAVEMAN_WRAP_MODE` | `think.mode` |
+| `CAVEMAN_CORE` | `think.core` |
+| `CAVEMAN_TOON` | `think.toon` |
+| `CAVEMAN_SHRINK` | `think.shrink` |
+| `CAVEMAN_MCP` | `execute.mcp` |
+| `CAVE_PIXEL_MODELS` | `think.pixel.models` |
+| `CAVE_PIXEL_DENSITY` | `think.pixel.density` |
+
+`CAVEMAN_MODE` also overrides wrap and start mode when it is set.
+
+## Proxy configuration
+
+Default path: `~/.caveman/caveman.yaml`. `CAVEMAN_CONFIG` loads a different file. A missing file
+is valid: the listener starts in `record` on `127.0.0.1:8787`.
+
+```yaml
+label: local
+mode: record
+listen: 127.0.0.1:8787
+optimizers: {}
+subscription_compress: live_zone
+toolschema_strip: off
+breakpoint_plan: frontier
+providers: {}
+compat: {}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `label` | Tag on local usage rows. Trials set this through `CAVEMAN_LABEL`. |
+| `mode` | Runtime mode. Unknown values become `record`. |
+| `listen` | Loopback `host:port` only. |
+| `optimizers` | Per-id overrides. Three provider-cache planners default on. |
+| `subscription_compress` | `live_zone` (or empty) allows eligible subscription compression. `off` and any unknown value disable it. |
+| `toolschema_strip` | Only `annotations` turns this on. Everything else, including empty, is off. |
+| `breakpoint_plan` | Cache-breakpoint planner. Default `frontier`. Explicit `off` disables it. Unknown values become `off`. |
+| `providers` | Endpoint, billing tier, and region overrides. No secrets. |
+| `compat` | Named OpenAI-compatible mounts. |
+
+The three planner ids that default on are `anthropic-cache-breakpoints`,
+`openai-prompt-cache-key`, and `bedrock-cache-points`. Set any one to `false` to disable it.
+Planner metadata does not change model-visible bytes. Record mode stays an unconditional
+pass-through even when they are on.
+
+```yaml
+providers:
+  bedrock:
+    region: eu-west-1
+  azure:
+    base_url: https://example-resource.openai.azure.com
+
+compat:
+  local-model:
+    base_url: http://127.0.0.1:11434/v1
+    api_key_env: LOCAL_MODEL_API_KEY
+```
+
+`caveman start` flags for one run:
+
+```bash
+caveman start
+caveman start --port 8787 --host 127.0.0.1
+caveman start --config /path/to/caveman.yaml
+```
+
+`--host` still has to be loopback. The binary refuses anything else.
+
+## Environment the binary reads
+
+| Variable | Role |
+| --- | --- |
+| `CAVEMAN_CONFIG` | Path to `caveman.yaml` |
+| `CAVEMAN_MODE` | Override YAML mode |
+| `CAVEMAN_LISTEN` | Override listen address |
+| `CAVEMAN_LABEL` | Override row label |
+| `CAVEMAN_HOME` | Override the `~/.caveman` directory |
+| `CAVEMAN_PROXY_BIN` | Explicit path to the proxy binary |
+| `CAVEMAN_SUBSCRIPTION_COMPRESS` | Override `subscription_compress` |
+| `CAVEMAN_TOOLSCHEMA_STRIP` | Override `toolschema_strip` |
+| `CAVEMAN_BREAKPOINT_PLAN` | Override `breakpoint_plan` |
+| `CAVEMAN_OBSERVE_ESTIMATE` | Record-mode observe-only estimation |
+| `CAVE_SSRF_ALLOWLIST` | Exact hosts allowed as private or loopback upstreams |
+| `CAVE_BEDROCK_REGION` | Bedrock region, before `AWS_REGION` |
+| `CAVE_BEDROCK_MANTLE_ENABLED` | Enable `/bedrock/anthropic` |
+
+Companion binaries resolve in this order: the matching `CAVEMAN_*_BIN` override, then `PATH`,
+then `~/.caveman/bin`.
+
+## Local storage
+
+Default state lives under `~/.caveman`:
+
+| Path | Contents |
+| --- | --- |
+| `bin/` | Verified companion binaries |
+| `caveman.db` | Request usage, prefix-replacement cache, trials, learn data |
+| `ccr.db` | Exact recovery payloads and typed working-memory objects |
+| `caveman.yaml` | Proxy configuration |
+| `receipts/` | Local native-agent run receipts when produced |
+
+CCR defaults to 512 MiB of payloads, tunable with `CAVEMAN_CCR_MAX_BYTES`. At the cap, new lossy
+transforms pass through. Existing handles are never evicted. See
+[Recoverable compression](/docs/engine/recoverable).
+
+Protect these files the way you protect agent transcripts. They can contain recovered prompts.
+
+## Stats
+
+```bash
+caveman stats
+caveman stats --json
+caveman-proxy stats
+caveman-proxy stats --recent 20
+```
+
+Rows are local and `inferred`. They do not become a monthly total or a dollar field.
+
+## Precedence
+
+Feature configuration resolves from defaults, then the global file, then the allowed project
+overlay, then environment. Proxy mode resolves from default, then YAML, then `CAVEMAN_MODE`.
+Command flags (`--off`, `--pixel`) select one session.
+
+When resolution fails or a mode is unknown, the runtime uses record or original-byte behaviour.
+It does not guess.

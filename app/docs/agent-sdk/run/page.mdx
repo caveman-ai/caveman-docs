@@ -1,0 +1,90 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/run");
+
+<DocSchema slug="agent-sdk/run" />
+
+`run()` executes one turn and returns a `RunResult`. `stream()` yields typed events for the same work. Both take an `AgentDefinition`, an input, and optional `RunOptions`.
+
+```ts
+import support from "./agent.js";
+import { run } from "@caveman-ai/agent";
+
+const result = await run(support, "Can I get a refund?");
+console.log(result.text);
+console.log(result.mode);
+console.log(result.receipt);
+```
+
+`result.claimBasis` is always `"inferred"`. `result.receipt` is schema `caveman.agent.run-receipt.v1`. USD fields are public-catalog list-price subtotals.
+
+## Observe-only and optimized
+
+On a machine with only Node and a provider key, `mode` is `observe-only`: the SDK calls the provider's own base URL. No local transform runs. Provider usage and local context estimates remain.
+
+With `@caveman-ai/cli` installed and `caveman start` running, eligible calls can return `mode: "optimized"`. Anthropic, OpenAI, and Google can take that path. Other providers stay direct and still report `observe-only`.
+
+Set `cave: "off"` in `RunOptions` to force observe-only. A run that carries a Cave Build lock or candidate plan refuses silent downgrade with `cave_gateway_required_for_locked_plan`.
+
+A graph that mixed the two modes reports `observe-only`. The label under-claims rather than averaging.
+
+## Conversations and streaming
+
+```ts
+import { createConversation, run, stream } from "@caveman-ai/agent";
+
+const conversation = createConversation();
+await run(support, "My order is late.", { conversation });
+const followUp = await run(support, "What should I do next?", { conversation });
+```
+
+Concurrent use of one conversation fails closed. A failed turn rolls back conversation and cache state. Definition, model, or plan changes rotate the cache epoch so stale prefix bytes are not replayed.
+
+`stream()` emits run, context, model, completion, and error events. Calling the iterator's `return()` aborts in-flight provider, tool, and subagent work before conversation ownership is released. Terminal `run_end` and `run_error` release ownership before delivery.
+
+## Receipts and errors
+
+Every successful result includes the receipt: model calls, tool calls, provider usage basis, catalog cost basis, stop reason, compactions, retries, subagents, and resume state.
+
+A failure after spend throws `CavemanRunError` with the same partial receipt on `error.receipt`. `run_error` events carry it too. A run that fails after spending never loses its per-call breakdown.
+
+Directory-loaded agents print the receipt to stdout by default and write JSON under `.caveman/runs/`. Hand-built `run()` does not print, because stdout may be a protocol channel. Set `printReceipt: true` to opt in.
+
+## Budgets and ceilings
+
+```ts
+import { run, type RunBudget } from "@caveman-ai/agent";
+
+const budget: RunBudget = {
+  maxTokens: 12_000,
+  onExhausted: "stop",
+};
+
+const result = await run(support, "Summarise this ticket.", { budget });
+```
+
+`onExhausted` is `compact` or `stop`. Default is `compact`. See [Compaction](/docs/agent-sdk/compaction).
+
+`RunOptions.maxCostUsd` is a best-effort local spend cap in USD at public catalog list prices. It is not a provider invoice, a platform quota, or a cross-process reservation. Each priced root or descendant call reserves worst-case catalog price before the request and settles measured catalog cost after it. Exhaustion ends the run with `cave_run_cost_budget_exceeded` before the next model call. An unpriced model cannot consume `$0` of a USD cap: with the cap set, that call fails closed. Leave the cap unset for unpriced models and bound them with call ceilings instead.
+
+`maxCostUsd` and `budget` are mutually exclusive.
+
+Default `maxModelCalls` is 64. Reaching it ends the run between calls with `stopReason: "call_budget_exhausted"` and returns the partial result; it does not throw. Default `maxToolCalls` is 64. A tool call past that ceiling is blocked (the model sees a blocked result) and the run continues.
+
+Breakers (repeated tool calls, no-progress, fan-out) are opt-in. A run that declares none does not guess at a loop.
+
+## Durable resume
+
+```ts
+const result = await run(support, "Continue the investigation.", {
+  durable: { runId: "case-42-analysis-1" },
+});
+```
+
+Durable mode journals call intent before network work. Resume restores known spend and the last committed execution boundary. A request that was in flight during a crash stays unknown, because the SDK cannot know whether the provider billed it. The receipt says so rather than guessing.
+
+`runLocked()` embeds a Pi Cave Build after `caveman-agent check` has passed at deployment. It accepts only Pi locks. Before provider traffic it validates lock integrity, agent definition, runtime, adapter, catalog, Context IR, selected plan, and the live engine registry when transforms exist. Parsing the lock file alone does not prove source freshness; `check` does.
+
+## What it will not do
+
+`run()` cannot inject a plan or build identity. Locked and candidate execution belong to `dev`, `build`, `check`, and `runLocked()`. Costs are catalog estimates. `verifiedSavingsUsd` stays 0 on this path. Unknown model, pricing, or usage fails closed or returns an honest zero; it does not become a favourable number.

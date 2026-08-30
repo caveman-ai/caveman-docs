@@ -67,12 +67,15 @@ caveman codex
 caveman gemini
 caveman aider
 caveman hermes
+caveman kilo
 caveman openclaw
 caveman opencode
+caveman pi
+caveman qwen
 ```
 
 Each shortcut calls `caveman wrap <agent>`. The profile registry decides binary name, protocol, setup method,
-hooks, and fallback.
+hooks, and fallback. See [Wrap an agent](/docs/proxy/wrap) for what that hop actually does.
 
 On the first interactive local wrap, the CLI can install the signed runtime bundle and continue the same command.
 Non-interactive runs do not change installation state without an explicit setup command.
@@ -116,9 +119,9 @@ They do not open interactive menus or prompt for input.
 Most affected local commands degrade to an explicit pass-through when a companion binary is missing. Output stays
 unchanged, reduction is zero, and the warning names the repair command.
 
-`wrap` needs extra care. It may point an agent at a local listener. If nothing is listening, requests cannot route.
-An interactive invocation offers to launch the agent directly. A script must ensure the listener is running or use
-`--no-proxy` when direct provider traffic is intended.
+`wrap` starts the [local proxy](/docs/proxy) for that session when it can. If a foreign process already owns
+the port, wrap will not restart or trust it. An interactive invocation can offer to launch the agent directly
+when the proxy binary is missing. A script must make sure the listener is up.
 
 <Note tone="honest" title="The CLI is a launcher, not the engine">
 The npm package does not contain compression, memory, browsing, or token-counting implementations. It resolves

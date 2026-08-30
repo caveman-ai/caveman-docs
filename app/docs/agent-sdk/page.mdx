@@ -1,143 +1,157 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("agent-sdk");
 
-`@caveman-ai/agent` is a TypeScript framework for defining an agent, its tools, context, memory, output contract,
-and evals in one source graph. The runtime can operate directly against a provider or use local Caveman transforms
-when a verified local runtime is available.
+<DocSchema slug="agent-sdk" />
+
+`@caveman-ai/agent` is a TypeScript runtime for tool-using agents. You define the agent, its tools, context, memory, output contract, and evals in one source graph. Every successful run returns a receipt. A run that fails after spending throws with the same partial receipt attached.
+
+It does not need a Caveman account. On a machine with Node and a provider key it calls the provider directly, in `observe-only` mode: no local transform, and no efficiency claim. When the local Caveman engine is running, eligible calls can run in `optimized` mode. Local figures stay `inferred`. Nothing in this package emits `verified`.
 
 <Facts rows={[
-  ["Version in source", <code key="v">0.2.0</code>],
+  ["Package", <code key="p">@caveman-ai/agent</code>],
+  ["Source version", <code key="v">0.2.0</code>],
+  ["On npm today", <code key="n">0.1.0</code>],
   ["Runtime", "Node.js 22.19 or newer."],
   ["Licence", "MIT."],
-  ["Registry status", "Not published to npm yet."],
-  ["CLI", <code key="c">caveman-agent</code>],
 ]} />
 
-## Build from source
+The pages that follow document the 0.2 source in [JuliusBrussee/agent-sdk](https://github.com/JuliusBrussee/agent-sdk). npm still ships 0.1.0, which is an older surface. Use the checkout if you are testing anything described here.
 
-```bash
-git clone https://github.com/JuliusBrussee/caveman
-cd caveman
-pnpm install --frozen-lockfile
-pnpm --filter @caveman-ai/agent build
-```
+## How a run is assembled
 
-The initializer and Agent SDK release are still source-only. Do not use `npm create @caveman-ai/agent` until the
-package is published.
+<figure className="my-6">
+  <div className="flex flex-col gap-0 text-[13px]">
+    <div className="rounded-md border px-3 py-2">
+      <strong>Definition.</strong>
+      <span className="text-muted-foreground"> <span className="font-mono">agent()</span>, tools, context, memory, output, evals. One source graph.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>Runtime.</strong>
+      <span className="text-muted-foreground"> Sandbox, budgets, breakers, compaction, receipts. Tools never skip schema, timeout, or abort checks.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <div className="rounded-md border px-3 py-2">
+        <span className="font-mono">observe-only</span>
+        <span className="text-muted-foreground"> Direct to your provider. Default when the local engine is not running.</span>
+      </div>
+      <div className="rounded-md border border-ember/40 px-3 py-2">
+        <span className="font-mono">optimized</span>
+        <span className="text-muted-foreground"> Local engine reachable. Eligible transforms and recovery can run. Still inferred.</span>
+      </div>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>Receipt.</strong>
+      <span className="text-muted-foreground"> Model calls, tool calls, catalog cost basis, stop reason, compactions, subagents, resume state. <span className="font-mono">claimBasis: "inferred"</span>.</span>
+    </div>
+  </div>
+  <figcaption className="mt-2 text-xs text-muted-foreground">
+    A mixed graph that partly bypassed the local runtime reports observe-only. The label under-claims rather than averaging.
+  </figcaption>
+</figure>
 
-## Smallest definition
+`auto()` picks a configured model. It does not classify tasks or route between models. That is a different product; see [Model router](/docs/router).
+
+## Smallest agent
 
 ```ts
-import { agent, auto } from "@caveman-ai/agent";
+import { agent, auto, run } from "@caveman-ai/agent";
 
-export default agent({
+const support = agent({
   id: "support",
   instructions: "Answer from policy. Never invent policy.",
   model: auto(),
 });
-```
-
-`auto()` resolves a configured model. It does not classify tasks or route between models.
-
-Run from code:
-
-```ts
-import support from "./agent.js";
-import { run } from "@caveman-ai/agent";
 
 const result = await run(support, "Can I get a refund?");
 console.log(result.text);
 console.log(result.mode);
+console.log(result.receipt);
 ```
 
-Use `stream()` for typed run, context, tool, completion, and error events.
+That run works with nothing but Node and a provider credential. `result.mode` is `observe-only` there.
 
-## Define tools explicitly
+Prefer a directory if the agent will grow:
+
+```text
+support-bot/
+├── instructions.md
+├── agent.ts
+├── skills/
+├── tools/
+├── subagents/
+└── evals/
+```
 
 ```ts
-import { schema, tool } from "@caveman-ai/agent";
+import { loadAgentDir, run } from "@caveman-ai/agent";
 
-const lookupPolicy = tool({
-  name: "lookup_policy",
-  description: "Read one policy by id.",
-  input: schema.object({ id: schema.string() }),
-  effect: "read",
-  result: "compress",
-  async execute({ id }) {
-    return loadPolicy(id);
-  },
-});
+const support = await loadAgentDir("./support-bot");
+const result = await run(support, "Where is order A-123?");
 ```
 
-Every tool declares an effect, result policy, timeout, and input schema. Result policies are `auto`, `inline`,
-`page`, `compress`, or `exact_ccr`. Tool names beginning with `cave_` are reserved by the framework.
+Skill descriptions enter the stable prefix. Skill bodies stay on disk until the model asks for one, so adding a large skill does not enlarge every request.
 
-Repeated identical calls stop by default unless a polling tool opts into `allowRepeat`.
+## What lives in this product
 
-## Sandbox modes
+The Agent SDK is one thing you install, with several surfaces behind it.
 
-| Mode | Behaviour |
-| --- | --- |
-| `required` | Default. Tool closures run in isolated, network-denied Node workers from a staged source graph. |
-| `fixture` | Trusted tests only. Tools run in the host process, and write effects are blocked. |
-| `host` | Explicit opt-in. Tools run with host access and write effects may execute. |
+<CardGrid cols={3}>
+  <Card href="/docs/agent-sdk/install" title="Install">
+    Source build, doctor, and the npm version gap.
+  </Card>
+  <Card href="/docs/agent-sdk/create" title="Create an agent">
+    The initializer that writes a typechecking project.
+  </Card>
+  <Card href="/docs/agent-sdk/define" title="Define an agent">
+    agent(), context, output, filesystem, subagents.
+  </Card>
+  <Card href="/docs/agent-sdk/tools" title="Tools">
+    Effects, result policies, schemas.
+  </Card>
+  <Card href="/docs/agent-sdk/run" title="Run a turn">
+    run, stream, receipts, budgets, durable resume.
+  </Card>
+  <Card href="/docs/agent-sdk/sandbox" title="Sandbox">
+    required, fixture, and host.
+  </Card>
+  <Card href="/docs/agent-sdk/memory" title="Memory">
+    Next-turn recall, local only.
+  </Card>
+  <Card href="/docs/agent-sdk/compaction" title="Compaction">
+    Recover, summarise, clamp, stop.
+  </Card>
+  <Card href="/docs/agent-sdk/code" title="Programmatic tools">
+    One caveman_code cell.
+  </Card>
+  <Card href="/docs/agent-sdk/connect" title="Connect">
+    Paginated provider data, fail closed.
+  </Card>
+  <Card href="/docs/agent-sdk/build" title="Evals and builds">
+    Profile, search, freeze, holdout.
+  </Card>
+  <Card href="/docs/agent-sdk/adapters" title="Adapters">
+    Exact-pinned framework lanes.
+  </Card>
+</CardGrid>
 
-Host mode is not eligible for a locked build. A required-sandbox parent also prevents a subagent from selecting
-host mode.
+The [TypeScript SDK](/docs/sdk/typescript) is a different package. `@caveman-ai/sdk` talks to a configured Caveman service. `@caveman-ai/agent` is the agent runtime. Installing one does not start the other.
 
-## Context and memory
+The Agent SDK repository also ships a frozen wire-contract package used by other Caveman products. It is not this runtime, and this site does not document it.
 
-`context()` labels each segment by kind, stability, safety class, priority, recovery contract, cache region, and
-privacy class. `memory()` currently accepts local, local-only memory with a positive `m`, `h`, or `d` TTL. Shared
-memory settings fail during construction rather than after a model call.
+## What it will not do
 
-Artifacts declare paging or exact recovery. Output definitions can attach a schema and token budget.
+It will not mint `verified` savings. `claimBasis` is `inferred` on every public run. USD figures are public-catalog list-price subtotals, never invoices. Token counts are not money.
 
-## Run modes
+It will not silently call itself optimized. If any call in the graph went straight to the provider, `mode` is `observe-only`.
 
-Without a trusted local runtime, an unlocked agent calls its provider directly in `observe-only` mode. No local
-transform or Caveman telemetry runs, and no efficiency result is claimed.
+It will not invent a routing policy from `auto()`. A pinned string model is a pinned string model.
 
-With the CLI and local runtime available:
+A lock hash binds reviewed bytes and policy. It is not a signature, a runtime attestation, or proof that those bytes served production traffic.
 
-```bash
-npm install -g @caveman-ai/cli
-caveman start
-```
+Claude locked compilation is refused. The public Claude lane stays unlocked.
 
-Eligible calls may run in `optimized` mode. Listener identity, process state, and executable ownership are checked
-before provider credentials can be sent to a loopback endpoint. A locked plan refuses silent downgrade.
-
-## Check before spending a provider call
-
-```bash
-caveman-agent doctor
-caveman-agent doctor --json
-caveman-agent check
-```
-
-Doctor checks Node version, sandbox containment, local runtime identity, engine registry, configuration, context,
-and provider selection. Missing local transforms are warnings when observe-only execution remains valid. Broken
-sandbox containment, invalid config, or lock drift fails.
-
-## Evals and builds
-
-```bash
-caveman-agent dev
-caveman-agent build
-caveman-agent check
-```
-
-An eval declares approved profile, development, or holdout cases plus quality graders. A build profiles work,
-selects on development cases, freezes a plan, then opens untouched holdout cases. Successful builds write local
-lock, workload-profile, and report artifacts under `.caveman/`.
-
-This source slice has exact compiled behaviour for its native Pi lane. Other adapters remain baseline-equivalent
-or have explicit limits, and Claude build locking is refused. A hash binds reviewed bytes and policy; it is not a
-signature or runtime attestation.
-
-<Note tone="honest" title="Framework status is partial">
-Core authoring, runtime, sandbox, doctor, and source build paths exist. npm publication and broader locked-adapter
-parity do not. Use observe-only mode or the documented native lane, and do not publish a savings percentage from a
-local build report.
-</Note>
+Do not publish a savings percentage from a local build report.

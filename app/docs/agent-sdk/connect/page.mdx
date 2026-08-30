@@ -1,0 +1,68 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/connect");
+
+<DocSchema slug="agent-sdk/connect" />
+
+Caveman Connect lets an agent read allowed provider data through one stable tool. The SDK owns configuration, bounded invocation, quality policy, and evidence. OAuth, credentials, encrypted storage, and sync execution stay in a local Connect daemon. The SDK does not bundle that daemon.
+
+```ts
+import { agent, auto, createConnect } from "@caveman-ai/agent";
+
+const data = createConnect({
+  sources: [{
+    id: "work-github",
+    provider: "github",
+    collect: ["issues"],
+    models: ["Issue"],
+  }],
+});
+
+export default agent({
+  id: "issue-triage",
+  instructions: "Use connected source data. Never invent missing records.",
+  model: auto(),
+  tools: [data.tool],
+});
+```
+
+Authorize once:
+
+```bash
+caveman-agent connect github
+```
+
+Start configured collection from the app or a job:
+
+```ts
+await data.collect("work-github");
+```
+
+`collect()` triggers configured syncs and returns daemon acknowledgements. It does not pretend a queued sync is finished. Poll with `connected_data` `operation: "sync_status"`, then read records. Recurring schedules are not part of the current protocol; call `collect()` from whatever scheduler you already run.
+
+When a source omits `connectionId`, the runtime accepts exactly one active saved connection for that provider. Zero or several matches fail closed. Set the exact id to remove the ambiguity.
+
+## Why the prefix stays small
+
+One stable `connected_data` schema enters the provider-visible prefix. Provider catalog, action schemas, sync schemas, and records stay out of the prompt until the agent asks.
+
+1. `sources` returns a tiny allowlist.
+2. `search_syncs` or `search_actions` loads bounded matching metadata.
+3. `collect` triggers an allowlisted sync.
+4. `records` reads exact paginated records.
+
+No retrieval model, embedding, semantic reranker, or automatic summariser runs by default. That avoids hidden model spend and keeps the provider cache prefix byte-stable inside one cache epoch.
+
+Token reduction is still not a savings proof. Extra model turns, expensive collection, stale data, or retries after incomplete context can cost more than the prefix you saved.
+
+## Incomplete reads fail closed
+
+Paginated reads never silently summarise or skip records. Capped output returns `complete: false`, exact continuation when available, and `must_refuse: true`. The agent is supposed to refuse to answer from a partial page rather than invent the missing rows.
+
+Hosts that need Connect's native tool catalog without building a second MCP client can use `ConnectRuntime` from `@caveman-ai/agent/connect`.
+
+Default Connect timeout is 30,000 ms.
+
+## What it will not do
+
+Connect will not copy credentials into the agent process. It will not hide a truncated page as a complete answer. It will not schedule recurring syncs by itself. It will not claim that a smaller prompt saved money.

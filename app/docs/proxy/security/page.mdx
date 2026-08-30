@@ -1,0 +1,101 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/security");
+
+<DocSchema slug="proxy/security" />
+
+The local proxy is a single-operator developer tool. It binds to loopback and has no multi-user
+authentication layer. Treat it with the same care you already give a coding agent that holds a
+provider key.
+
+<Facts rows={[
+  ["Listen", "Loopback only. Non-loopback addresses are rejected."],
+  ["Auth on the listener", "None. That is why the bind check exists."],
+  ["Keys", "Inbound header, then a named environment variable. Never YAML."],
+  ["Savings label", <code key="s">inferred</code>],
+]} />
+
+## Trust model
+
+One trusted operating-system user. Do not expose the listener on a LAN, a container bridge, a
+public interface, or a shared host. Signing in to Caveman Cloud does not turn this process into a
+shared service. Those are different products and different data flows.
+
+Local wrap sends request content to the model provider the agent selected, and keeps recovery
+copies on disk. "Local" describes the Caveman hop, not the whole model request. The provider still
+sees whatever the proxy forwards.
+
+## Credentials
+
+Keep API keys in the environment or in the provider's own credential store. Do not write them
+into `caveman.yaml`, a project overlay, a prompt, a benchmark fixture, or shell history.
+
+The proxy preserves an inbound authorization header and does not log it. Environment fallbacks
+apply only when the integration sent no credential. Distinct development keys are better than
+sharing a production key with a local listener, where the provider lets you do that.
+
+If a terminal, a trace, or an issue report ever printed a key, rotate it.
+
+## SSRF
+
+Outbound checks cover configured endpoints and redirects. Private, loopback, link-local, and
+other unsafe address classes are blocked by default. A self-hosted model on this machine needs an
+exact `CAVE_SSRF_ALLOWLIST` entry.
+
+Allow only the hosts you need. A broad private-network range can let a prompt-driven request
+reach an unrelated local service.
+
+A listen-address change will not fix a blocked upstream. The bind check and the outbound check
+are different doors.
+
+## What sits on disk
+
+| Store | Typical contents |
+| --- | --- |
+| `~/.caveman/caveman.db` | Request metadata, usage rows, learn data |
+| `~/.caveman/ccr.db` | Exact originals behind recovery handles |
+| Feature configuration | Mode and switch values, not keys |
+| Agent-native hooks | Host-specific files the profile installed |
+
+A recovery handle is an identifier, not encryption and not an authorization token. Anyone who can
+read `ccr.db` can retrieve the payload. Do not share handles across a trust boundary. See
+[Recoverable compression](/docs/engine/recoverable).
+
+Restrict permissions on these files to the owner. Hook writes use restrictive modes and
+symlink-safe replacement; do not loosen that to make a backup script easier.
+
+## Lossy transforms
+
+Record mode is the byte pass-through. Compress and pixel change what the model sees. The safety
+rails around that change are parse validation, a size comparison, explicit capability gates,
+exact-source recovery, and original-byte fallback when the store fails.
+
+Recovery means the source is still available. It does not mean the model will ask for the missing
+detail, and it does not mean the compressed view had equal quality. For work where every input
+byte must remain visible, stay in record.
+
+## Local against connected
+
+`caveman help tools` is the local surface and needs no account. `caveman help cloud` is the
+connected surface and requires login. Command discovery keeps them apart on purpose.
+
+A connected installation can persist a hosted endpoint. That path necessarily receives request
+and response content while it proxies. This page documents the loopback listener. The Cloud
+product page covers the managed plane at the level a public site can.
+
+## Checklist
+
+1. Confirm the proxy listens on `127.0.0.1`.
+2. Keep secrets out of both configuration files.
+3. Review enabled transforms and the pixel model allowlist.
+4. Set a precise SSRF allowlist only when a self-hosted upstream needs it.
+5. Restrict permissions on the local databases and hook state.
+6. Test recovery before a long lossy session.
+7. Use record mode when the input bytes are the point.
+8. Review agent, browser, hook, and plugin permissions separately.
+
+## Reporting a vulnerability
+
+Do not publish an exploitable report in a public issue before maintainers can assess it. Use the
+repository security policy. Include the affected version, a minimal reproduction, the impact, and
+a suggested mitigation, without real credentials or customer data.

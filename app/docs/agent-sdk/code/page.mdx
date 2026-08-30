@@ -1,0 +1,86 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/code");
+
+<DocSchema slug="agent-sdk/code" />
+
+Programmatic mode replaces a large JSON tool catalog with one provider-visible tool named `caveman_code`. The model writes a bounded JavaScript cell. Nested tools are called through typed proxies. Every nested call still passes through the runtime's schema, effect policy, budget, breaker, timeout, abort, and receipt path. The cell does not bypass those checks.
+
+<figure className="my-6">
+  <div className="flex flex-col gap-0 text-[13px]">
+    <div className="rounded-md border px-3 py-2">
+      <span className="font-mono">caveman_code</span>
+      <span className="text-muted-foreground"> The only tool the provider sees.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓ cell source, possibly still streaming</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>Nested dispatch.</strong>
+      <span className="text-muted-foreground"> Same kernel as a normal tool call. Receipt records the cell and each nested call.</span>
+    </div>
+    <div className="pl-4 text-ember">↓ early reads only</div>
+    <div className="rounded-md border border-ember/40 px-3 py-2">
+      <strong>Speculative reads.</strong>
+      <span className="text-muted-foreground"> Literal <span className="font-mono">effect: "read"</span> calls may start while the cell is still streaming. Writes, idempotent calls, external calls, and variable-dependent arguments never speculate.</span>
+    </div>
+  </div>
+  <figcaption className="mt-2 text-xs text-muted-foreground">
+    Ember marks the only early path. Anything that can change the world waits for a complete cell.
+  </figcaption>
+</figure>
+
+## Coding session
+
+New applications import `@caveman-ai/coding-agent`. `@caveman-ai/agent/code` remains a compatibility export while that package is extracted.
+
+```ts
+import {
+  createCodingAgent,
+  runCodingTurn,
+  startCodingSession,
+} from "@caveman-ai/agent/code";
+
+const codingAgent = createCodingAgent({
+  workspace: process.cwd(),
+  toolMode: "programmatic",
+});
+
+const session = await startCodingSession(codingAgent);
+await runCodingTurn(session, "Find failing tests and fix root cause.");
+```
+
+`toolMode: "direct"` exposes ordinary JSON tools instead. `speculativeToolCalls: false` keeps programmatic mode without early reads.
+
+Programmatic mode supports host agents only. The code-cell worker is not an isolation boundary. Use a normal `sandbox: "required"` agent when containment matters.
+
+Declaring `effect: "read"` in this mode means the work is safe to start and abandon: it may run even if the generated cell is later discarded. Unknown stream provenance executes fresh work rather than reusing stale speculation.
+
+## Generic embedders
+
+```ts
+import {
+  createProgrammaticToolRuntime,
+  PROGRAMMATIC_TOOL_NAME,
+} from "@caveman-ai/agent/programmatic-tools";
+```
+
+That kernel does not require the coding-agent helpers. Nested tools still cannot skip the dispatcher.
+
+## Interactive coding agent
+
+`@caveman-ai/coding-agent` is the interactive coding agent on this runtime, with host-sandbox `read_file`, `grep`, `bash`, `write_file`, and `edit_file` over one workspace. `read_tool_output` pages or literal-searches large captured results without repeating the original command. The CLI binary is `caveman-code`.
+
+With the local engine present, a session starts the local runtime and applies a default efficiency plan: one recoverable route per live-zone segment kind (`tool_result` through `caveman.engine.terminal.v1`, `history` through `caveman.engine.text.v1`), with `cave_retrieve` registered so the model can pull original bytes back. Only CCR-recoverable transforms are eligible. Two routes matching one runtime segment collapse into `dynamic_route_ambiguous` and that segment passes through untouched.
+
+When the runtime cannot be reached, the session degrades to observe-only and says so: a banner, `session.notices`, the prompt, and every turn's bill. A turn that already carries a plan refuses to degrade on its own (`cave_gateway_required_for_locked_plan`). The runtime is probed once per session, not once per turn.
+
+After every turn the session prints context tokens before and after transforms, tokens saved labelled `inferred (local estimate)`, provider usage with `usageBasis`, and spend in USD with `priceBasis`. Savings are never printed as currency. `/prove-recovery` round-trips a recorded tool output through the same compress/retrieve pair and compares SHA-256.
+
+Tool output is capped before compression (24 KB for `read_file` and `bash`, 16 KB for `grep`). Captured results are bounded to 8 MiB each and 16 MiB total in memory. Handles expire with the process. Live coding sessions are never lock-eligible.
+
+## Long-running commands
+
+`@caveman-ai/agent/command-session` is the kernel behind hosted command tools. You pass an explicit `env`. Ambient `process.env` is never inherited. Session state is `running`, `exited`, `timed_out`, `killed`, or `unknown_after_restart`. Reads are cursor-based and can wait for bytes or a literal match. This is a credential boundary, not a sandbox: a `bash` session on a host agent is uncontained.
+
+## What it will not do
+
+A code cell is not a sandbox. Host execution can run `bash`. Programmatic mode will not speculate a write. The coding session will not silently drop into observe-only on a planned turn, and it will not call a local token reduction a dollar saving.

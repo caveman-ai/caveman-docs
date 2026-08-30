@@ -1,0 +1,70 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/adapters");
+
+<DocSchema slug="agent-sdk/adapters" />
+
+Framework adapters are separate packages with exact upstream version pins. Install only the lane you run. A shared capability manifest records what the adapter actually implements. The registry is discovery, not a grant of execution and not a release certificate.
+
+Adapter presence never implies behavioural compiler support or live provider certification. Candidate conformance never mints either.
+
+## First-party lanes
+
+These are the lanes the 0.2 source treats as execution harnesses:
+
+```bash
+npm install @caveman-ai/agent @caveman-ai/adapter-vercel-ai-sdk ai@7.0.84
+npm install @caveman-ai/agent @caveman-ai/adapter-mastra @mastra/core@1.63.2
+npm install @caveman-ai/agent @caveman-ai/adapter-eve eve@0.29.2
+```
+
+| Package | Upstream pin | Node | Locked native compile |
+|---|---|---|---|
+| `@caveman-ai/adapter-pi` | `@earendil-works/pi-agent-core@0.83.0` | 22.19+ | Yes, tool-free native Pi only |
+| `@caveman-ai/adapter-claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk@0.3.220` | 22.19+ | No. Public lane is unlocked |
+| `@caveman-ai/adapter-vercel-ai-sdk` | `ai@7.0.84` | 22.19+ | Baseline-equivalent v3 |
+| `@caveman-ai/adapter-mastra` | `@mastra/core@1.63.2` | 22.19+ | Baseline-equivalent v3 |
+| `@caveman-ai/adapter-eve` | `eve@0.29.2` | 24+ | Baseline-equivalent v3, `reasoning: "none"` only |
+
+Eve 0.29.2 requires Node.js 24. The other lanes keep the package minimum of 22.19. Each adapter owns and tests its pin.
+
+`@caveman-ai/agent/adapters` and `@caveman-ai/agent/claude` remain compatibility exports. Vercel and Mastra host integration is not duplicated there.
+
+## Claude lane
+
+```ts
+import { runClaudeAgent } from "@caveman-ai/adapter-claude-agent-sdk";
+import { fileURLToPath } from "node:url";
+import support from "./agent.js";
+
+const result = await runClaudeAgent(support, "Can I get a refund?", {
+  entryPath: fileURLToPath(new URL("./agent.js", import.meta.url)),
+  maxTurns: 8,
+  maxBudgetUsd: 0.50,
+});
+```
+
+The public lane is always unlocked. `claimBasis` is `"inferred"`. Verified savings are `$0`. It disables Claude built-in tools and settings, maps declared read-and-inline Caveman tools into one in-process MCP server, reuses the same immutable source snapshot and sandbox executor as Pi, and enforces declared model, reasoning, and output schema.
+
+Write, idempotent, and external tools, plus `auto` / page / compress / CCR results, reject before SDK or tool execution, so a side effect cannot land without recovery. Memory and framework subagents fail closed in this lane until equivalent semantics exist. The caller cannot inject Cave Plan or Cave Build identity.
+
+Default is 16 turns. Pinned Agent SDK reports aggregate output tokens but no authoritative thinking-token split, so `reasoningUsageBasis` is `"unavailable"`. `reasoningTokens: 0` is a non-evidence placeholder; do not read it as measured zero.
+
+Anthropic's SDK is not open source. The Agent SDK remains MIT; using the Claude lane still means reviewing Anthropic's terms.
+
+## Other adapter packages in source
+
+The repository also contains observation and lifecycle adapters. They are not the five execution lanes above.
+
+| Package | Upstream pin |
+|---|---|
+| `@caveman-ai/adapter-langgraph` | `@langchain/langgraph@1.4.13` |
+| `@caveman-ai/adapter-openai-agents` | `@openai/agents@0.17.0` |
+| `@caveman-ai/adapter-cloudflare-agents` | `agents@0.22.0` |
+| `@caveman-ai/adapter-strands-agents` | `@strands-agents/sdk@1.15.0` |
+
+A passing candidate report is not compiler support and not live provider certification.
+
+## What it will not do
+
+An adapter will not lower a baseline plan into a cheaper one unless its capability manifest proves that behaviour, and today only exact native Pi does. Mixing a Pi lock into Claude or a third-party runner is refused. Local adapter results stay `inferred`.

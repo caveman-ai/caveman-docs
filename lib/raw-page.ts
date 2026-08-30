@@ -22,6 +22,7 @@ const VISUAL_ONLY: Record<string, string> = {
   StackDiagram: "[Diagram: the four layers of the stack, bottom to top: Skill, Engine, Memory, Cloud.]",
   RequestPath: "[Diagram: one request, from your agent through the skill and the engine to the provider, with a recovery path back.]",
   OpenCoreBoundary: "[Diagram: the licence split across MIT, BSL 1.1 and Commercial surfaces.]",
+  ProxyPath: "[Diagram: one request through the local proxy, from your agent to the engine to the provider, with recovery back from the CCR store.]",
 };
 
 /* A <Facts> row is authored as ["label", value]. In the mirror it reads better

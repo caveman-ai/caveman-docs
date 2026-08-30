@@ -1,0 +1,77 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/tools");
+
+<DocSchema slug="agent-sdk/tools" />
+
+A tool declares its input, side effect, timeout, and what happens to the result, then implements `execute`. The runtime validates input before your code runs, and validates output before any result can enter model context or a durable journal.
+
+```ts
+import { schema, tool } from "@caveman-ai/agent";
+
+const lookupPolicy = tool({
+  name: "lookup_policy",
+  description: "Read current refund policy.",
+  input: schema.object({ region: schema.string() }),
+  output: schema.object({
+    region: schema.string(),
+    refundWindowDays: schema.number(),
+  }),
+  effect: "read",
+  result: "auto",
+  async execute({ region }) {
+    return { region, refundWindowDays: 14 };
+  },
+});
+```
+
+Names match `^[a-zA-Z][a-zA-Z0-9_-]{0,127}$`. Names beginning with `cave_` are reserved by the framework (`cave_skill`, memory tools, recovery). Duplicate names on one agent fail at `agent()`.
+
+Default timeout is 30,000 ms. Default result policy is `auto`. `effect` has no default; you have to say it.
+
+## Effects
+
+| Effect | Meaning |
+|---|---|
+| `read` | No durable side effect. Fixture sandbox allows it. Programmatic mode may speculate it. |
+| `write` | Mutates something. Fixture sandbox blocks it. Host mode executes it. |
+| `idempotent` | Safe to retry with the same arguments. Never speculated. |
+| `external` | Leaves the process. Never speculated. |
+
+Repeated identical calls are stopped by default. Set `allowRepeat: true` on a polling tool whose job is to be called again with the same arguments.
+
+## Result policies
+
+| Policy | What the model sees |
+|---|---|
+| `auto` | A locked plan may choose inline, paging, compression, or exact recovery. |
+| `inline` | The result stays in current context. |
+| `page` | Bounded pages. |
+| `compress` | An eligible locked transform. |
+| `exact_ccr` | Replacement only after byte-exact recovery is stored. |
+
+`artifact()` can stand in for a result policy when you need paging or exact recovery with an inline token cap. Default artifact strategy is `page`, default `maxInlineTokens` is 1,200, default recovery is `exact_ccr`.
+
+## Schemas
+
+`schema` is a small TypeBox wrapper: `string`, `number`, `integer`, `boolean`, `object`, `array`, `optional`, `union`, `literal`, `null`, `any`.
+
+`input` also accepts Standard Schema v1. Libraries that emit Standard JSON Schema v1 convert to draft-07 for the provider. Validation-only libraries pass `inputJSONSchema`; the framework still runs the vendor validator first, including async transforms.
+
+`output` follows the same rules. Output validation runs after `execute` and before anything reaches the model. A mismatch is a tool error. The invalid raw value stays hidden. Schema-less tools keep native JSON serialization.
+
+Standard Schema validators can close over mutable state. Ordinary runs allow that. Cave Build locks and durable runs refuse opaque validator identity. Pass `schemaSemanticsSHA256` as the lowercase SHA-256 of validator code, dependencies, and captured state, and change it when any of those change.
+
+## Nested tools
+
+A composite tool may declare `nestedTools`. Nested tools are flat: no nested-nested. A `read` composite cannot contain an effectful child. Nested dispatch still goes through the same budget, breaker, schema, timeout, and receipt path as a top-level call.
+
+Programmatic mode is the usual reason to do this. See [Programmatic tools](/docs/agent-sdk/code).
+
+## Sandbox reminder
+
+Production tools with the default `sandbox: "required"` run in a restricted worker imported from a staged source graph. Programmatic `run()` must pass `RunOptions.entryPath` pointing at the module that exports the definition. The CLI supplies this. The [Sandbox](/docs/agent-sdk/sandbox) page is the contract.
+
+## What it will not do
+
+A tool closure does not inherit the parent environment. Signing, deployment, bootstrap, database, and ambient secret names are denied in the worker. `sandboxProfile.network: true` is not scoped egress; it requests unbounded egress and fails closed, because scoped egress does not exist yet.

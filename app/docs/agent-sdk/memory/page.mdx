@@ -1,0 +1,88 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/memory");
+
+<DocSchema slug="agent-sdk/memory" />
+
+Agent memory is local, opt-in, and one turn behind on purpose. Turn N starts retrieval while the model runs. Turn N+1 consumes whatever finished, without waiting. Recalled text is injected immediately before the current user message. It never enters the frozen system prefix and never mutates append-only conversation history.
+
+Every injected block is labelled `inferred` and potentially stale. Current user intent, code, tools, and runtime evidence win.
+
+<Facts rows={[
+  ["Default TTL", <code key="t">30d</code>],
+  ["Default recall budget", "800 tokens."],
+  ["Provenance", <code key="p">local</code>],
+  ["Consent", <code key="c">local_only</code>],
+  ["Scope", "tenant, agentId, namespace"],
+]} />
+
+## Declare it
+
+```ts
+import {
+  agent,
+  auto,
+  createMemoryEngine,
+  memory,
+  run,
+} from "@caveman-ai/agent";
+
+const definition = agent({
+  id: "support",
+  instructions: "Resolve support requests.",
+  model: auto(),
+  memory: memory({ namespace: "support" }),
+});
+
+const engine = createMemoryEngine({
+  scope: { tenant: "tenant-1", agentId: "support", namespace: "support" },
+  ttlMs: 30 * 86_400_000,
+});
+
+await run(definition, "Remember that I prefer email updates.", {
+  memory: { tenant: "tenant-1", engine },
+});
+```
+
+TTL must be a positive `m`, `h`, or `d` duration. `provenance: "project"` or `"external"`, and `consent: "project_shared"`, fail at `memory()` construction. The package does not implement a shared backend, so it refuses the config before a model call could discover that.
+
+Two agents that declare the same namespace in one process still do not see each other's rows: scope includes `agentId`. `RunOptions.memory.root` defaults to `CAVE_AGENT_MEMORY_ROOT`, else `~/.caveman/agent-memory`. `tenant` defaults to a single-tenant value.
+
+A one-shot `run()` without an engine keeps the explicit memory tools and starts no background work, so nothing is still running after return. Reuse one engine across turns. Coding sessions can pass `memory: true`, which creates one scoped engine and reuses it; `session.close()` flushes.
+
+## What the engine does
+
+`@caveman-ai/agent/memory` exposes the engine, workflow helper, and adapters.
+
+1. `beginTurn()` returns finished recall from the prior turn and queues current retrieval. Embedding latency does not block the model.
+2. `endTurn()` queues the assistant turn for session search and optional extraction.
+3. Explicit `remember`, `search`, `searchSessions`, `forget`, and `link` cover active workflows. Native agents expose remember, memory search, and session search as framework tools (`cave_memory_*`).
+4. `endSession()` flushes, extracts remaining turns, and runs optional consolidation.
+
+Default retrieval is a dependency-free sparse lexical vector plus lexical overlap. It is useful with no extra service. It is not semantic. Optional embedding adapters and bounded graph expansion (`relates_to`, `supersedes`, `contradicts`, `derived_from`, depth default 1, cap 3) exist behind `@caveman-ai/agent/memory`. An OpenAI-compatible embedding adapter uses `fetch`, takes an explicit API key, and never reads ambient key environment variables.
+
+No extra model call happens unless you supply a sidecar adapter for review, extraction, or consolidation. Consolidation is reversible: superseded records stay as inactive evidence. Sidecar output is never verified policy and never verified savings.
+
+## Storage
+
+Default persistence is per-namespace JSON with atomic temp-write plus rename. Vectors store as normalized int8 plus base64, not floating-point arrays. Expired records become inactive reversible evidence. In-process writes are serialized per file. Across processes, last writer wins on concurrent update. Deployments that need multi-writer transactions supply a storage adapter (`read` plus serialized atomic `update`).
+
+Obvious private keys, provider tokens, credential assignments, and access keys are rejected before storage, indexing, or sidecar processing.
+
+For a host agent that is not this runtime:
+
+```ts
+import { createMemoryWorkflow } from "@caveman-ai/agent/memory";
+
+const memory = createMemoryWorkflow(engine, sessionId);
+const memoryContext = memory.beforeTurn(userText);
+const answer = await callAgent({ userText, memoryContext });
+memory.afterTurn(answer);
+await memory.close();
+```
+
+`beforeTurn` returns a string or `undefined` and does not wait.
+
+## What it will not do
+
+Memory is not a saving. Recalled text is not a source of truth against current tools. Shared or project-scoped memory is not implemented. Semantic recall is not claimed for the default sparse vector. Closing the engine is your job if you created one.

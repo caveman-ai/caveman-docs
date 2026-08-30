@@ -212,6 +212,47 @@ export function RequestPath() {
 }
 
 /**
+ * What the local proxy does to one request. The engine is a hop inside the
+ * proxy, not a second product you have to run yourself.
+ */
+export function ProxyPath() {
+  const id = "prx";
+  return (
+    <Figure
+      id={id}
+      caption="One request through the local proxy. Compression happens on the way out. Recovery comes back on the dashed line."
+      viewBox="0 0 700 210"
+      height={210}
+    >
+      <Box x={10} y={26} title="Your agent" sub="or any provider SDK" w={150} />
+      <Box x={200} y={26} title="Local proxy" sub="127.0.0.1:8787" />
+      <Box x={370} y={26} title="Engine" sub="compresses, then stores" />
+      <Box x={540} y={26} title="Provider" sub="your key, their API" w={130} />
+
+      <Line id={id} d="M 160 49 H 195" />
+      <Line id={id} d="M 330 49 H 365" />
+      <Line id={id} d="M 500 49 H 535" />
+      <Caption x={605} y={92}>this is what you pay for</Caption>
+
+      <path
+        d="M 435 72 V 118 H 172 V 49 H 166"
+        fill="none"
+        stroke={EMBER}
+        strokeWidth={1.25}
+        strokeDasharray="4 4"
+        markerEnd={`url(#${id}-e)`}
+      />
+      <Caption x={310} y={132}>the agent retrieves what was left out</Caption>
+
+      <Box x={200} y={150} title="Usage store" sub="inferred rows only" w={130} h={44} />
+      <Box x={370} y={150} title="CCR store" sub="exact original bytes" w={130} h={44} />
+      <Line id={id} d="M 265 72 V 150" />
+      <Line id={id} d="M 435 72 V 150" />
+    </Figure>
+  );
+}
+
+/**
  * The open-core line, drawn as three columns because that is what it is: a
  * licence per surface, not a single product with a free tier.
  */
@@ -237,7 +278,7 @@ export function OpenCoreBoundary() {
     {
       license: "BSL 1.1",
       rule: "Source available. Run it for your own traffic, including in production. Offering it to third parties as a hosted service needs a commercial licence. Each release converts to Apache 2.0 after four years.",
-      parts: ["Compression engine", "cavemem core", "caveman-shrink core", "MCP server core", "caveman-browse", "Shared platform libraries"],
+      parts: ["Compression engine", "Local proxy", "cavemem core", "caveman-shrink core", "MCP server core", "caveman-browse", "Shared platform libraries"],
     },
     {
       license: "Commercial",

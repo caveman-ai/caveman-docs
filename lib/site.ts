@@ -8,7 +8,7 @@ export const SITE = {
   console: "https://app.caveman.so",
   github: "https://github.com/JuliusBrussee/caveman",
   description:
-    "Documentation for the open Caveman stack: the agent skill, the compression engine, and cavemem. What each layer does, what it costs, and how every number is counted.",
+    "Documentation for the open Caveman stack: the agent skill, the local proxy, the compression engine, and cavemem. What each layer does, what it costs, and how every number is counted.",
 } as const;
 
 export function ogUrl(title: string, summary: string, eyebrow?: string): string {

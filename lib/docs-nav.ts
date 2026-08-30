@@ -87,6 +87,18 @@ export const DOCS_NAV: DocGroup[] = [
     ],
   },
   {
+    title: "Proxy",
+    home: "proxy",
+    items: [
+      { title: "Local proxy", slug: "proxy", blurb: "A loopback reverse proxy: point an agent at it, keep your provider key, let the engine shrink what leaves.", license: "BSL-1.1" },
+      { title: "Wrap an agent", slug: "proxy/wrap", blurb: "Launch Claude Code, Codex, Gemini CLI, and seven other agents through the local listener.", license: "BSL-1.1" },
+      { title: "Providers", slug: "proxy/providers", blurb: "The HTTP routes, credentials, and compatibility mounts the proxy forwards.", license: "BSL-1.1" },
+      { title: "Modes", slug: "proxy/modes", blurb: "Record, compress, and pixel, plus the evaluation modes the runtime accepts.", license: "BSL-1.1" },
+      { title: "Configure", slug: "proxy/configure", blurb: "Feature flags, caveman.yaml, local storage, and how mode is chosen.", license: "BSL-1.1" },
+      { title: "Security", slug: "proxy/security", blurb: "Loopback only, BYOK, SSRF checks, and what stays on disk.", license: "BSL-1.1" },
+    ],
+  },
+  {
     title: "Engine",
     layer: "engine",
     home: "engine",
@@ -116,10 +128,9 @@ export const DOCS_NAV: DocGroup[] = [
       { title: "Model router", slug: "router", blurb: "One model id: classify the task, apply a cost tier, route to measured evidence, fall back to your baseline.", license: "Commercial", layer: "cloud" },
     ],
   },
-  /* Named so the rail is honest about the whole product line. Neither has a
-   * page, a path, or a capability id here: the name is all this repository
-   * knows and all a public site needs to say. */
-  { title: "Proxy", soon: true, items: [] },
+  /* Named so the rail is honest about the whole product line. Pebble has no
+   * page, path, or capability id here: the name is all this repository knows
+   * and all a public site needs to say. */
   { title: "Pebble", soon: true, items: [] },
   {
     title: "Build with it",

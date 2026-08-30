@@ -1,0 +1,90 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/create");
+
+<DocSchema slug="agent-sdk/create" />
+
+`@caveman-ai/create-agent` writes a TypeScript agent project that typechecks, loads under doctor, and has a starter eval graph. It has no runtime of its own. The generated project depends on `@caveman-ai/agent`.
+
+<Facts rows={[
+  ["Package", <code key="p">@caveman-ai/create-agent</code>],
+  ["Source version", <code key="v">0.1.0</code>],
+  ["On npm today", <code key="n">0.1.0</code>],
+  ["Node", "22.19 or newer."],
+  ["Licence", "MIT."],
+]} />
+
+npm has published this package. The template it currently ships targets `@caveman-ai/agent` 0.2. A generated project will not resolve that dependency from the registry until 0.2 is published; build the Agent SDK from source and point the project at that checkout, or wait for the registry.
+
+## Scaffold
+
+From a published initializer:
+
+```bash
+npm create @caveman-ai/agent@latest my-agent
+cd my-agent
+```
+
+From the Agent SDK checkout, after `npm ci --prefix packages/create-caveman-agent` and its build:
+
+```bash
+node packages/create-caveman-agent/dist/index.js my-agent
+```
+
+Non-interactive:
+
+```bash
+npm create @caveman-ai/agent@latest my-agent -- --provider anthropic
+```
+
+Supported providers: `anthropic`, `openai`, `google`. Exactly one detected provider credential is selected without a prompt. Zero or several credentials prompt once. Secrets are never printed or written.
+
+Skip dependency installation when another tool owns it:
+
+```bash
+npm create @caveman-ai/agent@latest my-agent -- --provider openai --no-install
+```
+
+The initializer copies the `support-bot` template, rewrites the pinned model line for the chosen provider, and writes `.caveman/provider.json` with mode `0o600`.
+
+| Provider | Model written into `agent.ts` |
+|---|---|
+| `anthropic` | `anthropic/claude-sonnet-5` |
+| `openai` | `openai/gpt-5.4-mini` |
+| `google` | `google/gemini-2.5-flash` |
+
+Those pins exist so the frozen prefix clears the provider's minimum cacheable length. `auto()` is not the template default, because it can pick a model whose cache floor the prefix does not meet.
+
+## What you get
+
+```text
+my-agent/
+├── instructions.md
+├── agent.ts
+├── run.ts
+├── caveman.config.ts
+├── AGENTS.md
+├── skills/
+├── tools/
+│   └── lookup_order.ts
+├── tickets/
+├── evals/
+│   └── support.eval.ts
+└── package.json
+```
+
+Scripts in the generated `package.json`:
+
+```bash
+npm run doctor
+npm run ticket -- tickets/refund-request.md
+npm run dev
+npm run build
+npm run check
+```
+
+Review `evals/support.eval.ts` before `npm run build`. That command runs every declared fixture inside the configured search budget. There is no separate approval gate.
+
+## What it will not do
+
+The initializer does not log you in, start the local engine, or spend a provider call. Doctor on the generated project still makes no model request. Local build evidence stays `inferred`; verified savings stay `$0`.

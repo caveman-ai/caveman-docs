@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { MDXComponents } from "mdx/types";
 import { Code } from "@/components/docs/code";
 import { Note, Steps, CardGrid, Card, Facts, Badge } from "@/components/docs/blocks";
-import { StackDiagram, RequestPath, OpenCoreBoundary } from "@/components/docs/diagrams";
+import { StackDiagram, RequestPath, ProxyPath, OpenCoreBoundary } from "@/components/docs/diagrams";
 
 /* ==========================================================================
  *  MDX element mapping.
@@ -113,6 +113,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     Badge,
     StackDiagram,
     RequestPath,
+    ProxyPath,
     OpenCoreBoundary,
     ...components,
   };

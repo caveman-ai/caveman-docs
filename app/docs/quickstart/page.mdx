@@ -4,9 +4,9 @@ export const metadata = docMetadata("quickstart");
 
 <DocSchema slug="quickstart" />
 
-There are two things worth doing first, and they are independent. The skill changes how your agent writes
-and takes about thirty seconds. The CLI installs the local tools and gives you a report on where your
-tokens actually go.
+There are two products, and they are independent. The skill changes how your agent writes and takes about
+thirty seconds. The proxy, launched through the CLI, shrinks what the agent reads and gives you a local
+report on where those tokens actually go.
 
 ## Install the skill
 
@@ -85,14 +85,15 @@ Turn it off with `caveman telemetry off`, `CAVEMAN_TELEMETRY=0`, or `DO_NOT_TRAC
 listed on [Telemetry](/docs/telemetry).
 </Note>
 
-Then start your agent through the CLI so it picks up the local tools:
+Then start your agent through the CLI so traffic goes through the [local proxy](/docs/proxy):
 
 ```bash
 caveman claude
 ```
 
-The same works for `codex`, `gemini`, `opencode`, `aider`, `hermes` and `openclaw`. Seven agent profiles
-ship today, and each is one JSON file in the registry.
+The same works for `codex`, `gemini`, `aider`, `hermes`, `kilo`, `openclaw`, `opencode`, `pi`, and
+`qwen`. Ten wrap profiles ship today, and each is one JSON file in the registry. That set is smaller
+than the thirty-plus agents the skill supports, because wrap has to know the host's provider endpoint.
 
 ## Find out where your tokens go
 

@@ -1,0 +1,108 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/compaction");
+
+<DocSchema slug="agent-sdk/compaction" />
+
+Compaction runs only inside a declared token or USD budget. It is not a background summariser that fires because the context "looks large". The runtime applies a fail-closed ladder, then stops.
+
+<figure className="my-6">
+  <div className="flex flex-col gap-0 text-[13px]">
+    <div className="rounded-md border px-3 py-2">
+      <strong>1 · Exact-recovery eviction.</strong>
+      <span className="text-muted-foreground"> Drop what can be fetched back byte for byte.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓ still over budget</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>2 · Typed summary.</strong>
+      <span className="text-muted-foreground"> Replace eligible history with a <span className="font-mono">cave.context-summary.v2</span> capsule.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓ still over budget</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>3 · Output clamp.</strong>
+      <span className="text-muted-foreground"> Bound what the model may still emit.</span>
+    </div>
+    <div className="pl-4 text-ember">↓ still over budget</div>
+    <div className="rounded-md border border-ember/40 px-3 py-2">
+      <strong>4 · Stop.</strong>
+      <span className="text-muted-foreground"> The run ends. The receipt keeps every call that already happened.</span>
+    </div>
+  </div>
+  <figcaption className="mt-2 text-xs text-muted-foreground">
+    Ember is the last exit. Nothing after stop invents a cheaper context.
+  </figcaption>
+</figure>
+
+```ts
+import { run, type RunBudget } from "@caveman-ai/agent";
+
+const budget: RunBudget = {
+  maxTokens: 120_000,
+  onExhausted: "compact",
+  compaction: {
+    keepRecentTokens: 8_000,
+    summaryMaxTokens: 2_048,
+    preserveFirstUserMessage: true,
+  },
+};
+
+const result = await run(support, "Continue investigation.", { budget });
+```
+
+`onExhausted: "stop"` skips the compact rungs and ends the run at the cap.
+
+## Capsule rules
+
+The public API lives at `@caveman-ai/agent/compaction`.
+
+```ts
+import {
+  parseContextSummary,
+  summarizationInstruction,
+  validateContextSummaryTransition,
+} from "@caveman-ai/agent/compaction";
+```
+
+A replacement is accepted only when all of these hold:
+
+- the schema parses
+- generation increments by exactly one
+- required user sources are covered, with matching source IDs and SHA-256 digests
+- every prior critical anchor survives byte-identically, unless a later current user source grounds a new critical anchor with an explicit `supersedes` edge
+- root user intent and a self-contained recent tail remain verbatim
+- the rewritten context is smaller
+- tool content cannot mint critical policy
+
+One paid summary is the default. Structural support for repeated compaction is tested. A higher default is not shipped without repeated live-model semantic evidence, and that evidence is not claimed here.
+
+## Harness
+
+```ts
+import {
+  runContextCompactionHarness,
+  type ContextCompactionSummarizer,
+} from "@caveman-ai/agent/compaction";
+
+const summarize: ContextCompactionSummarizer = async (request) => {
+  return explicitClient.complete({
+    messages: [
+      ...request.messages,
+      { role: "user", content: request.instruction },
+    ],
+    maxTokens: 2_048,
+  });
+};
+
+const report = await runContextCompactionHarness(fixture, summarize, {
+  repetitions: 20,
+});
+if (!report.stable) throw new Error(report.failures.join("\n"));
+```
+
+The harness owns fixtures and validation. The adapter owns the model and transport, with explicit credentials. Test code does not inherit ambient secrets. The public harness measures transition validity, anchor recall, exact-recovery coverage, and compression ratio. Structural stability is tested. Semantic superiority is not claimed.
+
+Compaction events land on the run receipt with the rest of the spend.
+
+## What it will not do
+
+Compaction is not a quality improvement. A smaller context that dropped a commitment is a failed transition, not a savings. Ratios from the harness are local, inferred, per run. They are not monthly figures and not `verified`.

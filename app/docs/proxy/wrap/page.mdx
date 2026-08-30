@@ -1,0 +1,155 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/wrap");
+
+<DocSchema slug="proxy/wrap" />
+
+Wrapping starts an existing coding agent with the local proxy as its provider endpoint. Caveman does not
+replace the agent. The agent still owns its model calls, user interface, permissions, and project workflow.
+
+Ten profiles ship today. The skill works with thirty-plus agents; wrap is a different, smaller set. A
+profile is a JSON file the CLI compiles, not a promise that every host version has been tested on your
+machine. Run `caveman doctor <agent>` where you will actually launch it.
+
+<Facts rows={[
+  ["Command", <code key="c">caveman wrap claude</code>],
+  ["Shortcuts", "One verb per profile id, same as wrap."],
+  ["Default mode", <code key="m">compress</code>],
+  ["Pass-through", <code key="o">caveman wrap --off claude</code>],
+]} />
+
+## Launch
+
+```bash
+caveman claude
+caveman codex
+caveman gemini
+caveman aider
+caveman hermes
+caveman kilo
+caveman openclaw
+caveman opencode
+caveman pi
+caveman qwen
+```
+
+`caveman kilocode` is an alias for the same `kilo` profile. Arguments after the shortcut are passed
+through:
+
+```bash
+caveman wrap claude
+caveman wrap --off codex
+caveman wrap --pixel gemini
+caveman wrap --workflow review opencode
+caveman codex --full-auto
+```
+
+`--off` and `--pixel` cannot be used together.
+
+For an agent that has no profile:
+
+```bash
+caveman run -- my-agent --flag value
+```
+
+Generic wrapping supplies proxy environment. It cannot infer every host's native hook or plugin format.
+
+## Registered agents
+
+| Profile | Wire protocol | How it is pointed at the proxy |
+| --- | --- | --- |
+| `aider` | OpenAI Chat Completions | Environment |
+| `claude` | Anthropic Messages | Environment |
+| `codex` | OpenAI Responses | Environment |
+| `gemini` | Gemini GenerateContent | Environment |
+| `hermes` | OpenAI Chat Completions | Environment |
+| `kilo` | OpenAI Chat Completions | Inline config via environment |
+| `openclaw` | OpenAI Chat Completions | Configuration file |
+| `opencode` | OpenAI Chat Completions | Configuration plus environment |
+| `pi` | OpenAI Chat Completions | Native extension |
+| `qwen` | OpenAI Chat Completions | Temporary system-settings overlay |
+
+This table is the integration shape. It does not say every credential path or host version works.
+[Agent profiles](/docs/skill/profiles) is the registry page, including completeness labels and hook
+rules.
+
+Kilo and Qwen need their own CLI installed first. The profiles pin the versions the wrap path was
+checked against:
+
+```bash
+npm install -g @kilocode/cli@7.5.6
+caveman kilo
+
+npm i -g @qwen-code/qwen-code@0.22.3
+caveman qwen
+```
+
+Kilo organization or enterprise-managed config can override the injected provider. When that happens,
+or when account state cannot be verified safely, the wrapper launches Kilo directly instead of claiming
+a confinement it cannot keep.
+
+Qwen's overlay is a temporary file. Enterprise policy and unrelated provider settings survive the merge.
+`~/.qwen/settings.json` and the source system settings are not rewritten.
+
+## First run
+
+On the first interactive local wrap, the CLI can install the signed runtime bundle and continue the same
+command. Non-interactive runs do not change installation state without an explicit:
+
+```bash
+caveman setup --install
+```
+
+Wrap starts `caveman-proxy` for that session when it can. If something the CLI does not own is already
+listening on the port, wrap will not restart or trust it. An interactive run can offer to launch the
+agent directly when the proxy binary is missing. A script must make sure the listener is up.
+
+## Native setup
+
+Claude Code and Codex can install the files those hosts actually read:
+
+```bash
+caveman setup --agent-native claude
+caveman setup --agent-native codex
+caveman setup --agent-native claude --remove
+```
+
+Review the resulting hooks and plugins before you commit dotfiles. Native setup is per agent, not a
+global rewrite of every tool on the machine.
+
+## Recovery during a run
+
+Compressed context carries a `ccr_…` handle, or a typed `ccr://…` pointer. Agents with the MCP
+integration can retrieve the original through a tool call. You can do the same from a terminal:
+
+```bash
+caveman tools retrieve <handle>
+caveman tools mcp install qwen --server caveman
+```
+
+The Qwen installer preserves sibling MCP entries and refuses to overwrite one it does not own.
+
+Streaming and subscription-auth sessions need that agent-side recovery path. Non-streaming API-key
+requests can use proxy-side handling where the adapter supports it. The CLI checks that `caveman-mcp`
+is present for the selected agent before it advertises the MCP path. If recovery is missing on a path
+that needs it, that path stays uncompressed.
+
+See [Recoverable compression](/docs/engine/recoverable) for handle format and store limits.
+
+## Skill and wrap are separate switches
+
+An installed skill does not prove that request compression is on. Proxy traffic does not prove that
+the response skill is on. Hooks can add reminders or shrink command output without either of those
+being true. Turn each one on because you want that effect, not because you installed the other.
+
+## When wrap goes wrong
+
+1. `caveman status` for the selected mode and whether the listener is ours.
+2. `caveman setup` for missing binaries.
+3. `caveman wrap --off <agent>` to see whether the failure survives without transforms.
+4. Check provider credential variables without printing the secret values.
+5. Confirm the agent is using the local endpoint the profile emitted.
+
+If a transform cannot parse the body, cannot store a recovery record, or cannot produce a smaller safe
+result, the original bytes go upstream. That is success for the request, and a zero-ratio row in the
+local store.

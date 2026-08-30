@@ -1,0 +1,93 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/install");
+
+<DocSchema slug="agent-sdk/install" />
+
+The documented surface is `@caveman-ai/agent` 0.2 in source. npm currently publishes 0.1.0, which is an older API. Clone the repository if you are following these pages.
+
+<Facts rows={[
+  ["Node", "22.19 or newer."],
+  ["CLI binary", <code key="c">caveman-agent</code>],
+  ["Source", <code key="s">JuliusBrussee/agent-sdk</code>],
+  ["npm today", <code key="n">@caveman-ai/agent@0.1.0</code>],
+]} />
+
+## Build 0.2 from source
+
+```bash
+git clone https://github.com/JuliusBrussee/agent-sdk.git
+cd agent-sdk
+npm ci --prefix packages/pebble-protocol
+npm ci --prefix packages/agent
+npm ci --prefix packages/create-caveman-agent
+npm --prefix packages/agent run build
+```
+
+The package binary is `caveman-agent`, from `packages/agent`. After the build you can run it with `node packages/agent/dist/cli.js`, or link the package into a project that depends on `@caveman-ai/agent@0.2.0`.
+
+A full repository test pass is `npm test` at the repo root. Restricted macOS sandbox and loopback tests need host permissions before a failure counts as a product defect.
+
+## Check the machine before a provider call
+
+```bash
+caveman-agent doctor
+caveman-agent doctor --json
+```
+
+Doctor makes no model request. Human output prints `verified savings: $0`.
+
+| Check | Pass | Warn | Fail |
+|---|---|---|---|
+| `node` | 22.19 or newer | | older Node |
+| `sandbox` | containment probe passed | | probe failed |
+| `engine` | transform registry loaded | engine missing; observe-only still works | |
+| `runtime_cli` | `caveman` CLI answers `version` | CLI missing; observe-only still works | |
+| `gateway` | local runtime reachable | not reachable; telemetry off, observe-only | |
+| `project` | `caveman.config.ts` loads | no config in this directory | config, entry, eval, or context error |
+| `lock` | lock is current | no lock; unlocked runs are fine | lock drift |
+| `provider` | selected model has a credential | no model, or several credentials and no `CAVE_MODEL` | bad `CAVE_MODEL` or `provider.json` |
+
+Missing engine, runtime CLI, or local runtime is a warning and doctor still exits 0, because observe-only runs still reach a real model. Broken sandbox containment, invalid config, or lock drift fails.
+
+Optional local engine:
+
+```bash
+npm install -g @caveman-ai/cli
+caveman start
+```
+
+The Agent SDK accepts a loopback runtime only after identity, process state, and executable ownership check out. An unrelated listener on the same port does not receive provider credentials; the run goes direct in observe-only mode.
+
+## CLI
+
+```bash
+caveman-agent --help
+caveman-agent --version
+caveman-agent doctor [--json]
+caveman-agent dev [entry] [prompt]
+caveman-agent build [config] [--verbose] [--accept-prefix-shrink]
+caveman-agent check [config]
+caveman-agent register
+caveman-agent connect …
+```
+
+`dev` watches the project and reuses one staged source snapshot until source, config, eval, or file context changes. `build` and `check` own Cave Build execution. `register` is a separate command; it is not a substitute for `build`.
+
+A generated project wires the same commands through npm scripts: `npm run doctor`, `npm run dev`, `npm run build`, `npm run check`.
+
+## npm 0.1.0
+
+```bash
+npm install @caveman-ai/agent
+```
+
+That installs 0.1.0 today. These pages describe 0.2 source. Do not treat a registry install as the surface documented here until 0.2 is published.
+
+<Note tone="warning" title="Two different SDKs">
+`@caveman-ai/agent` is this runtime. `@caveman-ai/sdk` is the thin client in [TypeScript SDK](/docs/sdk/typescript). The bare `caveman` package on npm is unrelated.
+</Note>
+
+## What it will not do
+
+Doctor does not spend a provider call, and a green doctor is not a lock. Observe-only is a valid run mode, not a broken install. Linking `@caveman-ai/cli` is optional; without it the SDK still calls your provider.

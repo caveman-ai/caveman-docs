@@ -1,0 +1,117 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/build");
+
+<DocSchema slug="agent-sdk/build" />
+
+A Cave Build is an eval-gated freeze of one plan. The command searches on development cases, writes nothing if quality gates fail, then opens holdout cases that the search never saw. Failed evals never produce a lock.
+
+<figure className="my-6">
+  <div className="flex flex-col gap-0 text-[13px]">
+    <div className="rounded-md border px-3 py-2">
+      <strong>Profile.</strong>
+      <span className="text-muted-foreground"> Declared <span className="font-mono">split: "profile"</span> evals, or content-blind traces already under <span className="font-mono">.caveman/traces/</span>.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>Search on development.</strong>
+      <span className="text-muted-foreground"> Candidate plans run only on <span className="font-mono">split: "development"</span> cases.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓ quality gates pass</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>Freeze.</strong>
+      <span className="text-muted-foreground"> The winner is written. Holdout has not been opened yet.</span>
+    </div>
+    <div className="pl-4 text-ember">↓</div>
+    <div className="rounded-md border border-ember/40 px-3 py-2">
+      <strong>Holdout.</strong>
+      <span className="text-muted-foreground"> Untouched <span className="font-mono">split: "holdout"</span> cases. If they fail, there is no lock.</span>
+    </div>
+  </div>
+  <figcaption className="mt-2 text-xs text-muted-foreground">
+    Ember is the first time holdout is visible. Search never trains on it.
+  </figcaption>
+</figure>
+
+```bash
+caveman-agent build
+caveman-agent check
+```
+
+In a generated project those are `npm run build` and `npm run check`. No Caveman account is required. `npm run build` runs every declared fixture inside the configured search budget. The SDK adds no approval prompt.
+
+## Eval splits
+
+```ts
+import { eval as defineEval } from "@caveman-ai/agent";
+
+export const profile = defineEval({
+  id: "profile-a",
+  lineageId: "profile-family",
+  split: "profile",
+  input: "representative task",
+  quality: [{ type: "exact_match", expected: "expected result" }],
+});
+
+export const development = defineEval({
+  id: "development-a",
+  lineageId: "development-family-a",
+  split: "development",
+  input: "different representative task",
+  quality: [{ type: "exact_match", expected: "expected result" }],
+});
+
+export const holdout = defineEval({
+  id: "holdout-a",
+  lineageId: "holdout-family-a",
+  split: "holdout",
+  input: "unseen representative task",
+  quality: [{ type: "exact_match", expected: "expected result" }],
+});
+```
+
+`lineageId` is the stable task-family identifier. Graders the native compiler can lower without a network: `contains`, `not_contains`, `tool_called`, `exact_match`, `json_schema`. `exact_match` is trimmed and case-insensitive by default; `case_sensitive` and `remove_punctuation` opt into stricter variants.
+
+A v3 build needs explicit splits. Unsplit legacy suites still produce Pi Cave Build v2.
+
+If content-blind Caveman `RunResult`, OpenTelemetry, or OpenInference rows already exist under `.caveman/traces/`, the same `build` command imports them and skips profile-eval spend. Raw prompt and result span attributes are refused. Generic OTel and OpenInference spans stay unpriced; only strict Caveman evidence can be repriced from the pinned public catalog.
+
+## What a successful v3 build writes
+
+- `.caveman/agent.lock.json`: Cave Build proof envelope
+- `.caveman/workload-profile.json`: content-blind profile and provenance
+- `.caveman/build-report.json`: search cost, holdout evidence, claims, and a local inferred point-estimate `break_even_tasks` when search cost is complete and holdout catalog delta is positive (`null` otherwise)
+
+No envelope is written when usage is missing, the model is unpriced, cache regresses, recovery fails, sandbox or privacy fails, quality drops, search is incomplete, or the cost ceiling is exceeded. `check` rejects drift before a model call.
+
+## Who can change behaviour
+
+Exact native Pi (`tool-free-v1`) owns candidate generation and the locked runner. For agents with no declared tools it can select a priced model, lower reasoning effort, add reversible Context IR routes with derived recovery, and lower output budget. Any root tool, including a subagent, refuses that path before runner spend.
+
+Generic Pi, Vercel AI SDK, Eve, and Mastra v3 builds remain baseline-equivalent: they bind identity and evidence around an unchanged baseline plan. They do not currently construct changed model, reasoning, context, transform, recovery, retry, or output-budget behaviour from compiler output.
+
+Claude Cave Build compilation and registration refuse. Public `runClaudeAgent` stays unlocked.
+
+Callers cannot inject native candidates, runners, or target identity into `compileProfiledNativePi`. `compileProfiled` remains the generic caller-owned-runner API and emits baseline-equivalent v3 only.
+
+Hashes bind canonical bytes for integrity. They are not signatures, SBOM provenance, runtime attestation, or proof that registered bytes served traffic.
+
+## Running a lock
+
+```ts
+import { readFile } from "node:fs/promises";
+import { runLocked } from "@caveman-ai/agent";
+import { parseAnyCaveBuildLock } from "@caveman-ai/agent/build";
+import support from "./agent.js";
+
+const build = parseAnyCaveBuildLock(JSON.parse(
+  await readFile(".caveman/agent.lock.json", "utf8"),
+));
+const result = await runLocked(support, "Can I get a refund?", build);
+```
+
+`runLocked()` accepts only Pi locks. Source freshness remains `caveman-agent check` at deployment. A Pi lock cannot authorise Claude or third-party execution.
+
+## What it will not do
+
+A local build report is not a bill. Publish no savings percentage from it. `break_even_tasks` is a point estimate that stays `null` when evidence is incomplete; missing evidence is not a favourable zero. Verified savings remain `$0` until real traffic passes separate rollout and ledger gates that this package does not run.

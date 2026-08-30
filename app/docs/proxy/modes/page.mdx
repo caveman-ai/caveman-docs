@@ -1,0 +1,130 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/modes");
+
+<DocSchema slug="proxy/modes" />
+
+Mode decides whether the proxy is allowed to change model-visible bytes. Unknown values become
+`record`. That fail-closed default is why you can leave the listener running when you are unsure.
+
+The CLI exposes three operator modes. The binary accepts four more for controlled evaluation.
+
+<Facts rows={[
+  ["Wrap default", <code key="w">compress</code>],
+  ["Start default", <code key="s">record</code>],
+  ["Unknown mode", <code key="u">record</code>],
+  ["Pass-through flag", <code key="o">caveman wrap --off</code>],
+]} />
+
+## Record
+
+```bash
+caveman wrap --off claude
+caveman start
+```
+
+Forward the model-visible request unchanged. Usage is still written locally. Use record to take a
+baseline, to prove an integration works, or for any workflow where every input byte must stay
+visible.
+
+`CAVEMAN_OBSERVE_ESTIMATE=1` can run the compressor on copies of live-zone segments while mode is
+`record`. The forwarded request is not mutated, no recovery record is stored, and no saving is
+booked. It answers "what would compress have done" without doing it.
+
+## Compress
+
+```bash
+caveman claude
+caveman tools config set think.mode compress
+```
+
+Eligible context is sent through the engine. The original is stored first. The smaller view is
+emitted only after that write commits, and it carries a recovery handle. If the result is not
+smaller, if parse fails, if the store is full, or if the content type is unsupported, the original
+bytes go upstream.
+
+TOON, the compact encoding for uniform tabular JSON, is allowed in this mode when the feature gate
+is on and the encoded form is smaller. It is never selected by automatic detection, and it is never
+applied to tool-call arguments. Changing those can change program behaviour even when the data
+looks similar.
+
+```bash
+caveman tools toon encode < data.json
+caveman tools toon decode < data.toon
+```
+
+The decoder rejects malformed input rather than inventing structure. See
+[Compressors](/docs/engine/compressors) for the content types compress actually routes.
+
+## Pixel
+
+```bash
+caveman wrap --pixel gemini
+```
+
+Pixel renders text as a PNG for a vision-capable model. It is lossy, model-dependent, and
+CCR-recoverable. The model must appear in `think.pixel.models`. Caveman does not infer vision
+support from a name.
+
+Density is `conservative`, `balanced`, or `max`. Higher density packs more text into the image and
+can make small characters harder to read.
+
+A smaller local representation does not prove a lower provider bill. Providers count image tokens
+differently from text. Check `pixel simulate` against the model you will actually call before
+leaving this on:
+
+```bash
+caveman-engine pixel simulate --model anthropic <request.json>
+```
+
+`--pixel` is not supported for Codex subscription sessions.
+
+### Skills as images
+
+`caveman convert` renders installed `SKILL.md` bodies to PNG pages in place. Front matter stays
+text, so discovery and triggering still work. The model reads the body as an image.
+
+```bash
+caveman convert --dry-run
+caveman convert --agent claude
+caveman convert --revert
+```
+
+Conversion runs only when the pages beat the text on the local token counter. Any failure leaves
+the skill byte-identical and names the gate that said no. `--revert` restores `SKILL.orig.md`.
+Skills installed through `caveman skills install` auto-pixel by default; pass `--no-pixel` to skip.
+
+Measured on the caveman skill itself: 1,069 to 415 estimated tokens, a 61 percent reduction. That
+figure is `inferred`, one skill, and not a bill.
+
+## Evaluation modes
+
+The binary also accepts `recommend`, `shadow`, `canary`, and `active`. Standard local CLI workflows
+do not put you in these. They exist so a controlled evaluation can score or apply experimental
+behaviour without changing the three operator modes. If you have not been told to set one, you
+want `record`, `compress`, or `pixel`.
+
+## How a mode is chosen
+
+Wrap reads feature configuration (`think.mode`), then environment (`CAVEMAN_WRAP_MODE` or
+`CAVEMAN_MODE`), then the `--off` / `--pixel` flags. Start reads the same feature configuration,
+but a bare `caveman start` with no override resolves to `record` so an unattended listener does
+not transform traffic.
+
+`caveman.yaml` `mode` is what the binary itself loads. `CAVEMAN_MODE` overrides that file. Command
+flags win for one session. Full precedence is on [Configure](/docs/proxy/configure).
+
+## Failure behaviour
+
+```text
+unknown mode                 -> record
+malformed transform input    -> original bytes
+result not smaller           -> original bytes
+CCR unavailable or full      -> original bytes, no handle
+unsupported type or model    -> original bytes
+unknown safety class         -> do not transform
+missing recovery MCP         -> leave that path uncompressed
+foreign process on the port  -> do not restart or trust it
+```
+
+Every row resolves toward doing less. A mode you did not ask for cannot turn itself on.

@@ -1,0 +1,147 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/providers");
+
+<DocSchema slug="proxy/providers" />
+
+The proxy speaks the HTTP shapes your agent already uses. Change the base URL to `http://127.0.0.1:8787`
+(plus the provider prefix when the profile needs one) and keep the same request bodies. Compatibility
+here means the route and the credential mapping, not every vendor extension.
+
+Credentials stay on the request or in the environment. They never belong in YAML.
+
+<Facts rows={[
+  ["Default listen", <code key="d">http://127.0.0.1:8787</code>],
+  ["Unknown route", "404, then nothing is forwarded."],
+  ["Inbound key", "Preserved. Environment is a fallback only."],
+  ["Price gaps", "Zero, tagged unpriced. No guessed list price."],
+]} />
+
+## Anthropic
+
+```text
+/anthropic/v1/messages
+/anthropic/v1/messages/count_tokens
+/v1/messages
+/v1/messages/count_tokens
+```
+
+Claude Pro and Max OAuth tokens pass through as `Authorization: Bearer`. Remapping those to
+`x-api-key` would 401, so the proxy does not.
+
+Environment fallback: `ANTHROPIC_API_KEY`.
+
+## OpenAI
+
+```text
+/openai/v1/chat/completions
+/openai/v1/responses
+/openai/v1/embeddings
+/v1/chat/completions
+/v1/responses
+/v1/embeddings
+```
+
+Environment fallback: `OPENAI_API_KEY`.
+
+## Google Gemini
+
+```text
+/gemini/v1beta/models/{model}:generateContent
+/gemini/v1beta/models/{model}:streamGenerateContent
+/gemini/v1beta/models/{model}:countTokens
+```
+
+Bare `/v1beta/models/{model}:…` paths are also accepted when a profile uses them.
+
+Environment fallback: `GEMINI_API_KEY`.
+
+## Amazon Bedrock
+
+```text
+/bedrock/model/{model}/invoke
+/bedrock/model/{model}/invoke-with-response-stream
+/bedrock/model/{model}/converse
+/bedrock/model/{model}/converse-stream
+```
+
+No raw endpoint URL is required in standalone mode. Use a bearer key or a complete IAM pair:
+
+```bash
+AWS_REGION=us-east-1 AWS_BEARER_TOKEN_BEDROCK=… caveman-proxy
+AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… caveman-proxy
+```
+
+`AWS_SESSION_TOKEN` is honoured for temporary credentials. A partial IAM pair fails closed.
+
+Credential precedence is the inbound credential, then the Bedrock bearer token, then a complete IAM
+pair. Region precedence is `providers.bedrock.region` in `caveman.yaml`, then `CAVE_BEDROCK_REGION`,
+`AWS_REGION`, `AWS_DEFAULT_REGION`, then `us-east-1`.
+
+The Mantle-style Anthropic Messages route at `/bedrock/anthropic` stays off unless
+`CAVE_BEDROCK_MANTLE_ENABLED` is set.
+
+A Claude Code user agent cannot relabel paid Bedrock traffic as subscription traffic. Inbound
+`x-api-key` and bearer credentials are stamped as Bedrock API keys before that classification.
+
+## Azure OpenAI and Vertex AI
+
+Azure mounts under `/azure/…` after you set its base URL. Vertex mounts under `/vertex/v1/projects/…`
+and accepts the public Google and Anthropic publisher route forms the adapter implements. Both are
+opt-in: the endpoint and identity are installation-specific.
+
+```yaml
+providers:
+  azure:
+    base_url: https://example-resource.openai.azure.com
+```
+
+Environment fallback for Azure: `AZURE_OPENAI_API_KEY`.
+
+## OpenAI-compatible mounts
+
+Named compatibility mounts live at `/compat/{name}/…`. Each mount declares a `base_url` and the
+environment variable that holds its credential:
+
+```yaml
+compat:
+  local-model:
+    base_url: http://127.0.0.1:11434/v1
+    api_key_env: LOCAL_MODEL_API_KEY
+```
+
+Compatibility means HTTP shape. It does not mean every provider extension works. Private, loopback,
+and link-local upstreams are blocked until you add an exact host to `CAVE_SSRF_ALLOWLIST`. See
+[Security](/docs/proxy/security).
+
+## Applications and SDKs
+
+A wrap profile is one way to set the base URL. An application can do the same thing itself. The CLI
+prints copy-ready recipes:
+
+```bash
+caveman tools sdk
+```
+
+Recipes cover Anthropic, OpenAI, Google Gen AI, Vercel AI SDK, LangChain, LiteLLM, CrewAI, Pydantic AI,
+the OpenAI Agents SDK, and raw HTTP. The TypeScript and Python SDKs also take a `baseURL` of
+`http://127.0.0.1:8787`; see [TypeScript SDK](/docs/sdk/typescript) and [Python SDK](/docs/sdk/python).
+
+## Streaming
+
+Transforms finish before the request is dispatched. The response stays a stream. Provider streaming
+protocols and status codes are preserved. A transform never converts a streaming call into a buffered
+fake.
+
+## Pricing on the local row
+
+The [provider catalog](/docs/provider-catalog) supplies dated public list prices. An unknown provider
+or model resolves to zero with an `unpriced` marker. Provider-reported token counts stay in a different
+field from engine estimates. A displayed list-price subtotal is not an invoice.
+
+## When a route misses
+
+A 404 usually means the agent used the wrong provider prefix, or a bare path the selected adapter does
+not own. Authentication failures should be checked at the inbound header and at the environment
+fallback, without printing the secret. A blocked custom base URL almost always needs a precise
+`CAVE_SSRF_ALLOWLIST` entry, not a wider listen address.

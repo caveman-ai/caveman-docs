@@ -2,12 +2,12 @@ import { docMetadata } from "@/lib/site";
 export const metadata = docMetadata("skill/profiles");
 
 Agent profiles are the registry entries that tell the CLI how a coding agent is installed, launched, and given
-local Caveman tools. Seven profiles ship in the registry. The JSON files are compiled into the CLI, so source and
+local Caveman tools. Ten profiles ship in the registry. The JSON files are compiled into the CLI, so source and
 distributed behaviour stay tied together.
 
 <Facts rows={[
   ["Schema", <code key="s">schema_version: "1"</code>],
-  ["Profiles", "Aider, Claude Code, Codex CLI, Gemini CLI, Hermes, OpenClaw, and opencode."],
+  ["Profiles", "Aider, Claude Code, Codex CLI, Gemini CLI, Hermes, Kilo, OpenClaw, opencode, Pi, and Qwen Code."],
   ["Fallback", <code key="f">generic-env</code>],
   ["Validation", "Unknown hook or injection methods fail compilation."],
   ["Licence", "MIT."],
@@ -22,8 +22,11 @@ distributed behaviour stay tied together.
 | `codex` | OpenAI Responses | Host-specific code path | Codex hook |
 | `gemini` | Gemini generateContent | Environment | Gemini hook |
 | `hermes` | OpenAI Chat | Environment plus builder | Hermes plugin |
+| `kilo` | OpenAI Chat | Inline config via environment | Manual |
 | `openclaw` | OpenAI Chat | Config file overlay | OpenClaw plugin |
 | `opencode` | OpenAI Chat | Config content overlay | opencode plugin |
+| `pi` | OpenAI Chat | Native extension | Pi extension |
+| `qwen` | OpenAI Chat | Temporary system-settings overlay | Manual |
 
 This table describes declared integration shape. It does not say that every host version or provider credential
 has been tested. Each profile carries a tested version, and profiles that need code beyond their JSON declaration
@@ -66,11 +69,15 @@ caveman codex
 caveman gemini
 caveman aider
 caveman hermes
+caveman kilo
 caveman openclaw
 caveman opencode
+caveman pi
+caveman qwen
 ```
 
-Each shortcut is equivalent to `caveman wrap <id>`.
+Each shortcut is equivalent to `caveman wrap <id>`. [Wrap an agent](/docs/proxy/wrap) is the page for the
+hop itself.
 
 ## Hooks are capabilities, not assumptions
 

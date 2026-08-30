@@ -1,0 +1,126 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy");
+
+<DocSchema slug="proxy" />
+
+The local proxy is a reverse proxy on loopback. You point an existing coding agent or provider SDK at
+`http://127.0.0.1:8787`, it forwards each request to your chosen model API with the credential that came in,
+and the [engine](/docs/engine) compresses eligible context before those bytes leave.
+
+It is one of two things you install. The [skill](/docs/skill) changes how an agent writes. The proxy changes
+how much the agent has to read. They run independently.
+
+<Facts rows={[
+  ["Binary", <code key="b">caveman-proxy</code>],
+  ["Listen", <code key="l">127.0.0.1:8787</code>],
+  ["Account", "Not required."],
+  ["Licence", "BSL 1.1, converting to Apache 2.0 after four years."],
+  ["Reports", <>Always <code>inferred</code>. It cannot emit <code>verified</code>.</>],
+]} />
+
+<ProxyPath />
+
+The agent and the provider request format stay as they are. The proxy is a base-URL swap, not a new agent
+loop. Recovery copies live in `~/.caveman/ccr.db` on this machine. Usage rows live in
+`~/.caveman/caveman.db`. Neither file is a bill.
+
+## Two ways in
+
+**Wrap an agent.** The CLI starts the proxy and points a known coding agent at it:
+
+```bash
+npm install -g @caveman-ai/cli
+caveman setup --install
+caveman claude
+```
+
+The same shortcut exists for Codex, Gemini CLI, Aider, Hermes, Kilo, OpenClaw, opencode, Pi, and Qwen Code.
+See [Wrap an agent](/docs/proxy/wrap).
+
+**Start the listener yourself.** Use this when an application already has a provider SDK and you only want
+to change its base URL:
+
+```bash
+caveman start
+```
+
+Default mode for a bare `caveman start` is `record`: every model-visible byte is forwarded unchanged, and
+the proxy writes local usage rows. Wrap defaults the other way, to `compress`. [Modes](/docs/proxy/modes)
+explains the difference.
+
+## What happens to a request
+
+1. The agent sends a provider-shaped HTTP request to loopback.
+2. The proxy matches a [route](/docs/proxy/providers), keeps or resolves the credential, and inspects the body.
+3. If the mode allows it and every gate passes, the engine stores the original bytes and emits a smaller view
+   plus a recovery handle.
+4. The proxy forwards the (possibly smaller) request upstream and streams the provider response back.
+5. A local usage row is written. Token reductions on that row are `inferred`.
+
+If any transform gate fails, step 3 is skipped and the original body is forwarded. A compression problem
+never becomes a fake success or a client-side parse error. Provider errors still arrive as provider errors.
+
+## Build from source
+
+Most people never do this. The CLI installs a signed `caveman-proxy` into `~/.caveman/bin`. If you want the
+binary yourself:
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman
+cd caveman
+go build -o ./bin/caveman-proxy ./proxy/cmd/caveman-proxy
+ANTHROPIC_API_KEY=… ./bin/caveman-proxy
+```
+
+There is no npm, pip, Docker, or Homebrew package for the proxy itself. `@caveman-ai/cli` is the MIT
+launcher.
+
+## What the numbers mean
+
+In a pinned Claude Code benchmark, the wrap path used 33.2 percent fewer provider-reported input tokens
+across 18 paired runs of six cases. The case-clustered 95 percent interval is 14.6 to 48.5 percent. All 18
+exact-answer checks passed. One case regressed by 9.9 percent and stays in the aggregate. That is controlled
+benchmark evidence on a pinned agent build, not production traffic and not `verified`.
+
+Local rows the proxy writes after your own sessions stay `inferred`. They are never multiplied into a
+monthly figure and never converted to money.
+
+<Note tone="honest" title="The proxy is not the engine">
+The proxy routes, authenticates, streams, and records. The engine detects a payload and compresses it.
+If you want to know what a JSON log or a diff looks like after compression, read
+[Compressors](/docs/engine/compressors). This product is the process that puts that compressor on the wire.
+</Note>
+
+## What it will not do
+
+It will not bind to a LAN, container bridge, or public interface. A non-loopback listen address is
+rejected, because the listener has no inbound authentication.
+
+It will not log authorization headers, put API keys in YAML, or emit `verified`.
+
+It will not replace your agent. Claude Code still owns its UI, permissions, and model calls. The proxy
+owns the hop between that agent and the provider.
+
+It will not compress when the recovery store cannot accept the original. No store, no lossy transform.
+
+<CardGrid>
+  <Card href="/docs/proxy/wrap" title="Wrap an agent">
+    Launch a coding agent through the local listener.
+  </Card>
+  <Card href="/docs/proxy/providers" title="Providers">
+    Routes, credentials, and compatibility mounts.
+  </Card>
+  <Card href="/docs/proxy/modes" title="Modes">
+    Record, compress, pixel, and the evaluation modes.
+  </Card>
+  <Card href="/docs/proxy/configure" title="Configure">
+    Feature flags, caveman.yaml, and local storage.
+  </Card>
+  <Card href="/docs/proxy/security" title="Security">
+    Loopback, BYOK, and what stays on disk.
+  </Card>
+  <Card href="/docs/engine" title="The engine" meta="BSL 1.1">
+    The compressor the proxy calls.
+  </Card>
+</CardGrid>
