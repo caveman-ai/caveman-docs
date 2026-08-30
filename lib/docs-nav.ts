@@ -6,11 +6,19 @@
  *  what pages exist.
  *
  *  The order is not a table of contents, it is the system. A request moves
- *  up the stack: the skill decides what to send, the engine decides what it
+ *  up the stack: the skill decides what to send, the proxy decides what it
  *  weighs, memory decides what never gets sent twice, and Cloud is where a
  *  fleet's numbers become something you can hand to a finance team. Each
  *  layer above costs more and proves more. The bottom one is free and runs
  *  on your machine.
+ *
+ *  Products are grouped by `section`, which is where they come from: one
+ *  repository, another repository, or a hosted plane with no repository at
+ *  all. A reader's first question about any product on this site is "what do
+ *  I install, and from where", and the rail answers it before they click.
+ *
+ *  The compression engine is not a section, a product, or a top level route.
+ *  It is the compressor the proxy calls, so it lives inside the proxy.
  *
  *  Every page names the registry `capability` it documents. `pnpm
  *  check:public` refuses to build if that id is not public in
@@ -31,7 +39,7 @@ export type Layer = {
 
 export const LAYERS: Layer[] = [
   { id: "skill", name: "Skill", role: "What the agent does before it calls out", rank: 0 },
-  { id: "engine", name: "Engine", role: "What the payload weighs when it leaves", rank: 1 },
+  { id: "proxy", name: "Proxy", role: "What the payload weighs when it leaves", rank: 1 },
   { id: "memory", name: "Memory", role: "What you never have to send twice", rank: 2 },
   { id: "cloud", name: "Cloud", role: "What a fleet can put in front of finance", rank: 3 },
 ];
@@ -47,12 +55,34 @@ export type DocLink = {
   license?: DocLicense;
   /** Which stack layer this page belongs to, if any. */
   layer?: string;
+  /* A label drawn above this item when its product is open. One product with
+   * two halves reads better than two products, but only if the seam is
+   * visible. Used once, by the proxy, to separate running it from what it
+   * does to your bytes. */
+  divider?: string;
   /** A planned page. Rendered in the sidebar without a link, kept out of the sitemap. */
   soon?: boolean;
 };
 
+/** Where a product comes from. Rendered as a label above the first group in it. */
+export type DocSection = {
+  id: string;
+  /** What the reader is looking at. Short enough to sit in a 13px rail. */
+  label: string;
+  /** The repository, when there is one. `null` means hosted, nothing to clone. */
+  repo: string | null;
+};
+
+export const SECTIONS: DocSection[] = [
+  { id: "caveman", label: "caveman", repo: "https://github.com/JuliusBrussee/caveman" },
+  { id: "agent-sdk", label: "agent-sdk", repo: "https://github.com/JuliusBrussee/agent-sdk" },
+  { id: "hosted", label: "caveman cloud", repo: null },
+];
+
 export type DocGroup = {
   title: string;
+  /** Which `SECTIONS` id this product ships from. Groups outside the product list have none. */
+  section?: string;
   /** Set when this group is a layer of the stack, which gives it a rank badge. */
   layer?: string;
   /* Set to make this group a product: one thing you install, and the slug the
@@ -69,7 +99,7 @@ export const DOCS_NAV: DocGroup[] = [
   {
     title: "Start",
     items: [
-      { title: "Overview", slug: "", blurb: "What Caveman is, which parts are open, and where to start reading." },
+      { title: "Overview", slug: "", blurb: "What Caveman is, which parts are open, which repository each one ships from." },
       { title: "Quickstart", slug: "quickstart", blurb: "Install the skill and compress a real payload in about five minutes." },
       { title: "Architecture", slug: "architecture", blurb: "The path a request takes through the stack, and where the open-core line falls." },
       { title: "How numbers are counted", slug: "counting", blurb: "Inferred against verified, per run against per month, and the four rules the code follows." },
@@ -77,6 +107,7 @@ export const DOCS_NAV: DocGroup[] = [
   },
   {
     title: "Skill",
+    section: "caveman",
     layer: "skill",
     home: "skill",
     items: [
@@ -86,32 +117,31 @@ export const DOCS_NAV: DocGroup[] = [
       { title: "Agent profiles", slug: "skill/profiles", blurb: "The registry of coding agents the skill knows how to configure.", capability: "agent-profiles", license: "MIT", layer: "skill" },
     ],
   },
+  /* One product. The first six pages are the process you run; the last four
+   * are the compressor it calls. The engine used to be a top level route of
+   * its own, which asked every reader to know an internal boundary before
+   * they could find out what compression does to a diff. */
   {
     title: "Proxy",
+    section: "caveman",
+    layer: "proxy",
     home: "proxy",
     items: [
-      { title: "Local proxy", slug: "proxy", blurb: "A loopback reverse proxy: point an agent at it, keep your provider key, let the engine shrink what leaves.", license: "BSL-1.1" },
-      { title: "Wrap an agent", slug: "proxy/wrap", blurb: "Launch Claude Code, Codex, Gemini CLI, and seven other agents through the local listener.", license: "BSL-1.1" },
-      { title: "Providers", slug: "proxy/providers", blurb: "The HTTP routes, credentials, and compatibility mounts the proxy forwards.", license: "BSL-1.1" },
-      { title: "Modes", slug: "proxy/modes", blurb: "Record, compress, and pixel, plus the evaluation modes the runtime accepts.", license: "BSL-1.1" },
-      { title: "Configure", slug: "proxy/configure", blurb: "Feature flags, caveman.yaml, local storage, and how mode is chosen.", license: "BSL-1.1" },
-      { title: "Security", slug: "proxy/security", blurb: "Loopback only, BYOK, SSRF checks, and what stays on disk.", license: "BSL-1.1" },
-    ],
-  },
-  {
-    title: "Engine",
-    layer: "engine",
-    home: "engine",
-    items: [
-      { title: "Overview", slug: "engine", blurb: "Content-aware compression that keeps the parts an answer depends on.", capability: "engine", license: "BSL-1.1", layer: "engine" },
-      { title: "Compressors", slug: "engine/compressors", blurb: "One router per content shape: JSON, logs, code, diffs, search results, prose.", capability: "engine", license: "BSL-1.1", layer: "engine" },
-      { title: "Recoverable compression", slug: "engine/recoverable", blurb: "Why lossy stays honest: every removed byte can be fetched back.", capability: "engine", license: "BSL-1.1", layer: "engine" },
-      { title: "Token counting", slug: "engine/tokens", blurb: "The offline counter behind every ratio the engine reports.", capability: "engine", license: "BSL-1.1", layer: "engine" },
-      { title: "caveman-shrink", slug: "engine/shrink", blurb: "Shrink command output before it reaches the model.", capability: "shrink", license: "MIT", layer: "engine" },
+      { title: "Overview", slug: "proxy", blurb: "A loopback reverse proxy: point an agent at it, keep your provider key, and it shrinks what leaves.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+      { title: "Wrap an agent", slug: "proxy/wrap", blurb: "Launch Claude Code, Codex, Gemini CLI, and seven other agents through the local listener.", license: "BSL-1.1", layer: "proxy" },
+      { title: "Providers", slug: "proxy/providers", blurb: "The HTTP routes, credentials, and compatibility mounts the proxy forwards.", license: "BSL-1.1", layer: "proxy" },
+      { title: "Modes", slug: "proxy/modes", blurb: "Record, compress, and pixel, plus the evaluation modes the runtime accepts.", license: "BSL-1.1", layer: "proxy" },
+      { title: "Configure", slug: "proxy/configure", blurb: "Feature flags, caveman.yaml, local storage, and how mode is chosen.", license: "BSL-1.1", layer: "proxy" },
+      { title: "Security", slug: "proxy/security", blurb: "Loopback only, BYOK, SSRF checks, and what stays on disk.", license: "BSL-1.1", layer: "proxy" },
+      { title: "The engine", slug: "proxy/engine", divider: "compression", blurb: "The compressor the proxy calls, and the standalone binary behind it.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+      { title: "Compressors", slug: "proxy/compressors", blurb: "One router per content shape: JSON, logs, code, diffs, search results, prose.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+      { title: "Recoverable compression", slug: "proxy/recoverable", blurb: "Why lossy stays honest: every removed byte can be fetched back.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+      { title: "Token counting", slug: "proxy/tokens", blurb: "The offline counter behind every ratio the engine reports.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
     ],
   },
   {
     title: "Memory",
+    section: "caveman",
     layer: "memory",
     home: "memory",
     items: [
@@ -120,31 +150,24 @@ export const DOCS_NAV: DocGroup[] = [
     ],
   },
   {
-    title: "Cloud",
-    layer: "cloud",
-    home: "cloud",
-    items: [
-      { title: "What Cloud adds", slug: "cloud", blurb: "The managed plane: fleet visibility, spend attribution, and verified numbers.", license: "Commercial", layer: "cloud" },
-      { title: "Model router", slug: "router", blurb: "One model id: classify the task, apply a cost tier, route to measured evidence, fall back to your baseline.", license: "Commercial", layer: "cloud" },
-    ],
-  },
-  /* Named so the rail is honest about the whole product line. Pebble has no
-   * page, path, or capability id here: the name is all this repository knows
-   * and all a public site needs to say. */
-  { title: "Pebble", soon: true, items: [] },
-  {
     title: "Build with it",
+    section: "caveman",
     home: "cli",
     items: [
       { title: "CLI", slug: "cli", blurb: "The command surface: compress, detect, learn, and agent setup.", capability: "cli", license: "MIT" },
       { title: "TypeScript SDK", slug: "sdk/typescript", blurb: "Compress payloads and read spend from Node.", capability: "sdk-ts", license: "MIT" },
       { title: "Python SDK", slug: "sdk/python", blurb: "The same surface for Python agents.", capability: "sdk-python", license: "MIT" },
       { title: "MCP server", slug: "mcp", blurb: "Expose compression and recall as tools any MCP client can call.", capability: "mcp", license: "MIT" },
+      { title: "caveman-shrink", slug: "shrink", blurb: "Shrink command output before it reaches the model.", capability: "shrink", license: "MIT" },
       { title: "caveman-browse", slug: "browse", blurb: "Read web pages as compressed accessibility trees instead of raw HTML.", capability: "browse", license: "BSL-1.1" },
     ],
   },
+  /* A different repository and a different job: the products above make an
+   * existing agent cheaper, this one is how you write a new agent. It is not
+   * a layer of the stack and does not carry a rank. */
   {
     title: "Agent SDK",
+    section: "agent-sdk",
     home: "agent-sdk",
     items: [
       { title: "Overview", slug: "agent-sdk", blurb: "Build an agent that is efficient by construction.", capability: "agent-sdk", license: "MIT" },
@@ -160,6 +183,20 @@ export const DOCS_NAV: DocGroup[] = [
       { title: "Connect", slug: "agent-sdk/connect", blurb: "Paginated provider data through one stable tool. Fail closed. The daemon is not in this package.", capability: "agent-sdk", license: "MIT" },
       { title: "Evals and builds", slug: "agent-sdk/build", blurb: "Profile, search, freeze, holdout. Failed evals never produce a lock.", capability: "agent-sdk", license: "MIT" },
       { title: "Adapters", slug: "agent-sdk/adapters", blurb: "Exact-pinned framework lanes. Presence is not a grant of execution.", capability: "agent-sdk", license: "MIT" },
+    ],
+  },
+  /* Named so the rail is honest about the whole product line. Pebble has no
+   * page, path, or capability id here: the name is all this repository knows
+   * and all a public site needs to say. */
+  { title: "Pebble", section: "agent-sdk", soon: true, items: [] },
+  {
+    title: "Cloud",
+    section: "hosted",
+    layer: "cloud",
+    home: "cloud",
+    items: [
+      { title: "What Cloud adds", slug: "cloud", blurb: "The managed plane: fleet visibility, spend attribution, and verified numbers.", license: "Commercial", layer: "cloud" },
+      { title: "Model router", slug: "router", blurb: "One model id: classify the task, apply a cost tier, route to measured evidence, fall back to your baseline.", license: "Commercial", layer: "cloud" },
     ],
   },
   {
@@ -189,6 +226,10 @@ export function findDoc(slug: string): DocLink | undefined {
 
 export function layerOf(id: string | undefined): Layer | undefined {
   return LAYERS.find((l) => l.id === id);
+}
+
+export function sectionOf(id: string | undefined): DocSection | undefined {
+  return SECTIONS.find((s) => s.id === id);
 }
 
 /** Previous and next live pages, for the pager at the foot of every page. */

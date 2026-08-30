@@ -1,6 +1,6 @@
 export const dynamic = "force-static";
 
-import { DOCS_FLAT, DOCS_NAV, docPath, layerOf } from "@/lib/docs-nav";
+import { DOCS_FLAT, DOCS_NAV, docPath, layerOf, sectionOf } from "@/lib/docs-nav";
 import { TERMS } from "@/lib/glossary";
 import { siteUpdated } from "@/lib/page-index";
 import { SITE } from "@/lib/site";
@@ -23,9 +23,17 @@ export function GET() {
     `> ${SITE.description}`,
     "",
     "Caveman is an efficiency stack for AI agents, in four layers. Skill (00) shapes what the agent writes.",
-    "Engine (01) compresses payloads and keeps the originals recoverable. Memory (02) stores context so it is",
-    "not resent. Cloud (03) is the managed plane and is the only paid layer. Layers 00 to 02 run on the",
-    "reader's own machine and their source is public.",
+    "Proxy (01) is a loopback listener plus the engine it calls, which compresses payloads and keeps the",
+    "originals recoverable. Memory (02) stores context so it is not resent. Cloud (03) is the managed plane",
+    "and is the only paid layer. Layers 00 to 02 run on the reader's own machine and their source is public.",
+    "",
+    "The engine is not a separate product and has no top-level route. It is documented under the proxy.",
+    "",
+    "Two repositories, plus a hosted plane. github.com/JuliusBrussee/caveman holds the skill, the proxy and",
+    "its engine, memory, and the CLI, SDK, MCP and standalone-command adoption surfaces: these make an agent",
+    "you already run cheaper. github.com/JuliusBrussee/agent-sdk holds the Agent SDK, which is for building a",
+    "new agent whose context, tools and budget are declared up front. Neither requires the other. Caveman",
+    "Cloud is hosted and has no repository. Each `##` section below names which of the three it belongs to.",
     "",
     "Measurement vocabulary. These three words are fixed and are not interchangeable:",
     "",
@@ -36,7 +44,7 @@ export function GET() {
     "",
     "How to read this site without HTML:",
     "",
-    `- Append \`.md\` to any page URL, for example ${SITE.url}/docs/engine.md`,
+    `- Append \`.md\` to any page URL, for example ${SITE.url}/docs/proxy.md`,
     "- Or send `Accept: text/markdown` to the page URL itself and get the same thing back",
     `- ${SITE.url}/llms-full.txt is every page in one file`,
     `- ${SITE.url}/llms-index.json is a machine index: headings, anchors, licences and last-changed dates`,
@@ -51,10 +59,12 @@ export function GET() {
     const layer = layerOf(group.layer);
     lines.push(`## ${layer ? `${String(layer.rank).padStart(2, "0")} ${group.title}` : group.title}`);
     lines.push("");
-    if (layer) {
-      lines.push(`${layer.role}.`);
-      lines.push("");
+    const section = sectionOf(group.section);
+    if (section) {
+      lines.push(section.repo ? `Ships from ${section.repo}.` : "Hosted. There is no repository to clone.");
     }
+    if (layer) lines.push(`${layer.role}.`);
+    if (section || layer) lines.push("");
     for (const item of live) {
       const title = layer && item.slug === layer.id ? layer.name : item.title;
       const license = item.license ? ` [${item.license}]` : "";

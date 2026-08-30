@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { StackDiagram, RequestPath } from "@/components/docs/diagrams";
-import { DOCS_NAV, LAYERS, docPath, type DocLink } from "@/lib/docs-nav";
+import { DOCS_NAV, SECTIONS, docPath, layerOf, type DocLink } from "@/lib/docs-nav";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ const RULES: [string, string, string][] = [
 const AGENT_ENDPOINTS: [string, string][] = [
   ["/llms.txt", "Every page with a one-line summary, grouped by layer."],
   ["/llms-full.txt", "The full text of the whole site in one file."],
-  ["/docs/engine.md", "Any page as plain Markdown. Append .md to the path."],
+  ["/docs/proxy.md", "Any page as plain Markdown. Append .md to the path."],
   ["/sitemap.xml", "Machine-readable index of everything that exists."],
 ];
 
@@ -70,9 +70,11 @@ export default function HomePage() {
             Documentation for the parts of Caveman you run yourself.
           </h1>
           <p className="mt-5 max-w-measure text-[15px] leading-relaxed text-muted-foreground">
-            Caveman is an efficiency stack for AI agents. Four layers sit between your agent and the bill it
-            generates. Three of them run on your machine and are open. This site documents those, and says
-            plainly what each one can and cannot prove.
+            Caveman is an efficiency stack for AI agents. Four layers sit between an agent you already use
+            and the bill it generates, and three of them run on your machine and are open. A second
+            repository, the Agent SDK, is for the other case: writing an agent whose budget is declared
+            rather than discovered. This site documents both, and says plainly what each can and cannot
+            prove.
           </p>
 
           <StackDiagram />
@@ -121,38 +123,63 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
+        {/* Grouped the way the sidebar groups it, and for the same reason: the
+         * first question about any product here is what it is part of and
+         * where it comes from. Answering that on the front page means a reader
+         * never has to reverse-engineer it from a URL. */}
         <section className="border-b border-border py-12">
-          <SectionHead label="by layer" title="Everything, in stack order">
-            Each layer is independent. Nothing above one is required by the one below it.
+          <SectionHead label="everything there is" title="Two repositories and one hosted plane">
+            Layers carry a rank and stack bottom to top. Nothing above a layer is required by the one below
+            it, and the Agent SDK needs none of them.
           </SectionHead>
           <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
-            {LAYERS.map((layer) => {
-              const group = DOCS_NAV.find((g) => g.layer === layer.id);
-              if (!group) return null;
+            {SECTIONS.map((section) => {
+              const products = DOCS_NAV.filter((g) => g.section === section.id && g.items.length > 0);
+              if (products.length === 0) return null;
               return (
-                <div key={layer.id} className="border-t border-border pt-4">
-                  <div className="flex items-baseline gap-2.5">
-                    <span className="font-mono text-2xs tabular-nums text-ember">
-                      {String(layer.rank).padStart(2, "0")}
+                <div key={section.id} className="border-t border-border pt-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-2xs text-ember">{section.label}</span>
+                    <span className="text-2xs text-muted-foreground">
+                      {section.repo ? "repository" : "hosted, across a network boundary"}
                     </span>
-                    <Link href={docPath(layer.id)} className="text-[13px] font-medium text-foreground hover:underline">
-                      {layer.name}
-                    </Link>
-                    <span className="text-[13px] text-muted-foreground">{layer.role}</span>
                   </div>
-                  <ul className="mt-2">
-                    {group.items.map((item) =>
-                      item.soon ? (
-                        <li key={item.slug} className="flex items-baseline gap-2 py-1.5 text-[13px] text-muted-foreground/50">
-                          <span>{item.title}</span>
-                          <span className="min-w-0 flex-1 truncate">{item.blurb}</span>
-                          <span className="shrink-0 text-2xs">soon</span>
-                        </li>
-                      ) : (
-                        <PageLink key={item.slug} doc={item} />
-                      ),
-                    )}
-                  </ul>
+                  {products.map((group) => {
+                    const layer = layerOf(group.layer);
+                    const first = group.items[0];
+                    return (
+                      <div key={group.title} className="mt-3">
+                        <div className="flex items-baseline gap-2.5">
+                          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                            {layer ? String(layer.rank).padStart(2, "0") : "\u00b7\u00b7"}
+                          </span>
+                          <Link
+                            href={docPath(group.home ?? first?.slug ?? "")}
+                            className="text-[13px] font-medium text-foreground hover:underline"
+                          >
+                            {group.title}
+                          </Link>
+                          <span className="text-[13px] text-muted-foreground">{layer?.role ?? first?.blurb}</span>
+                        </div>
+                        <ul className="mt-1">
+                          {group.items.map((item) =>
+                            item.soon ? (
+                              <li
+                                key={item.slug}
+                                className="flex items-baseline gap-2 py-1.5 text-[13px] text-muted-foreground/50"
+                              >
+                                <span>{item.title}</span>
+                                <span className="min-w-0 flex-1 truncate">{item.blurb}</span>
+                                <span className="shrink-0 text-2xs">soon</span>
+                              </li>
+                            ) : (
+                              <PageLink key={item.slug} doc={item} />
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}

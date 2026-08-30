@@ -6,18 +6,27 @@ export const metadata = docMetadata("proxy");
 
 The local proxy is a reverse proxy on loopback. You point an existing coding agent or provider SDK at
 `http://127.0.0.1:8787`, it forwards each request to your chosen model API with the credential that came in,
-and the [engine](/docs/engine) compresses eligible context before those bytes leave.
+and it compresses eligible context before those bytes leave.
 
 It is one of two things you install. The [skill](/docs/skill) changes how an agent writes. The proxy changes
 how much the agent has to read. They run independently.
 
 <Facts rows={[
+  ["Repository", <code key="r">JuliusBrussee/caveman</code>],
   ["Binary", <code key="b">caveman-proxy</code>],
   ["Listen", <code key="l">127.0.0.1:8787</code>],
   ["Account", "Not required."],
   ["Licence", "BSL 1.1, converting to Apache 2.0 after four years."],
   ["Reports", <>Always <code>inferred</code>. It cannot emit <code>verified</code>.</>],
 ]} />
+
+<Note title="The proxy and the engine are one product">
+Two binaries, one thing you install and one set of pages. `caveman-proxy` routes, authenticates, streams
+and records. `caveman-engine` decides what a payload is and makes it smaller. You almost never run the
+second one directly, so it is documented here rather than as a product of its own: start at
+[the engine](/docs/proxy/engine), then [Compressors](/docs/proxy/compressors) for what happens to a
+specific content type.
+</Note>
 
 <ProxyPath />
 
@@ -86,12 +95,6 @@ benchmark evidence on a pinned agent build, not production traffic and not `veri
 Local rows the proxy writes after your own sessions stay `inferred`. They are never multiplied into a
 monthly figure and never converted to money.
 
-<Note tone="honest" title="The proxy is not the engine">
-The proxy routes, authenticates, streams, and records. The engine detects a payload and compresses it.
-If you want to know what a JSON log or a diff looks like after compression, read
-[Compressors](/docs/engine/compressors). This product is the process that puts that compressor on the wire.
-</Note>
-
 ## What it will not do
 
 It will not bind to a LAN, container bridge, or public interface. A non-loopback listen address is
@@ -103,6 +106,8 @@ It will not replace your agent. Claude Code still owns its UI, permissions, and 
 owns the hop between that agent and the provider.
 
 It will not compress when the recovery store cannot accept the original. No store, no lossy transform.
+
+## Running it
 
 <CardGrid>
   <Card href="/docs/proxy/wrap" title="Wrap an agent">
@@ -120,7 +125,21 @@ It will not compress when the recovery store cannot accept the original. No stor
   <Card href="/docs/proxy/security" title="Security">
     Loopback, BYOK, and what stays on disk.
   </Card>
-  <Card href="/docs/engine" title="The engine" meta="BSL 1.1">
-    The compressor the proxy calls.
+</CardGrid>
+
+## What it does to your bytes
+
+<CardGrid>
+  <Card href="/docs/proxy/engine" title="The engine">
+    The compressor the proxy calls, and the standalone binary behind it.
+  </Card>
+  <Card href="/docs/proxy/compressors" title="Compressors">
+    One router per content shape: JSON, logs, code, diffs, search results, prose.
+  </Card>
+  <Card href="/docs/proxy/recoverable" title="Recoverable compression">
+    Why lossy stays honest: every removed byte can be fetched back.
+  </Card>
+  <Card href="/docs/proxy/tokens" title="Token counting">
+    The offline counter behind every ratio the proxy reports.
   </Card>
 </CardGrid>

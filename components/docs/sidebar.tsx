@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DOCS_NAV, docPath, layerOf, type DocGroup } from "@/lib/docs-nav";
+import { DOCS_NAV, docPath, layerOf, sectionOf, type DocGroup } from "@/lib/docs-nav";
 import { cn } from "@/lib/cn";
 
 /* ==========================================================================
@@ -19,6 +19,10 @@ import { cn } from "@/lib/cn";
  *  product's own overview, which lands you inside it and opens it there. So
  *  there is no open/closed state to drift out of step with the URL, no
  *  focus trap, and the back button undoes a switch.
+ *
+ *  Products are banded by section, so the rail answers "which repository is
+ *  this in" without a click. The band is a label, not a control: there is
+ *  nothing to expand and nothing to get out of step with the URL.
  *
  *  Start and Reference have no product, so they are always open: one is read
  *  once, the other is reached from anywhere.
@@ -38,6 +42,19 @@ function Rank({ rank, active }: { rank: number | undefined; active: boolean }) {
     >
       {rank === undefined ? "" : String(rank).padStart(2, "0")}
     </span>
+  );
+}
+
+/** The band above the first product of a section. Names where that code lives. */
+function SectionBand({ id }: { id: string }) {
+  const section = sectionOf(id);
+  if (!section) return null;
+  return (
+    <div className="mb-1 mt-6 flex items-center gap-2 px-2">
+      <span className="font-mono text-2xs text-muted-foreground/70">{section.label}</span>
+      <span className="h-px flex-1 bg-border" />
+      <span className="text-2xs text-muted-foreground/50">{section.repo ? "repository" : "hosted"}</span>
+    </div>
   );
 }
 
@@ -76,16 +93,20 @@ export function DocsSidebar({ onNavigate = () => {} }: { onNavigate?: () => void
 
   return (
     <nav aria-label="Documentation" className="pb-16">
-      {DOCS_NAV.map((group) => {
+      {DOCS_NAV.map((group, i) => {
         const isProduct = Boolean(group.home) || Boolean(group.soon);
         const active = group.items.some((it) => it.slug === current);
         const open = active || !isProduct;
+        // Bands are drawn on change, so a section stays one label however many
+        // products land in it.
+        const band = group.section && group.section !== DOCS_NAV[i - 1]?.section ? group.section : undefined;
 
         return (
           <div
             key={group.title}
             className={cn(isProduct ? "mb-px" : "mb-5 mt-5 first:mt-0", isProduct && active && "my-3")}
           >
+            {band ? <SectionBand id={band} /> : null}
             {isProduct ? (
               <ProductRow group={group} active={active} />
             ) : (
@@ -96,6 +117,11 @@ export function DocsSidebar({ onNavigate = () => {} }: { onNavigate?: () => void
               <ul className={cn(isProduct && "ml-[1.4rem] border-l border-ember/60 pl-2")}>
                 {group.items.map((item) => {
                   const itemActive = item.slug === current;
+                  const divider = item.divider ? (
+                    <span className="mt-3 flex items-center gap-2 px-2 pb-0.5 font-mono text-2xs text-muted-foreground/60">
+                      {item.divider}
+                    </span>
+                  ) : null;
                   if (item.soon) {
                     return (
                       <li key={item.slug}>
@@ -108,6 +134,7 @@ export function DocsSidebar({ onNavigate = () => {} }: { onNavigate?: () => void
                   }
                   return (
                     <li key={item.slug}>
+                      {divider}
                       <Link
                         href={docPath(item.slug)}
                         onClick={onNavigate}

@@ -7,13 +7,18 @@ export const metadata = docMetadata("architecture");
 Caveman is not one program. Most people install the skill, the proxy, or both, and never touch the rest.
 This page shows how a single request moves through the pieces and why they are separable.
 
+It describes the `caveman` repository. The [Agent SDK](/docs/agent-sdk) is a different repository with a
+different job: it is how you build an agent, not how you make an existing one cheaper, and nothing on
+this page is required to use it.
+
 ## One request
 
 <RequestPath />
 
 The agent decides what to say. The skill has already shaped how it says it. When the request is wrapped,
-it goes to the [local proxy](/docs/proxy) on loopback; the engine reduces whatever payload is about to
-leave; the provider bills for what arrives. Without the proxy, the engine is a binary you call yourself.
+it goes to the [local proxy](/docs/proxy) on loopback; the [engine](/docs/proxy/engine) reduces whatever
+payload is about to leave; the provider bills for what arrives. Without the proxy, the engine is a binary
+you call yourself.
 
 The dashed line is the part that makes the rest defensible. Compression here is not a one-way door. Before
 the engine emits a smaller payload it writes the original bytes to a local store keyed by a hash of those
@@ -32,14 +37,13 @@ Each layer answers a different question, and they fail independently.
 
 <Facts rows={[
   ["Skill", "Changes what the agent writes. No process, no config, no network."],
-  ["Proxy", "Changes the base URL. A loopback process that routes, records, and calls the engine."],
-  ["Engine", "Changes what a payload weighs. A binary you run, or a library you link."],
+  ["Proxy", "Changes the base URL and what a payload weighs. A loopback process that routes and records, plus the engine binary it calls to compress."],
   ["Memory", "Changes what you have to say twice. A local SQLite store."],
   ["Cloud", "Changes what you can prove to someone else. An account, across a network."],
 ]} />
 
-Nothing above a layer is required by the layer below it. The skill does not know the engine exists. The
-engine does not need an account. This is why the licence split follows the same lines rather than
+Nothing above a layer is required by the layer below it. The skill does not know the proxy exists. The
+proxy does not need an account. This is why the licence split follows the same lines rather than
 cutting across them.
 
 ## Where the open-core line falls

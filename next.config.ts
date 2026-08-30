@@ -31,8 +31,23 @@ const nextConfig: NextConfig = {
     "/llms-full.txt": ["./app/docs/**/page.mdx"],
   },
   turbopack: { root: process.cwd() },
+  async redirects() {
+    // The engine used to be a top-level product. It is the compressor the
+    // proxy calls, so it now lives inside the proxy. These URLs were published,
+    // are in old sitemaps and in llms.txt caches, and are cheap to keep alive.
+    // Order matters: Next takes the first match, so the moved-out page has to
+    // come before the catch-all that would sweep it into /docs/proxy.
+    const engine: [string, string][] = [
+      ["/docs/engine", "/docs/proxy/engine"],
+      ["/docs/engine.md", "/docs/proxy/engine.md"],
+      ["/docs/engine/shrink", "/docs/shrink"],
+      ["/docs/engine/shrink.md", "/docs/shrink.md"],
+      ["/docs/engine/:rest*", "/docs/proxy/:rest*"],
+    ];
+    return engine.map(([source, destination]) => ({ source, destination, permanent: true }));
+  },
   async rewrites() {
-    // /docs/engine.md serves the same page as raw Markdown for agents and
+    // /docs/proxy.md serves the same page as raw Markdown for agents and
     // crawlers. Keeping it a rewrite rather than a second tree means one source.
     return [
       { source: "/docs.md", destination: "/raw" },

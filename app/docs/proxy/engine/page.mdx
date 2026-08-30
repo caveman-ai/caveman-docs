@@ -1,14 +1,19 @@
 import { docMetadata } from "@/lib/site";
 import { DocSchema } from "@/components/seo/doc-schema";
-export const metadata = docMetadata("engine");
+export const metadata = docMetadata("proxy/engine");
 
-<DocSchema slug="engine" />
+<DocSchema slug="proxy/engine" />
 
-The engine reduces a payload before it reaches a model. It is written in Go, it links into other tools as
-a library, and it also runs as a standalone binary that reads stdin and writes stdout. The usual way to
-put it on an agent's request path is the [local proxy](/docs/proxy).
+The engine is the compressor inside the [proxy](/docs/proxy). It reduces a payload before it reaches a
+model: it is written in Go, it links into other tools as a library, and it also runs as a standalone
+binary that reads stdin and writes stdout.
+
+Most people never invoke it directly. If you are wrapping an agent, the proxy already calls this on every
+eligible request and there is nothing on this page you have to do. Read it when you want to know what
+compression is actually doing to your bytes, or when you want the binary in a pipeline of your own.
 
 <Facts rows={[
+  ["Part of", "The proxy. Not a separate product and not a separate install."],
   ["Licence", "BSL 1.1, converting to Apache 2.0 after four years."],
   ["Distribution", "Source only. There is no npm, pip, Docker or Homebrew package."],
   ["Binary", <code key="b">caveman-engine</code>],
@@ -52,7 +57,7 @@ model call and no configuration step in that path.
 
 Five routes require an explicit type: `toolschema`, `toolschema-annotations`, `toon`, `a11y`, and `repetition`.
 None is selected automatically because each needs caller intent or an input contract that byte detection cannot
-prove. See [Compressors](/docs/engine/compressors) for route-specific behaviour.
+prove. See [Compressors](/docs/proxy/compressors) for route-specific behaviour.
 
 <Note title="Code parsing depends on how you built it">
 Built with cgo, the code compressor uses tree-sitter and handles Go, Python and JavaScript or TypeScript.

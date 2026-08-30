@@ -18,7 +18,7 @@ import { cn } from "@/lib/cn";
 
 const LICENSE_BY_LAYER: Record<string, string> = {
   skill: "MIT",
-  engine: "BSL 1.1",
+  proxy: "BSL 1.1",
   // cavemem is split: the Go core is BSL 1.1, the JS and Python clients are MIT.
   memory: "BSL 1.1",
   cloud: "Commercial",

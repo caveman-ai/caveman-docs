@@ -59,7 +59,7 @@ are different doors.
 
 A recovery handle is an identifier, not encryption and not an authorization token. Anyone who can
 read `ccr.db` can retrieve the payload. Do not share handles across a trust boundary. See
-[Recoverable compression](/docs/engine/recoverable).
+[Recoverable compression](/docs/proxy/recoverable).
 
 Restrict permissions on these files to the owner. Hook writes use restrictive modes and
 symlink-safe replacement; do not loosen that to make a backup script easier.
