@@ -1,0 +1,126 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("router");
+
+<DocSchema slug="router" />
+
+Set `model` to `auto` and the gateway picks the model for each request: it classifies the task, applies a cost tier, and routes to the cheapest model with evidence it can hold quality there. Every decision comes back in response headers, and a request that routing cannot answer falls back to your baseline model instead of failing.
+
+<Facts rows={[
+  ["Model id", <code key="m">auto</code>],
+  ["Cost tiers", <code key="t">low · medium · high · xhigh · max</code>],
+  ["Tier override", <span key="o"><code>{"auto:<tier>"}</code> in the model field, or a <code>cost_tier</code> body field</span>],
+  ["When routing cannot run", "The request goes to your project's baseline model."],
+  ["Receipts", "Response headers on every routed request."],
+]} />
+
+## One model id
+
+Send your provider's native request through the gateway with `auto` as the model. Nothing else about the request changes.
+
+```bash
+curl https://gateway.caveman.so/openai/v1/chat/completions \
+  -H "authorization: Bearer cave_live_…" \
+  -H "content-type: application/json" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"…"}]}'
+```
+
+```ts
+const completion = await client.chat.completions.create({
+  model: "auto",
+  messages: [{ role: "user", content: "…" }],
+});
+```
+
+`cave-auto` is an alias for `auto` and behaves identically.
+
+A request that names a real model is never rewritten. Routing only ever acts on requests that ask for it by sending `auto`.
+
+## Cost tiers
+
+A tier is a cost band, not a quality promise. There are five, in ascending spend: `low`, `medium`, `high`, `xhigh`, `max`.
+
+By default you do not set one. The router reads each prompt's complexity and weights cost against quality accordingly, so a one-line question and a long refactor in the same session are spent on differently. To pin a band yourself, either suffix the model id or send a body field:
+
+```json
+{ "model": "auto:low", "messages": [] }
+```
+
+```json
+{ "model": "auto", "cost_tier": "high", "messages": [] }
+```
+
+If both are present, the model suffix wins. An unknown tier value is rejected with a client error rather than forwarded upstream as a garbage model name.
+
+A pinned tier narrows the public-matrix rankings. When the decision is driven by your project's own graded outcomes instead, those rankings are not price-binned: the pin does not narrow them, and the tier header stays absent so the receipt never claims it did.
+
+Pinning can also change what the evidence rests on. Bare `auto` reads every tier's cells and prefers direct evidence wherever it finds it; a pinned tier reads one cell, so a task measured directly in a pricier band may answer a cheap pin from the fallback table instead. That is what asking for the cheap band means.
+
+## How a request is routed
+
+<figure className="my-6">
+  <div className="flex flex-col gap-0 text-[13px]">
+    <div className="rounded-md border px-3 py-2">
+      <span className="font-mono">model: auto</span>
+      <span className="text-muted-foreground"> · your request, unchanged otherwise</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>1 · Classify.</strong>
+      <span className="text-muted-foreground"> Task type (one of about thirty, like </span>
+      <span className="font-mono">agent:multi_step_planning</span>
+      <span className="text-muted-foreground">) and a complexity score that sets the tier, unless you pinned one.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>2 · Look up evidence.</strong>
+      <span className="text-muted-foreground"> Your project's own graded outcomes for this task type when there are enough of them, otherwise the public benchmark matrix.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>3 · Apply your policy.</strong>
+      <span className="text-muted-foreground"> Allowed models, denylist, provider health, and capacity ceilings only ever narrow the pool.</span>
+    </div>
+    <div className="pl-4 text-muted-foreground">↓</div>
+    <div className="rounded-md border px-3 py-2">
+      <strong>4 · Route with fallbacks.</strong>
+      <span className="text-muted-foreground"> The top surviving model gets the request; the rest are ordered fallbacks.</span>
+    </div>
+    <div className="pl-4 text-ember">↓ anything missing at any step</div>
+    <div className="rounded-md border border-ember/40 px-3 py-2">
+      <strong>Baseline.</strong>
+      <span className="text-muted-foreground"> The request goes to your configured baseline model. It never fails because routing was unavailable.</span>
+    </div>
+  </div>
+  <figcaption className="mt-2 text-xs text-muted-foreground">
+    The pipeline narrows, then routes. Every exit lands on a model you approved.
+  </figcaption>
+</figure>
+
+The evidence in step 2 has an order. Once your project has graded outcomes for a task type, roughly twenty or more covering at least two candidate models, the router ranks by what worked on your traffic. Before that, it ranks by the public matrix: measured quality per dollar from published benchmark results, refreshed weekly. Your own evidence always outranks the public table, because it is the only table that measured your workload.
+
+## Receipts
+
+Every routed response carries the decision:
+
+| Header | Meaning |
+|---|---|
+| `x-cave-router-version` | Which router answered. |
+| `x-cave-route-from` | The model string you sent, for example `auto:high`. |
+| `x-cave-route-to` | The model the request was sent to. |
+| `x-cave-route-tier` | Your pinned tier, present exactly when it narrowed the decision. Absent means no pin, or a pin the decision did not consult. |
+| `x-cave-route-decision-latency-us` | What deciding cost, in microseconds. |
+
+## When routing does not run
+
+Routing is a per-project capability, and a project can mark it opt-in. On an opt-in project, a request activates it by sending `x-cave-optimize: route`. Lossless and pass-through requests are never routed, because those modes promise byte-identical forwarding. And a named model is a named model: the router does not touch it.
+
+## What it will not do, and what its numbers mean
+
+The router does not claim savings. It records decisions; what a decision was worth is computed by the spend plane against traffic that actually happened, under the same vocabulary as everything else here: benchmark-derived rankings are measured on those benchmarks, your task-type rankings are measured on your graded traffic, and neither is `verified` by itself.
+
+Where the public matrix has no evidence for a task and tier, the router abstains and uses your baseline rather than guessing. Abstaining is a routing decision and shows up in the receipts like any other.
+
+<Note tone="honest" title="What the rankings rest on">
+Public-matrix rankings come from published benchmark results with declared cost bases, and cells without usable evidence stay empty. Your project tier is built only from your own graded outcomes. Neither number is a promise about your next request; the receipts exist so you can check the router against your own traffic.
+</Note>

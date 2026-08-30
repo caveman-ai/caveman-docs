@@ -55,6 +55,13 @@ export type DocGroup = {
   title: string;
   /** Set when this group is a layer of the stack, which gives it a rank badge. */
   layer?: string;
+  /* Set to make this group a product: one thing you install, and the slug the
+   * rail sends you to when you pick it. The rail keeps every product but the
+   * one you are inside closed, which is what stops it growing with the docs.
+   * A group without a `home` belongs to all of them and is always open. */
+  home?: string;
+  /** A product with no pages yet. Named in the rail, never linked. */
+  soon?: boolean;
   items: DocLink[];
 };
 
@@ -71,6 +78,7 @@ export const DOCS_NAV: DocGroup[] = [
   {
     title: "Skill",
     layer: "skill",
+    home: "skill",
     items: [
       { title: "Overview", slug: "skill", blurb: "A set of instructions that changes how your agent spends tokens. No runtime, no proxy.", capability: "skill", license: "MIT", layer: "skill" },
       { title: "caveman learn", slug: "skill/learn", blurb: "Profile a local agent session and rank what is actually eating the budget.", capability: "skill-caveman-learn", license: "MIT", layer: "skill" },
@@ -81,6 +89,7 @@ export const DOCS_NAV: DocGroup[] = [
   {
     title: "Engine",
     layer: "engine",
+    home: "engine",
     items: [
       { title: "Overview", slug: "engine", blurb: "Content-aware compression that keeps the parts an answer depends on.", capability: "engine", license: "BSL-1.1", layer: "engine" },
       { title: "Compressors", slug: "engine/compressors", blurb: "One router per content shape: JSON, logs, code, diffs, search results, prose.", capability: "engine", license: "BSL-1.1", layer: "engine" },
@@ -92,6 +101,7 @@ export const DOCS_NAV: DocGroup[] = [
   {
     title: "Memory",
     layer: "memory",
+    home: "memory",
     items: [
       { title: "Overview", slug: "memory", blurb: "cavemem holds the context you would otherwise paste into every session.", capability: "mem", license: "MIT", layer: "memory" },
       { title: "Recall and offload", slug: "memory/offload", blurb: "Moving a heavy instruction file out of the prompt and into recall.", capability: "mem", license: "MIT", layer: "memory" },
@@ -100,12 +110,20 @@ export const DOCS_NAV: DocGroup[] = [
   {
     title: "Cloud",
     layer: "cloud",
+    home: "cloud",
     items: [
       { title: "What Cloud adds", slug: "cloud", blurb: "The managed plane: fleet visibility, spend attribution, and verified numbers.", license: "Commercial", layer: "cloud" },
+      { title: "Model router", slug: "router", blurb: "One model id: classify the task, apply a cost tier, route to measured evidence, fall back to your baseline.", license: "Commercial", layer: "cloud" },
     ],
   },
+  /* Named so the rail is honest about the whole product line. Neither has a
+   * page, a path, or a capability id here: the name is all this repository
+   * knows and all a public site needs to say. */
+  { title: "Proxy", soon: true, items: [] },
+  { title: "Pebble", soon: true, items: [] },
   {
     title: "Build with it",
+    home: "cli",
     items: [
       { title: "CLI", slug: "cli", blurb: "The command surface: compress, detect, learn, and agent setup.", capability: "cli", license: "MIT" },
       { title: "TypeScript SDK", slug: "sdk/typescript", blurb: "Compress payloads and read spend from Node.", capability: "sdk-ts", license: "MIT" },

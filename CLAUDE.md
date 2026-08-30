@@ -54,6 +54,20 @@ in any agent that can read files and run commands.
 | `lib/raw-page.ts` | The Markdown mirror behind `<path>.md` and `/llms-full.txt`. |
 | `app/globals.css` | Deck tokens plus the docs reading measure. |
 
+## Products
+
+A group in `lib/docs-nav.ts` with a `home` slug is a product: one thing you
+install. The sidebar shows every product as a single row and only opens the one
+you are reading, so the rail stays the same length as the docs grow. Switching
+is a plain link to that product's `home`, so there is no open/closed state to
+drift from the URL. A group without a `home` (Start, Reference) belongs to all
+of them and is always open. A group with `soon: true` and no items is a product
+that is named but has no pages.
+
+Adding a page means choosing which product owns it. If a product's page list
+outgrows the rail, split it into its own group with its own `home` rather than
+nesting a second level.
+
 ## Adding a page
 
 1. Add the entry to `lib/docs-nav.ts` with its `capability` and `license`.
