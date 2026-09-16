@@ -12,9 +12,9 @@
     {
       "id": "agent-sdk",
       "name": "Caveman Agent SDK",
-      "path": "public/agent",
+      "path": "external:caveman-ai/agent-sdk",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -59,10 +59,10 @@
     },
     {
       "id": "create-agent",
-      "name": "@caveman-ai/create-agent",
-      "path": "public/create-caveman-agent",
+      "name": "Caveman Agent initializer",
+      "path": "external:caveman-ai/agent-sdk/packages/create-caveman-agent",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -82,14 +82,6 @@
       "status": "live"
     },
     {
-      "id": "extension",
-      "name": "Caveman Browser",
-      "path": "public/extension",
-      "language": "ts",
-      "license": "MIT",
-      "status": "partial"
-    },
-    {
       "id": "integration-recipes",
       "name": "Framework integration recipe registry",
       "path": "public/integrations",
@@ -98,20 +90,12 @@
       "status": "live"
     },
     {
-      "id": "kit",
-      "name": "cavekit",
-      "path": "public/kit",
-      "language": "ts",
+      "id": "litellm-connector",
+      "name": "Caveman LiteLLM connector",
+      "path": "public/integrations/litellm",
+      "language": "python",
       "license": "MIT",
       "status": "partial"
-    },
-    {
-      "id": "mastra",
-      "name": "@caveman/mastra",
-      "path": "public/mastra",
-      "language": "ts",
-      "license": "MIT",
-      "status": "live"
     },
     {
       "id": "mcp",
@@ -200,26 +184,10 @@
       "language": "md",
       "license": "MIT",
       "status": "partial"
-    },
-    {
-      "id": "subagent-tax",
-      "name": "subagent-tax",
-      "path": "public/subagent-tax",
-      "language": "js",
-      "license": "MIT",
-      "status": "live"
-    },
-    {
-      "id": "ui",
-      "name": "UI utils (cavekit base)",
-      "path": "public/ui",
-      "language": "ts",
-      "license": "MIT",
-      "status": "live"
     }
   ],
   "privateIds": [
-    "cacheengine",
+    "agent-sandbox",
     "catalog",
     "cave-agent",
     "cavebench",
@@ -228,10 +196,16 @@
     "deployment",
     "emailkit",
     "gateway",
+    "identity",
     "metering",
+    "native-agents",
+    "ops-tunnel",
     "optimizer",
     "planengine",
+    "provider-backend",
     "proxy",
+    "router-classifier",
+    "scenario-runner",
     "web",
     "worker"
   ]

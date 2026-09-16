@@ -13,10 +13,10 @@ It does not need a Caveman account. On a machine with Node and a provider key it
   ["Source version", <code key="v">0.2.0</code>],
   ["On npm today", <code key="n">0.1.0</code>],
   ["Runtime", "Node.js 22.19 or newer."],
-  ["Licence", "MIT."],
+  ["Licence", "Apache-2.0 (current source)."],
 ]} />
 
-The pages that follow document the 0.2 source in [JuliusBrussee/agent-sdk](https://github.com/JuliusBrussee/agent-sdk). npm still ships 0.1.0, which is an older surface. Use the checkout if you are testing anything described here.
+The pages that follow document the 0.2 source in [caveman-ai/agent-sdk](https://github.com/caveman-ai/agent-sdk). The registry check on 15 September 2026 returned 0.1.0, which is an older surface. Use the checkout if you are testing anything described here.
 
 ## How a run is assembled
 
@@ -80,7 +80,7 @@ Prefer a directory if the agent will grow:
 support-bot/
 ├── instructions.md
 ├── agent.ts
-├── skills/
+├── .agents/skills/
 ├── tools/
 ├── subagents/
 └── evals/
@@ -140,7 +140,11 @@ The Agent SDK is one thing you install, with several surfaces behind it.
 
 The [TypeScript SDK](/docs/sdk/typescript) is a different package. `@caveman-ai/sdk` talks to a configured Caveman service. `@caveman-ai/agent` is the agent runtime. Installing one does not start the other.
 
-The Agent SDK repository also ships a frozen wire-contract package used by other Caveman products. It is not this runtime, and this site does not document it.
+The repository also ships a public wire-contract package. Find it, every exported entrypoint, and detailed CLI contracts in [API and package reference](/docs/agent-sdk/reference).
+
+## Keep a conversation and serve it
+
+A [session](/docs/agent-sdk/sessions) connects consecutive runs into one conversation. Multiple clients can watch its event stream. [React hooks](/docs/agent-sdk/react) render that stream through your own authenticated app routes. [Execution backends](/docs/agent-sdk/execution) move workspace tools to your remote service. These features are opt-in; a direct `run()` still needs only the runtime and provider credentials.
 
 ## What it will not do
 

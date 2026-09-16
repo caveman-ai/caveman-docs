@@ -44,19 +44,59 @@ const nextConfig: NextConfig = {
       ["/docs/engine/shrink.md", "/docs/shrink.md"],
       ["/docs/engine/:rest*", "/docs/proxy/:rest*"],
     ];
-    return engine.map(([source, destination]) => ({ source, destination, permanent: true }));
+    const moved = engine.map(([source, destination]) => ({ source, destination, permanent: true }));
+    // Product-level surfaces live on the product site. A reader who guesses
+    // the conventional path here is sent to the real one rather than a 404,
+    // and never to a copy that could drift.
+    const productSite: [string, string][] = [
+      ["/openapi.json", "https://caveman.so/openapi.json"],
+      ["/auth.md", "https://caveman.so/auth.md"],
+      ["/pricing", "https://caveman.so/pricing"],
+      ["/pricing.md", "https://caveman.so/pricing.md"],
+      ["/contact", "https://caveman.so/contact"],
+      ["/privacy", "https://caveman.so/privacy"],
+      ["/terms", "https://caveman.so/terms"],
+    ];
+    return [...moved, ...productSite.map(([source, destination]) => ({ source, destination, permanent: true }))];
   },
   async rewrites() {
     // /docs/proxy.md serves the same page as raw Markdown for agents and
     // crawlers. Keeping it a rewrite rather than a second tree means one source.
-    return [
-      { source: "/docs.md", destination: "/raw" },
-      { source: "/docs/:slug*.md", destination: "/raw/:slug*" },
-    ];
+    return {
+      // Checked before the filesystem, or the front page would always win.
+      // A machine asking for the agent view of the front page gets the Markdown mirror.
+      beforeFiles: [{ source: "/", has: [{ type: "query", key: "mode", value: "agent" }], destination: "/raw" }],
+      afterFiles: [
+        { source: "/docs.md", destination: "/raw" },
+        { source: "/index.md", destination: "/raw" },
+        { source: "/docs/:slug*.md", destination: "/raw/:slug*" },
+        // One llms.txt per section is the convention; the whole site is one section.
+        { source: "/docs/llms.txt", destination: "/llms.txt" },
+      ],
+      fallback: [],
+    };
   },
   async headers() {
+    const discovery = {
+      key: "Link",
+      value: [
+        '</sitemap.xml>; rel="sitemap"; type="application/xml"',
+        '</llms.txt>; rel="describedby"; type="text/markdown"',
+        '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+        '<https://caveman.so/openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1"',
+      ].join(", "),
+    };
     return [
-      { source: "/:path*", headers: securityHeaders },
+      { source: "/:path*", headers: [...securityHeaders, discovery] },
+      { source: "/index.md", headers: [{ key: "Vary", value: "Accept" }] },
+      { source: "/docs/:slug*.md", headers: [{ key: "Vary", value: "Accept" }] },
+      {
+        source: "/.well-known/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Cache-Control", value: "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400" },
+        ],
+      },
       // Agents fetch these without a browser; make them cheap and cacheable.
       {
         source: "/:path(llms.txt|llms-full.txt)",

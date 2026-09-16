@@ -4,17 +4,17 @@ import { SITE } from "@/lib/site";
 /* ==========================================================================
  *  Crawler policy.
  *
- *  Everything here is public documentation and all of it is crawlable,
- *  including for training. That is a deliberate choice: documentation nobody
- *  is allowed to learn from is documentation that answers no questions.
+ *  Everything here is public documentation. Crawlers that feed answer engines
+ *  and user-triggered agents may read all of it: documentation nobody is
+ *  allowed to learn from is documentation that answers no questions.
  *
- *  The AI crawlers are named individually rather than left to the wildcard.
+ *  Training-only crawlers, which never send a reader back, are told no. The
+ *  answer engines are named individually rather than left to the wildcard.
  *  Several of them, Google-Extended in particular, are only consulted as
  *  named agents and read a missing entry as undecided rather than allowed.
- *  Naming them removes the ambiguity in the direction we actually want.
  * ======================================================================== */
 
-const AI_AGENTS = [
+const ANSWER_ENGINES = [
   "GPTBot",
   "OAI-SearchBot",
   "ChatGPT-User",
@@ -26,21 +26,22 @@ const AI_AGENTS = [
   "PerplexityBot",
   "Perplexity-User",
   "Applebot-Extended",
-  "CCBot",
+  "DuckAssistBot",
+  "MistralAI-User",
+  "DeepSeekBot",
   "cohere-ai",
   "Meta-ExternalAgent",
-  "Amazonbot",
-  "DuckAssistBot",
-  "Bytespider",
-  "Timpibot",
   "YouBot",
 ];
+
+const TRAINING_ONLY = ["CCBot", "Bytespider", "ByteSpider", "Amazonbot", "omgili", "Diffbot", "ImagesiftBot", "Timpibot"];
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       { userAgent: "*", allow: "/" },
-      { userAgent: AI_AGENTS, allow: "/" },
+      { userAgent: ANSWER_ENGINES, allow: "/" },
+      { userAgent: TRAINING_ONLY, disallow: "/" },
     ],
     sitemap: `${SITE.url}/sitemap.xml`,
     host: SITE.url,

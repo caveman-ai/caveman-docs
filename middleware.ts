@@ -29,8 +29,16 @@ import { NextResponse, type NextRequest } from "next/server";
  * ======================================================================== */
 
 export const config = {
-  matcher: ["/docs/:path*"],
+  matcher: ["/", "/docs/:path*"],
 };
+
+/** Mirrors the discovery set in next.config.ts for routes this middleware answers. */
+const DISCOVERY_LINKS = [
+  '</sitemap.xml>; rel="sitemap"; type="application/xml"',
+  '</llms.txt>; rel="describedby"; type="text/markdown"',
+  '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+  '<https://caveman.so/openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1"',
+];
 
 /** Quality of a media type in an Accept header, or -1 when absent. */
 function quality(accept: string, type: string): number {
@@ -49,7 +57,7 @@ export function middleware(request: NextRequest) {
   // The `.md` twin is served by a rewrite in next.config.ts. Leave it alone.
   if (pathname.endsWith(".md")) return NextResponse.next();
 
-  const markdownPath = `${pathname.replace(/\/$/, "")}.md`;
+  const markdownPath = pathname === "/" ? "/index.md" : `${pathname.replace(/\/$/, "")}.md`;
   const accept = request.headers.get("accept") ?? "";
   const markdown = quality(accept, "text/markdown");
 
@@ -63,7 +71,9 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
   // Advertised on every page, so one HEAD request is enough to discover the
-  // twin without parsing HTML or guessing at a URL scheme.
-  response.headers.set("Link", `<${markdownPath}>; rel="alternate"; type="text/markdown"`);
+  // twin without parsing HTML or guessing at a URL scheme. The site-wide
+  // discovery links ride along: a header set here replaces the one from
+  // next.config.ts on matched routes, so it has to carry the whole set.
+  response.headers.set("Link", [`<${markdownPath}>; rel="alternate"; type="text/markdown"`, ...DISCOVERY_LINKS].join(", "));
   return response;
 }

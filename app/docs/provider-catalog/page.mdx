@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("provider-catalog");
+
+<DocSchema slug="provider-catalog" />
 
 The provider catalog is the public, source-backed table of model prices and operational facts. Cost calculations
 read a specific catalog version instead of scattering model prices through application code.

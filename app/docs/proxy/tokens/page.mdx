@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("proxy/tokens");
+
+<DocSchema slug="proxy/tokens" />
 
 The engine needs a stable local token count to decide whether a transform is smaller. Its default counter uses an
 offline `o200k_base` tokenizer and records enough identity to say exactly which counter produced a result.

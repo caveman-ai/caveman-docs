@@ -39,7 +39,7 @@ export function GET() {
      * that flattens `inferred` into "saves money" makes every derived claim
      * wrong, so the definitions travel with the index. */
     vocabulary: {
-      note: "These three words are not interchangeable. Every tool documented here emits `inferred` and nothing else.",
+      note: "These three words are not interchangeable. Local savings estimates are inferred; observed traffic is measured. Nothing documented here emits verified.",
       terms: TERMS.map((t) => ({ term: t.term, definition: t.definition, notThis: t.notThis })),
       rules: RULES.map((r) => ({ name: r.name, statement: r.statement })),
     },
@@ -49,7 +49,7 @@ export function GET() {
       rank: l.rank,
       name: l.name,
       role: l.role,
-      runsOn: l.id === "cloud" ? "our machines, under an account" : "your machine",
+      runsOn: l.id === "cloud" ? "our machines, under an account" : l.id === "proxy" ? "your machine or your private infrastructure" : "your machine",
       url: `${SITE.url}/docs/${l.id}`,
     })),
 

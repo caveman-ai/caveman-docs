@@ -68,16 +68,16 @@ Build-stable context enters the frozen prefix. Session and turn context stay liv
 support-bot/
 ├── instructions.md
 ├── agent.ts
-├── skills/
-│   ├── refund-policy.md
-│   └── shipping-claims.md
+├── .agents/skills/
+│   ├── refund-policy/SKILL.md
+│   └── shipping-claims/SKILL.md
 ├── tools/
 │   └── lookup_order.ts
 ├── subagents/
 └── evals/
 ```
 
-`agent.ts` default-exports an `AgentDirConfig`: model, optional budget, breakers, and extra context. Instructions come from `instructions.md`. Each `tools/*.ts` default-exports a `tool()`. Each `skills/<name>.md` contributes a short description to one build-stable skill segment; the body is served later by `cave_skill` as a live-zone tool result. The model picks from descriptions. There is no embedding ranker.
+`agent.ts` default-exports an `AgentDirConfig`: model, optional budget, breakers, and extra context. Instructions come from `instructions.md`. Each `tools/*.ts` default-exports a `tool()`. Each `.agents/skills/<name>/SKILL.md` contributes a short description to one build-stable skill segment; the body is served later by `cave_skill` as a live-zone tool result. The model picks from descriptions. There is no embedding ranker.
 
 The loader writes a generated module entry at `.caveman/agent-dir-entry.mjs`. Directory-loaded runs print a receipt by default, because stdout is yours. `run()` from a hand-built definition does not, because stdout may be a protocol channel.
 

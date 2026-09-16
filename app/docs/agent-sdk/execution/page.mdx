@@ -1,0 +1,60 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/execution");
+
+<DocSchema slug="agent-sdk/execution" />
+
+An execution backend decides where workspace files and commands live. It lets the coding tools run locally or through your own remote service while the agent runtime keeps its model loop and receipts.
+
+## Choose a backend
+
+```ts
+import { httpExecutionBackend } from "@caveman-ai/agent";
+import { createCodingAgent } from "@caveman-ai/agent/code";
+
+const coding = createCodingAgent({
+  workspace: "/workspace/project",
+  executionBackend: httpExecutionBackend({
+    url: process.env.CAVE_EXEC_URL!,
+    token: process.env.CAVE_EXEC_TOKEN!,
+  }),
+});
+```
+
+The default is `localExecutionBackend()`. Local execution is uncontained host execution. Workspace path checks protect file-tool paths; they do not turn an arbitrary shell command into an OS sandbox.
+
+<figure className="my-6 rounded-md border p-4 text-sm">
+  <div>Agent runtime → admitted coding tool → execution backend</div>
+  <div className="mt-2 text-muted-foreground">Local: host process and files · Remote: authenticated HTTP service</div>
+  <figcaption className="mt-3 text-xs">The remote service owns process isolation, workspace containment, and termination.</figcaption>
+</figure>
+
+## HTTP contract
+
+All calls use JSON `POST`, `Authorization: Bearer <token>`, and `Content-Type: application/json`. Plain HTTP is accepted only for loopback; remote hosts need HTTPS.
+
+| Endpoint | Request | Response |
+| --- | --- | --- |
+| `/exec` | `{execId, command, args, cwd, env, timeoutMs, maxOutputBytes}` | `{stdout, stderr, code, timedOut, truncated, startFailed?}` |
+| `/read` | `{path, maxBytes?}` | `{data}` with base64 bytes |
+| `/write` | `{path, data}` with base64 bytes | `{}` |
+| `/cancel` | `{execId}` | `{}`; optional, recommended |
+| `/prepare` | `{}` | `{}`; optional |
+| `/snapshot` | `{}` | `{snapshotId}`; optional |
+| `/restore` | `{snapshotId}` | `{}`; optional |
+
+Missing files return 404. A non-file read returns 422 with `{"error":"not_a_file"}`. A workspace escape returns 403 with `{"error":"path_escapes_workspace"}`. Other non-success responses fail the operation. A command that cannot start returns code 127 and `startFailed: true`.
+
+The service must enforce the requested timeout and output cap. Set `truncated` whenever bytes were discarded. Map the client's workspace prefix to your server workspace and resolve symlinks before checking containment.
+
+## Credentials and cancellation
+
+Remote command environments carry allowlisted locale and terminal values: `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, and `TERM`. The service owns its process environment and must not add ambient provider secrets.
+
+Aborting `/exec` cancels the HTTP request and sends a best-effort `/cancel` with the matching `execId`, bounded to five seconds. A service without `/cancel` can leave the process running until its own timeout. Closing a connection is not proof that a remote process stopped.
+
+Interactive command sessions remain local-only. Requesting them on a remote backend fails with `cave_execution_backend_command_sessions_local_only`.
+
+## What it does not provide
+
+The backend interface does not provision a sandbox, certify an execution service, or enforce its remote filesystem boundary. You supply that service and its isolation. See [Sandbox](/docs/agent-sdk/sandbox) for the separate runtime containment contract.

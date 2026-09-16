@@ -1,0 +1,137 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/wire");
+
+<DocSchema slug="agent-sdk/wire" />
+
+An [adapter](/docs/agent-sdk/adapters) gives you usage records and a seam to change the request. It does
+not give you a spend ceiling, and it does not fill that seam for you. The wire transport does both, and it
+does them one layer lower, so it needs no adapter at all.
+
+Every framework worth adapting lets its provider client take a custom `fetch`. That is the attachment
+point. A transport wraps it, reserves each call before it leaves, reads the provider's own usage out of
+the response, and applies provider-native cache metadata where a grammar is proven.
+
+```ts
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createCavemanTransport } from "@caveman-ai/agent/wire";
+
+const caveman = createCavemanTransport({ budget: { maxTokens: 2_000_000 } });
+const anthropic = createAnthropic({ fetch: caveman.fetch });
+```
+
+That is the whole integration. Your framework, your loop, your provider package.
+
+<Facts rows={[
+  ["What it attaches to", <>The provider client's <code>fetch</code>. No adapter, no proxy, no hop.</>],
+  ["What it scales by", "Provider, not framework. Two providers cover every lane in this repository."],
+  ["What it adds", "A per-call reserve and clamp, exact provider-reported usage, and gated cache metadata."],
+  ["Providers", <>Anthropic <code>/v1/messages</code>, OpenAI <code>/v1/chat/completions</code> and <code>/v1/responses</code>.</>],
+  ["Reports", <>Always <code>inferred</code>. This transport emits no savings figure of any kind.</>],
+]} />
+
+## Which layer owns what
+
+Caveman has two seams into a framework it does not own, and each optimisation belongs to exactly one.
+
+| Optimisation | Seam | Per-framework code |
+|---|---|---|
+| Request ceiling: reserve, clamp, deny | wire | None |
+| Exact usage accounting | wire | None |
+| Provider-native cache metadata | wire | None |
+| Compaction | model boundary | Small |
+| Model routing | model boundary | Small |
+
+The split is load bearing, not a preference. A wire transport sees the request bytes and nothing else, so
+it can bound a call and price it without knowing what a framework is. It cannot rewrite the conversation,
+because the framework holds its own copy of the message history. Dropping messages at the wire would leave
+that copy describing a transcript the model never saw, and the framework would rebuild the next request
+from it. Compaction and routing therefore stay on the model boundary, where the framework's state and the
+rewrite move together.
+
+The practical result is that LangGraph and Cloudflare Agents get a spend ceiling and exact accounting
+today, even though both adapters declare `modelInterception` as `unsupported`. The transport does not go
+through them.
+
+## The request ceiling
+
+Every call reserves its worst case before it leaves the process. The input bound is a UTF-8 byte count
+capped at the model's window, which over-reserves by roughly three to four times a real token count and
+can never come in low. Under-reserving would let a run spend past its cap, so the bound stays a hard
+over-estimate until a provider token-counting endpoint can tighten it.
+
+When the remaining budget covers the input but not the full output allowance, the transport clamps the
+outgoing output field down to what the budget affords, to a floor of 256 tokens. Below that floor the call
+is refused and nothing reaches the provider.
+
+```ts
+const caveman = createCavemanTransport({ budget: { maxTokens: 2_000_000 } });
+
+caveman.meter.remaining();  // budget available to a new reservation
+caveman.meter.settled;      // measured spend, from provider-reported counts
+```
+
+Denomination is yours to declare and it fails closed. The wire cannot see which credential pays, so it
+cannot tell a metered API key from a subscription. `maxTokens` is the honest default for portable use.
+`maxUsd` is you asserting that this transport's key is billed in dollars, and it stops any call on a model
+the public catalog cannot price rather than spending an amount it cannot measure.
+
+## Accounting
+
+The transport reads usage out of the provider's own response, merged across Anthropic's split
+`message_start` and `message_delta` events and OpenAI's final chunk. You get the same
+[`ModelUsage`](/docs/agent-sdk/adapters) record an adapter emits, with the same rules: disjoint counts,
+`null` for anything the provider did not report, and no zero standing in for a missing measurement.
+
+A response whose usage cannot be measured settles at the **full reserve**, never at zero. A call that
+cannot be priced has not been shown to be cheap.
+
+One field is defaulted to zero anywhere in this transport: OpenAI's cache-write count, because OpenAI has
+no cache-write class at all and its catalog rate is `null`. Every other absence stays `null`.
+
+Streaming settles a tick after the stream ends. The transport tees the response so your stream stays pull
+driven and untouched, and the scanning branch finishes after your last read. The meter is exact. It is not
+synchronous with the final chunk.
+
+## Cache metadata
+
+The cache planner selects stable-prefix boundaries and writes provider-native metadata into the request
+body. It makes no network call, and it emits nothing that could be read as a saving.
+
+By default the transport releases only grammars proven against a live provider, which today is the OpenAI
+affinity routing key. The Anthropic and Bedrock splices are checked byte for byte against the reference
+engine's fixtures, but they have never been sent to a live endpoint from this SDK, so `cache: "gated"`
+holds them.
+
+```ts
+createCavemanTransport({ cache: "gated" });  // default
+createCavemanTransport({ cache: "all" });    // opt in to unproven grammars
+createCavemanTransport({ cache: "off" });    // no planning at all
+```
+
+`cache: "all"` is a documented opt-in, not a tuning knob. Use it when you are prepared to check the
+outgoing bodies yourself.
+
+Requests that already carry your own cache markers pass through as caller managed, so nothing is applied
+twice. Any uncertainty in planning sends the original bytes. There is never a partial edit.
+
+## What it will not do
+
+It will not touch a request it does not recognise. Targets are matched on host and path together, because
+a wrong provider guess would splice the wrong keys into a body the transport does not understand. Anything
+else, any non-POST, and any body it cannot parse passes through unmetered and unedited.
+
+It will not cover Bedrock or rehosted endpoints such as Azure OpenAI. Bedrock carries model and region in
+the URL and needs SigV4-aware re-signing after a body edit, and that is not written.
+
+It will not stop a run cleanly. Refusing a call surfaces to your framework as a failed request, and your
+framework's retry policy decides what happens next. The clean stop stays yours: hold the `AbortController`
+and abort when `meter.remaining()` runs out.
+
+It will not compact context or route between models. Both belong to the model boundary, for the reason
+above.
+
+It will not gate tool calls. No adapter can deny a tool call today either. Real tool gating needs a
+per-framework tool-wrapping seam and does not exist yet.
+
+It will not report a saving. Cache results are `inferred` at most, and verified savings are `$0`.

@@ -35,6 +35,17 @@ CAVEMAN_ROOT="${CAVEMAN_REPO:-../Caveman-Cloud}"
 | Why a thing is the way it is | `$CAVEMAN_ROOT/docs/decisions/` |
 | The code that settles any argument | `$CAVEMAN_ROOT/public/**` |
 
+Current public product code also lives in the sibling `caveman` and
+`caveman-agent-sdk` repositories. Check their current remotes and source before
+using an older monorepo path. The SDK repository is `caveman-ai/agent-sdk`;
+its current source licence is Apache-2.0. Published older packages can differ.
+
+`content/external-capabilities.json` records the already-public SDK capabilities
+that moved out of the central registry. The sync script merges these records
+but refuses any capability the central registry now marks private. Never use
+this file to override a private classification. `content/docs-sync-state.json`
+records the public commits and registry versions checked in the last refresh.
+
 The authoring skill that drives all of this lives in that repository at
 `.agents/skills/caveman-docs/SKILL.md`. Read it before writing a page. It works
 in any agent that can read files and run commands.
@@ -56,17 +67,17 @@ in any agent that can read files and run commands.
 
 ## Products
 
-A group in `lib/docs-nav.ts` with a `home` slug is a product: one thing you
-install. The sidebar shows every product as a single row and only opens the one
-you are reading, so the rail stays the same length as the docs grow. Switching
-is a plain link to that product's `home`, so there is no open/closed state to
-drift from the URL. A group without a `home` (Start, Reference) belongs to all
-of them and is always open. A group with `soon: true` and no items is a product
-that is named but has no pages.
+`lib/docs-nav.ts` lists products. A product is one thing a reader came for: a
+tab in the header, a `home` slug the tab links to, and `groups` of pages that
+become the labelled sections of the sidebar while you are inside it. Tab and
+sidebar are both decided from the URL, so there is no open/closed state to
+drift. Start is the product with no `section`; it belongs to all of them and
+owns `REFERENCE`, the group every other sidebar borrows at its foot. A product
+with `soon: true` and no groups is named in the tab bar but never linked.
 
-Adding a page means choosing which product owns it. If a product's page list
-outgrows the rail, split it into its own group with its own `home` rather than
-nesting a second level.
+Adding a page means choosing which product and group owns it. Order a group by
+the job its reader is doing, not by the architecture. If a group outgrows the
+sidebar, split it into a second group rather than nesting a third level.
 
 ## Adding a page
 

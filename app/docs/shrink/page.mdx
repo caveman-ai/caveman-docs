@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("shrink");
+
+<DocSchema slug="shrink" />
 
 `caveman-shrink` reduces MCP and OpenAI tool catalogs before a model reads them. It keeps the structural surface
 used to form a tool call and shortens model-visible annotation text.
@@ -8,7 +11,7 @@ used to form a tool call and shortens model-visible annotation text.
   ["Input", "MCP or OpenAI tool-catalog JSON."],
   ["Stdin limit", "32 MiB."],
   ["Core licence", "BSL 1.1."],
-  ["npm launcher", "MIT."],
+  ["Node MCP wrapper", "MIT; separate from the Go catalog tool."],
   ["Reports", <code key="r">inferred</code>],
 ]} />
 
@@ -16,15 +19,15 @@ used to form a tool call and shortens model-visible annotation text.
 
 ```bash
 git clone https://github.com/JuliusBrussee/caveman
-go build -o ./bin/caveman-shrink ./public/shrink/cmd/caveman-shrink
+cd caveman
+go build -o ./bin/caveman-shrink ./shrink/cmd/caveman-shrink
 ```
 
-A published npm launcher also downloads a matching binary and verifies a key-signed manifest plus artifact
-SHA-256. The registry release may trail the source documented here.
+Put `./bin` on your `PATH`, or invoke `./bin/caveman-shrink` explicitly. The commands below describe this Go binary.
 
-```bash
-npx -y caveman-shrink lint tools.json
-```
+<Note tone="honest" title="Two tools share a name">
+As checked on September 16, 2026, npm `caveman-shrink@0.1.1` installs a Node MCP wrapper. It does not install the Go catalog binary and does not provide its `lint` or `recover` commands. Use the source build above for those commands.
+</Note>
 
 ## Compress a catalog
 
@@ -91,8 +94,21 @@ caveman tools compress catalog recover ccr_xxxxxxxx
 The first command compresses command output. The catalog commands delegate to `caveman-shrink`. They are separate
 because terminal output and tool definitions have different structures and safety contracts.
 
+## Node MCP wrapper
+
+The separate Node wrapper runs an upstream MCP server and shortens description fields in its list responses. It forwards requests unchanged and leaves ordinary tool-call results alone. It does not provide the Go tool's CCR recovery contract.
+
+```bash
+# From the public repository root, use current source:
+node src/mcp-servers/caveman-shrink/index.js /absolute/path/to/mcp-server
+```
+
+Append the upstream server's arguments after its executable. The wrapper communicates over stdio. `CAVEMAN_SHRINK_FIELDS` selects a comma-separated field list, defaulting to `description`; `CAVEMAN_SHRINK_DEBUG=1` writes compression diagnostics to stderr.
+
+The [current prose compressor](https://github.com/JuliusBrussee/caveman/blob/cc067b2b3813e3187ba656b1d908761ad3e5b904/src/mcp-servers/caveman-shrink/compress.js) preserves hyphenated terms such as `just-in-time` and `maybe-null` while still removing standalone filler words. It also protects code, URLs, paths, and identifiers. Mixed CJK descriptions pass through unchanged. These are text-preservation rules, not proof that a model will choose the same tool. The latest source fix is not implied by the npm version number.
+
 ## Licence boundary
 
-The npm launcher is MIT. Go source and downloaded binary use BSL 1.1 with the first-party self-hosting grant.
+The Node MCP wrapper is MIT. Go source and downloaded binary use BSL 1.1 with the first-party self-hosting grant.
 Offering the core functionality to third parties as a hosted, managed, or embedded service needs a commercial
 licence.

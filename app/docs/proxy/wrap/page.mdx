@@ -153,3 +153,9 @@ being true. Turn each one on because you want that effect, not because you insta
 If a transform cannot parse the body, cannot store a recovery record, or cannot produce a smaller safe
 result, the original bytes go upstream. That is success for the request, and a zero-ratio row in the
 local store.
+
+## Persistent shortcuts versus one session
+
+`caveman claude`, `codex`, `gemini`, `hermes`, `opencode`, and `pi` first enable a persistent native integration when eligible. Later plain host launches use that integration too. `caveman wrap <agent>` is the explicit session-only path. Other profiles, wrap flags such as `--off`, locked projects, and a failed native enable use the wrap path.
+
+Use `caveman disable <agent>` to remove an owned persistent integration, and `caveman doctor <agent>` to inspect it. A shortcut is therefore not always equivalent to `wrap`.

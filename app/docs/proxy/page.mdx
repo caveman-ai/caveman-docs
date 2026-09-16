@@ -58,6 +58,10 @@ Default mode for a bare `caveman start` is `record`: every model-visible byte is
 the proxy writes local usage rows. Wrap defaults the other way, to `compress`. [Modes](/docs/proxy/modes)
 explains the difference.
 
+## Run it for a team
+
+The same binary can run behind an authenticated private-network endpoint with server-side provider credentials and durable storage. Start with [Shared proxy](/docs/proxy/shared), then choose the [provider adapter](/docs/proxy/providers) and client integration. Shared-token access does not provide tenant isolation.
+
 ## What happens to a request
 
 1. The agent sends a provider-shaped HTTP request to loopback.
@@ -82,7 +86,7 @@ go build -o ./bin/caveman-proxy ./proxy/cmd/caveman-proxy
 ANTHROPIC_API_KEY=… ./bin/caveman-proxy
 ```
 
-There is no npm, pip, Docker, or Homebrew package for the proxy itself. `@caveman-ai/cli` is the MIT
+The public repository now includes a container image build and shared-service configuration. `@caveman-ai/cli` is the MIT
 launcher.
 
 ## What the numbers mean
@@ -97,8 +101,7 @@ monthly figure and never converted to money.
 
 ## What it will not do
 
-It will not bind to a LAN, container bridge, or public interface. A non-loopback listen address is
-rejected, because the listener has no inbound authentication.
+It will not accept a non-loopback bind without a valid inbound token. Shared-secret authentication does not create per-user permissions or tenant isolation. See [Shared proxy](/docs/proxy/shared).
 
 It will not log authorization headers, put API keys in YAML, or emit `verified`.
 

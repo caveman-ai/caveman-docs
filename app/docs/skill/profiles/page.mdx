@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("skill/profiles");
+
+<DocSchema slug="skill/profiles" />
 
 Agent profiles are the registry entries that tell the CLI how a coding agent is installed, launched, and given
 local Caveman tools. Ten profiles ship in the registry. The JSON files are compiled into the CLI, so source and

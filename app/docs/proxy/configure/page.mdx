@@ -33,7 +33,7 @@ more invasive transform.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `think.mode` | `compress` | `compress`, `record`, or `pixel` |
-| `think.core` | `true` | Core context compression |
+| `think.core` | `true` | Architecture-first native instruction pack |
 | `think.toon` | `true` | Allow TOON when it is smaller |
 | `think.shrink` | `true` | Shrink command output where supported |
 | `think.pixel.models` | `[]` | Models allowed to receive pixel context |
@@ -117,7 +117,7 @@ caveman start --port 8787 --host 127.0.0.1
 caveman start --config /path/to/caveman.yaml
 ```
 
-`--host` still has to be loopback. The binary refuses anything else.
+Non-loopback listeners require a valid `CAVEMAN_AUTH_TOKEN`. See [Shared proxy](/docs/proxy/shared) before changing the bind address. Keep the token in the environment; a non-empty YAML `auth_token:` is refused.
 
 ## Environment the binary reads
 
@@ -126,6 +126,9 @@ caveman start --config /path/to/caveman.yaml
 | `CAVEMAN_CONFIG` | Path to `caveman.yaml` |
 | `CAVEMAN_MODE` | Override YAML mode |
 | `CAVEMAN_LISTEN` | Override listen address |
+| `CAVEMAN_AUTH_TOKEN` | Inbound shared token; required for a non-loopback listener |
+| `CAVE_UPSTREAM_PROXY` | Provider egress proxy: env, off, or an explicit proxy URL |
+| `CAVE_CA_BUNDLE` | Additional PEM trust roots for provider TLS |
 | `CAVEMAN_LABEL` | Override row label |
 | `CAVEMAN_HOME` | Override the `~/.caveman` directory |
 | `CAVEMAN_PROXY_BIN` | Explicit path to the proxy binary |

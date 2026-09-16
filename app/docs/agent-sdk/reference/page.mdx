@@ -1,0 +1,75 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/reference");
+
+<DocSchema slug="agent-sdk/reference" />
+
+The current source exports the entrypoints below. Use this index to find exact types after reading the task guides. These are source contracts, not a claim that npm 0.1.0 contains the same APIs.
+
+## Agent entrypoints
+
+| Import | Source declaration |
+| --- | --- |
+| `@caveman-ai/agent` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/index.ts) |
+| `@caveman-ai/agent/build` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/build.ts) |
+| `@caveman-ai/agent/compiler` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/compiler.ts) |
+| `@caveman-ai/agent/profile` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/profile.ts) |
+| `@caveman-ai/agent/claude` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/claude.ts) |
+| `@caveman-ai/agent/code` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/code.ts) |
+| `@caveman-ai/agent/command-session` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/command-session.ts) |
+| `@caveman-ai/agent/execution-backend` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/execution-backend.ts) |
+| `@caveman-ai/agent/testing` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/testing.ts) |
+| `@caveman-ai/agent/catalog` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/catalog.ts) |
+| `@caveman-ai/agent/programmatic-tools` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/programmatic-tools.ts) |
+| `@caveman-ai/agent/connect` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/connect.ts) |
+| `@caveman-ai/agent/plugins` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/agent-environment.ts) |
+| `@caveman-ai/agent/compaction` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/compaction-api.ts) |
+| `@caveman-ai/agent/memory` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/memory-api.ts) |
+| `@caveman-ai/agent/durable` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/durable.ts) |
+| `@caveman-ai/agent/serve` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/serve.ts) |
+| `@caveman-ai/agent/serve-handler` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/serve-handler.ts) |
+| `@caveman-ai/agent/model-boundary` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/model-boundary.ts) |
+| `@caveman-ai/agent/model-usage` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/model-usage.ts) |
+| `@caveman-ai/agent/input` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/input.ts) |
+| `@caveman-ai/agent/run-receipt` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/run-receipt.ts) |
+| `@caveman-ai/agent/cache-engine` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/cache-planner/index.ts) |
+| `@caveman-ai/agent/adapters` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/adapters.ts) |
+| `@caveman-ai/agent/wire` | [Source](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/src/wire.ts) |
+
+## Workspace packages
+
+| Package | Purpose |
+| --- | --- |
+| [`@caveman-ai/adapter-conformance`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapter-conformance/package.json) | Candidate conformance evidence |
+| [`@caveman-ai/adapter-kit`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapter-kit/package.json) | Framework capability and lifecycle contracts |
+| [`@caveman-ai/agent`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/agent/package.json) | Runtime and compiler |
+| [`@caveman-ai/coding-agent`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/coding-agent/package.json) | Coding agent API and CLI |
+| [`@caveman-ai/create-agent`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/create-caveman-agent/package.json) | Project initializer |
+| [`@caveman-ai/evals`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/evals/package.json) | Evaluation graders |
+| [`@pebble-agent/protocol`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/pebble-protocol/package.json) | Public event and session wire contracts |
+| [`@caveman-ai/react`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/react/package.json) | Browser event-stream hooks |
+| [`@caveman-ai/adapter-claude-agent-sdk`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/claude-agent-sdk/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-cloudflare-agents`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/cloudflare-agents/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-eve`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/eve/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-langgraph`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/langgraph/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-mastra`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/mastra/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-openai-agents`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/openai-agents/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-pi`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/pi/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-strands-agents`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/strands-agents/package.json) | Framework observation adapter |
+| [`@caveman-ai/adapter-vercel-ai-sdk`](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/packages/adapters/vercel-ai-sdk/package.json) | Framework observation adapter |
+
+## Detailed contracts
+
+- [Generated API reference](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/caveman-docs/reference/api/README.md): symbol signatures from built declarations. Check the source when a newly added export is absent.
+- [CLI reference](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/caveman-docs/reference/cli.md): commands and flags.
+- [Environment variables](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/caveman-docs/reference/environment.md): runtime and CLI settings.
+- [Artifacts](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/caveman-docs/reference/artifacts.md): locks, profiles, reports, and journals.
+- [Failure identifiers](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/caveman-docs/reference/identifiers.md): reserved codes and refusal reasons.
+
+## Choose the right interface
+
+Use the root package to define and run an agent. Use `/serve` for a Node server, `/serve-handler` when your host owns HTTP, `/durable` for storage, and `/execution-backend` for remote tools. `@caveman-ai/react` is the client view; it does not run the agent.
+
+Adapters declare their own capabilities. Package presence, a source declaration, and a candidate test report do not establish live-provider certification or locked compiler support.
+
+Current source is Apache-2.0. Installed older releases retain their own shipped licence.

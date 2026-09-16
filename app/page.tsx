@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
-import { DOCS_NAV, SECTIONS, docPath, layerOf, type DocLink } from "@/lib/docs-nav";
+import { PRODUCTS, REFERENCE, SECTIONS, docPath, layerOf, type DocLink } from "@/lib/docs-nav";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -54,8 +54,7 @@ function PageLink({ doc }: { doc: DocLink }) {
 }
 
 export default function HomePage() {
-  const groups = Object.fromEntries(DOCS_NAV.map((g) => [g.title, g]));
-  const reference = groups["Reference"]?.items.filter((i) => !i.soon) ?? [];
+  const reference = REFERENCE.items.filter((i) => !i.soon);
 
   return (
     <>
@@ -121,7 +120,7 @@ export default function HomePage() {
           </SectionHead>
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
             {SECTIONS.map((section) => {
-              const products = DOCS_NAV.filter((g) => g.section === section.id && g.items.length > 0);
+              const products = PRODUCTS.filter((p) => p.section === section.id && !p.soon);
               if (products.length === 0) return null;
               return (
                 <div key={section.id} className="min-w-0 border-t border-border pt-4">
@@ -131,39 +130,43 @@ export default function HomePage() {
                       {section.repo ? "repository" : "hosted, across a network boundary"}
                     </span>
                   </div>
-                  {products.map((group) => {
-                    const layer = layerOf(group.layer);
-                    const first = group.items[0];
+                  {products.map((product) => {
+                    const layer = layerOf(product.layer);
                     return (
-                      <div key={group.title} className="mt-3">
+                      <div key={product.id} className="mt-3">
                         <div className="flex items-baseline gap-2.5">
                           <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                             {layer ? String(layer.rank).padStart(2, "0") : "\u00b7\u00b7"}
                           </span>
                           <Link
-                            href={docPath(group.home ?? first?.slug ?? "")}
+                            href={docPath(product.home ?? "")}
                             className="text-[13px] font-medium text-foreground hover:underline"
                           >
-                            {group.title}
+                            {product.title}
                           </Link>
-                          <span className="text-[13px] text-muted-foreground">{layer?.role ?? first?.blurb}</span>
+                          <span className="text-[13px] text-muted-foreground">{layer?.role ?? product.blurb}</span>
                         </div>
-                        <ul className="mt-1">
-                          {group.items.map((item) =>
-                            item.soon ? (
-                              <li
-                                key={item.slug}
-                                className="flex items-baseline gap-2 py-1.5 text-[13px] text-muted-foreground/50"
-                              >
-                                <span>{item.title}</span>
-                                <span className="min-w-0 flex-1 truncate">{item.blurb}</span>
-                                <span className="shrink-0 text-2xs">soon</span>
-                              </li>
-                            ) : (
-                              <PageLink key={item.slug} doc={item} />
-                            ),
-                          )}
-                        </ul>
+                        {product.groups.map((group) => (
+                          <ul key={group.title} className="mt-1">
+                            {group.title !== product.title ? (
+                              <li className="pt-2 font-mono text-2xs text-muted-foreground/70">{group.title}</li>
+                            ) : null}
+                            {group.items.map((item) =>
+                              item.soon ? (
+                                <li
+                                  key={item.slug}
+                                  className="flex items-baseline gap-2 py-1.5 text-[13px] text-muted-foreground/50"
+                                >
+                                  <span>{item.title}</span>
+                                  <span className="min-w-0 flex-1 truncate">{item.blurb}</span>
+                                  <span className="shrink-0 text-2xs">soon</span>
+                                </li>
+                              ) : (
+                                <PageLink key={item.slug} doc={item} />
+                              ),
+                            )}
+                          </ul>
+                        ))}
                       </div>
                     );
                   })}

@@ -1,0 +1,80 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/sessions");
+
+<DocSchema slug="agent-sdk/sessions" />
+
+A session keeps one conversation across consecutive runs. Use it for chat, an investigation, or a shared agent that several clients can watch. A run is one execution with its own receipt; a session connects those executions.
+
+## Start a server
+
+These APIs describe the current source checkout. Follow [Install](/docs/agent-sdk/install) before using them.
+
+```ts
+import { agent, auto } from "@caveman-ai/agent";
+import { createAgentServer } from "@caveman-ai/agent/serve";
+
+const server = createAgentServer({
+  definition: agent({
+    id: "reviewer",
+    instructions: "Explain the requested code change.",
+    model: auto(),
+  }),
+  token: process.env.CAVE_SERVE_TOKEN!,
+});
+await server.listen(8080, "127.0.0.1");
+```
+
+The bearer token must have at least 16 characters. It authorizes model spending and access to output. Keep it on your server. For multiple users, supply `authenticate(request)` and return a validated principal; sessions are then namespaced by principal.
+
+## Send and watch
+
+| Request | Result |
+| --- | --- |
+| `POST /sessions` | Create or reopen the caller-supplied `{sessionId}`. |
+| `POST /sessions/{id}/messages` | Send `{text, author?, mode?, context?}`; returns `runId` and `queued`. |
+| `GET /sessions/{id}` | Read runs, active run, and queue depth. |
+| `GET /sessions/{id}/events` | Receive Server-Sent Events across runs. |
+| `GET /sessions/{id}/ws` | Upgrade to the bidirectional WebSocket stream. |
+| `DELETE /sessions/{id}` | Cancel active work and discard queued messages. |
+
+```bash
+curl "$AGENT_URL/sessions" -X POST \
+  -H "Authorization: Bearer $CAVE_SERVE_TOKEN" \
+  -H "Content-Type: application/json" -d '{"sessionId":"case-42"}'
+
+# Replace SESSION_ID with the returned id.
+curl "$AGENT_URL/sessions/SESSION_ID/messages" -X POST \
+  -H "Authorization: Bearer $CAVE_SERVE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Review the parser","mode":"followUp"}'
+```
+
+<figure className="my-6 rounded-md border p-4 text-sm">
+  <div>Client message → session conversation → active run → receipt</div>
+  <div className="mt-2 text-muted-foreground">While busy: follow-up queue or steering → same run controller</div>
+  <div className="mt-2 text-muted-foreground">Events → every attached client; next idle message → next run</div>
+  <figcaption className="mt-3 text-xs">The session owns conversation state. Each run owns its execution record.</figcaption>
+</figure>
+
+`followUp` is the default. While a run is active it queues the message. `steer` queues steering for the active loop; it does not abort the current provider call. Explicit interruption is a separate controller operation. An idle message starts the next run with the retained conversation.
+
+## Reconnect and recover
+
+SSE uses `Last-Event-ID`; WebSocket reconnects use `?lastEventId=<seq>`. Replay covers a bounded event window. A gap means earlier events were evicted. Read the journaled run status for the authoritative outcome; a stream is not permanent storage.
+
+Use a [durable store](/docs/agent-sdk/durable) that survives your server. Journal recovery and event replay solve different problems: a recovered run can have a valid outcome even when its old live events are gone.
+
+## Deployment limits
+
+The Node server defaults to `singleInstance: true`. One live instance owns a store; active/standby takeover is supported. Multiple active instances sharing one store do not share live session queues or replay buffers. Do not disable this guard to scale a shared session across replicas.
+
+`createAgentHandler` from `@caveman-ai/agent/serve-handler` exposes `fetch(Request)` for hosts that own the HTTP server. The host supplies WebSocket upgrades and recovery scheduling. A web-standard handler does not prove that every runtime dependency or tool can execute on an edge platform.
+
+Per-run options can be a factory receiving `{sessionId, runId, principal}`. Boot recovery has no original caller principal. Policies that require caller identity must explicitly handle its absence instead of granting access.
+
+See [React clients](/docs/agent-sdk/react) for browser access and [Deploy](/docs/agent-sdk/deploy) for run endpoints and health checks.
+
+## WebSocket dependency
+
+The Node wrapper loads the optional `ws` peer for WebSocket upgrades. Install a compatible `ws` version when you need that transport; SSE does not depend on a browser-held bearer token. The web-standard handler instead accepts a host-owned upgrade callback.

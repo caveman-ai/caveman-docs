@@ -72,6 +72,10 @@ Programmatic mode is the usual reason to do this. See [Programmatic tools](/docs
 
 Production tools with the default `sandbox: "required"` run in a restricted worker imported from a staged source graph. Programmatic `run()` must pass `RunOptions.entryPath` pointing at the module that exports the definition. The CLI supplies this. The [Sandbox](/docs/agent-sdk/sandbox) page is the contract.
 
+## Host-owned authorization
+
+Use `RunOptions.toolPolicy` to allow or deny declared tool calls after runtime admission checks. It covers root, subagent, and nested calls; reserved framework tools are excluded. Denial is visible in the model result and receipt. See [tool policy](/docs/agent-sdk/coding#authorize-each-tool-call) for the contract, failure behaviour, and an example.
+
 ## What it will not do
 
-A tool closure does not inherit the parent environment. Signing, deployment, bootstrap, database, and ambient secret names are denied in the worker. `sandboxProfile.network: true` is not scoped egress; it requests unbounded egress and fails closed, because scoped egress does not exist yet.
+A tool closure does not inherit the parent environment. Signing, deployment, bootstrap, database, and ambient secret names are denied in the worker. `sandboxProfile.network: true` is not scoped egress; it requests unbounded egress and fails closed, use a scoped host-and-port policy on a supported backend instead.

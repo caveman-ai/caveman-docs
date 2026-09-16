@@ -112,6 +112,22 @@ const result = await runLocked(support, "Can I get a refund?", build);
 
 `runLocked()` accepts only Pi locks. Source freshness remains `caveman-agent check` at deployment. A Pi lock cannot authorise Claude or third-party execution.
 
+## Test a run without provider traffic
+
+```ts
+import { agent, run } from "@caveman-ai/agent";
+import { fauxModel, scriptedStream } from "@caveman-ai/agent/testing";
+
+const model = fauxModel();
+const reviewer = agent({ id: "test-reviewer", instructions: "Explain the result.", model });
+const result = await run(reviewer, "What happened?", {
+  model,
+  streamFn: scriptedStream([{ text: "The check passed." }]),
+});
+```
+
+`scriptedStream` consumes one scripted turn per model call. Exhausting the script is an error, so unexpected extra calls cannot disappear into an empty success. Scripted runs remain `observe-only`; they prove local control flow, not provider quality or savings. `fauxModel({ priced: true })` selects a cataloged model identity for tests that need priced budgeting.
+
 ## What it will not do
 
 A local build report is not a bill. Publish no savings percentage from it. `break_even_tasks` is a point estimate that stays `null` when evidence is incomplete; missing evidence is not a favourable zero. Verified savings remain `$0` until real traffic passes separate rollout and ledger gates that this package does not run.

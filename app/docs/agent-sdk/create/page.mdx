@@ -11,10 +11,10 @@ export const metadata = docMetadata("agent-sdk/create");
   ["Source version", <code key="v">0.1.0</code>],
   ["On npm today", <code key="n">0.1.0</code>],
   ["Node", "22.19 or newer."],
-  ["Licence", "MIT."],
+  ["Licence", "Apache-2.0 (current source)."],
 ]} />
 
-npm has published this package. The template it currently ships targets `@caveman-ai/agent` 0.2. A generated project will not resolve that dependency from the registry until 0.2 is published; build the Agent SDK from source and point the project at that checkout, or wait for the registry.
+npm has published this package. The current source template targets `@caveman-ai/agent` 0.2. A generated project will not resolve that dependency from the registry until 0.2 is published; build the Agent SDK from source and point the project at that checkout, or wait for the registry.
 
 ## Scaffold
 
@@ -25,7 +25,7 @@ npm create @caveman-ai/agent@latest my-agent
 cd my-agent
 ```
 
-From the Agent SDK checkout, after `npm ci --prefix packages/create-caveman-agent` and its build:
+From the Agent SDK checkout, after the root `npm ci` and `npm run build`:
 
 ```bash
 node packages/create-caveman-agent/dist/index.js my-agent
@@ -64,7 +64,6 @@ my-agent/
 ├── run.ts
 ├── caveman.config.ts
 ├── AGENTS.md
-├── skills/
 ├── tools/
 │   └── lookup_order.ts
 ├── tickets/
@@ -84,6 +83,19 @@ npm run check
 ```
 
 Review `evals/support.eval.ts` before `npm run build`. That command runs every declared fixture inside the configured search budget. There is no separate approval gate.
+
+## Background-agent template
+
+The current source initializer also accepts `--template background-agent`. Use it for a server-owned coding session with optional remote workspace execution:
+
+```bash
+node packages/create-caveman-agent/dist/index.js my-background-agent \
+  --provider anthropic --template background-agent --no-install
+```
+
+Run this from the built source checkout. The template supplies `server.ts`, an agent definition, a SQLite journal, and a reference remote execution shim. It reads `CAVE_SERVE_TOKEN`, optional `CAVE_EXEC_URL` and `CAVE_EXEC_TOKEN`, `CAVE_WORKSPACE`, and `CAVE_SESSIONS_DB`. Without a remote backend, tools run on the host without OS containment.
+
+The default `support-bot` template is for a smaller task-oriented agent. Template presence in source does not prove it exists in the older published initializer. Use [Sessions](/docs/agent-sdk/sessions) and [Execution backends](/docs/agent-sdk/execution) to understand the generated server before exposing it.
 
 ## What it will not do
 

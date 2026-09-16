@@ -1,0 +1,50 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/caching");
+
+<DocSchema slug="proxy/caching" />
+
+Prompt caching reuses an exact stable prefix at the provider. Trajectory rewriting shortens old conversation text by making a separate model call. They solve different problems and need separate evidence.
+
+## Prompt-cache planning
+
+The planner identifies stable prefix boundaries and adds supported provider cache controls. Planning makes no network call. A cache hint is a request to the provider, not proof that a cache hit occurred.
+
+The local proxy configuration enables selected provider planners and defaults `breakpoint_plan` to `frontier`. Explicit `off` disables it; unknown values fail closed to off. Record mode remains byte-preserving even when planners are configured.
+
+```yaml
+breakpoint_plan: frontier
+optimizers:
+  anthropic-cache-breakpoints: true
+  openai-prompt-cache-key: true
+  bedrock-cache-points: true
+```
+
+The provider-specific request shape, billing tier, stable boundary, and capability data must all permit the operation. Malformed JSON, duplicate keys, volatile boundaries, unsupported semantics, and unsupported providers keep the original request.
+
+## Rewriting old history
+
+A rewriter sends eligible aged conversation context to a configured rewrite model. An accepted result must preserve structural commitments, failure signals, counts, exit codes, and references, beat its size threshold, and retain the exact original behind recovery.
+
+<figure className="my-6 rounded-md border p-4 text-sm">
+  <div>Old history → threshold check → rewrite model → acceptance checks</div>
+  <div className="mt-2 text-muted-foreground">Accepted: store original, use shorter view · Rejected: keep original</div>
+  <figcaption className="mt-3 text-xs">A rejected rewrite still incurred its model call. Keep that usage in the evidence.</figcaption>
+</figure>
+
+Rewriting requires an explicitly configured model and credential. It is not an offline compressor. Recovery allows the agent to read missing detail; it does not prove that the model will ask for it or that task quality stayed equal.
+
+## Pick the mechanism
+
+| Goal | Mechanism |
+| --- | --- |
+| Reuse exact stable prefix bytes | Provider-native prompt caching |
+| Reduce eligible tool output locally | [Compression engine](/docs/proxy/engine) |
+| Shorten aged conversation with a model | Gated trajectory rewriting |
+| Preserve every outbound byte | Record mode |
+
+The Agent SDK has its own [compaction ladder](/docs/agent-sdk/compaction) and [wire transport](/docs/agent-sdk/wire). Those interfaces do not enable every local proxy transform automatically.
+
+## Evidence and limits
+
+Neither mechanism caches generated answers. Provider usage is needed to observe cache reads or writes. Local planner records and token reductions remain `inferred`; rewrite-model usage is an additional cost, not a saving. Compare task quality and total provider usage before claiming improvement.

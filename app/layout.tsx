@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { SITE } from "@/lib/site";
+import { SITE, ogUrl } from "@/lib/site";
 import "./globals.css";
 
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -19,8 +19,14 @@ export const metadata: Metadata = {
     url: SITE.url,
     title: "Caveman documentation",
     description: SITE.description,
+    images: [{ url: ogUrl("Caveman documentation", "The skill, the proxy, memory and the Agent SDK. What each part does, what it costs, and how every number is counted."), width: 1200, height: 630 }],
   },
-  twitter: { card: "summary_large_image", title: "Caveman documentation", description: SITE.description },
+  twitter: {
+    card: "summary_large_image",
+    title: "Caveman documentation",
+    description: SITE.description,
+    images: [ogUrl("Caveman documentation", "The skill, the proxy, memory and the Agent SDK. What each part does, what it costs, and how every number is counted.")],
+  },
   robots: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   icons: { icon: "/favicon.svg" },
 };
@@ -35,9 +41,24 @@ const siteJsonLd = {
       "@id": `${SITE.app}#organization`,
       name: "Caveman",
       url: SITE.app,
+      logo: `${SITE.app}/favicon.svg`,
+      email: "contact@caveman.so",
+      contactPoint: [
+        { "@type": "ContactPoint", contactType: "technical support", email: "contact@caveman.so", url: `${SITE.app}/contact`, availableLanguage: ["English"] },
+      ],
       // Binds this origin to the product site and the source repository as one
       // entity. Without it a crawler sees three unrelated sites sharing a word.
-      sameAs: [SITE.app, SITE.github],
+      // No postal address: it is not published anywhere else and would be an
+      // invented fact.
+      sameAs: [
+        SITE.app,
+        SITE.github,
+        "https://github.com/JuliusBrussee/agent-sdk",
+        "https://github.com/caveman-ai",
+        "https://www.producthunt.com/products/caveman",
+        "https://skills.sh/JuliusBrussee/caveman",
+        "https://www.npmjs.com/package/@caveman-ai/cli",
+      ],
     },
     {
       "@type": "WebSite",
@@ -48,6 +69,27 @@ const siteJsonLd = {
       inLanguage: "en",
       publisher: { "@id": `${SITE.app}#organization` },
       isPartOf: { "@type": "WebSite", name: "Caveman", url: SITE.app },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE.app}#software`,
+      name: "Caveman",
+      url: SITE.app,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "macOS, Linux, Windows",
+      description:
+        "An efficiency stack for AI agents: an MIT skill that shortens agent output, a local proxy that compresses eligible context with byte-exact recovery, cavemem for context that should not be resent, and an Agent SDK that returns a receipt per run.",
+      softwareHelp: { "@type": "CreativeWork", url: SITE.url },
+      codeRepository: SITE.github,
+      publisher: { "@id": `${SITE.app}#organization` },
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${SITE.url}#breadcrumbs`,
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Caveman", item: SITE.app },
+        { "@type": "ListItem", position: 2, name: "Documentation", item: SITE.url },
+      ],
     },
   ],
 };

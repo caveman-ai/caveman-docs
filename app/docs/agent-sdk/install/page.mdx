@@ -9,19 +9,17 @@ The documented surface is `@caveman-ai/agent` 0.2 in source. npm currently publi
 <Facts rows={[
   ["Node", "22.19 or newer."],
   ["CLI binary", <code key="c">caveman-agent</code>],
-  ["Source", <code key="s">JuliusBrussee/agent-sdk</code>],
+  ["Source", <code key="s">caveman-ai/agent-sdk</code>],
   ["npm today", <code key="n">@caveman-ai/agent@0.1.0</code>],
 ]} />
 
 ## Build 0.2 from source
 
 ```bash
-git clone https://github.com/JuliusBrussee/agent-sdk.git
+git clone https://github.com/caveman-ai/agent-sdk.git
 cd agent-sdk
-npm ci --prefix packages/pebble-protocol
-npm ci --prefix packages/agent
-npm ci --prefix packages/create-caveman-agent
-npm --prefix packages/agent run build
+npm ci
+npm run build
 ```
 
 The package binary is `caveman-agent`, from `packages/agent`. After the build you can run it with `node packages/agent/dist/cli.js`, or link the package into a project that depends on `@caveman-ai/agent@0.2.0`.
@@ -59,6 +57,16 @@ caveman start
 
 The Agent SDK accepts a loopback runtime only after identity, process state, and executable ownership check out. An unrelated listener on the same port does not receive provider credentials; the run goes direct in observe-only mode.
 
+## Optional workspace packages
+
+React and the checked Vercel adapter are not published on npm at this check. Use the workspace source instead of an install line that returns 404. React ships JavaScript and declarations directly, so it needs no build step:
+
+```bash
+npm pack --workspace @caveman-ai/react --pack-destination /tmp
+```
+
+Install the resulting tarball in your app. Packages with a build script must be built before packing. The current source licence is Apache-2.0; older published tarballs retain their shipped licences.
+
 ## CLI
 
 ```bash
@@ -76,13 +84,13 @@ caveman-agent connect …
 
 A generated project wires the same commands through npm scripts: `npm run doctor`, `npm run dev`, `npm run build`, `npm run check`.
 
-## npm 0.1.0
+## Release status checked 15 September 2026
 
 ```bash
 npm install @caveman-ai/agent
 ```
 
-That installs 0.1.0 today. These pages describe 0.2 source. Do not treat a registry install as the surface documented here until 0.2 is published.
+The registry reported 0.1.0 on 15 September 2026. These pages describe 0.2 source. Do not treat a registry install as the surface documented here until 0.2 is published.
 
 <Note tone="warning" title="Two different SDKs">
 `@caveman-ai/agent` is this runtime. `@caveman-ai/sdk` is the thin client in [TypeScript SDK](/docs/sdk/typescript). The bare `caveman` package on npm is unrelated.

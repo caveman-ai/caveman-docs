@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* ==========================================================================
  *  Regenerate content/capabilities.public.json from the Caveman product
- *  registry. This file is the ONLY thing that tells the docs site what exists,
- *  and it carries public capabilities only. Everything private is dropped here,
- *  at generation time, so no private id ever reaches the repository.
+ *  registry and the explicit moved-public capability map. This generated file
+ *  carries public capability details only. Private details are dropped here,
+ *  at generation time; private ids remain only as the publication denylist.
  *
  *    node scripts/sync-capabilities.mjs ../Caveman-Cloud/PRODUCTS.yaml
  *
@@ -79,6 +79,15 @@ const privateIds = capabilities
   .filter((c) => c.id && c.visibility !== "public")
   .map((c) => c.id)
   .sort();
+
+const external = JSON.parse(readFileSync(resolve(process.cwd(), "content/external-capabilities.json"), "utf8")).public;
+for (const cap of external) {
+  if (privateIds.includes(cap.id)) throw new Error(`External capability ${cap.id} is private in the registry`);
+  const index = publicCaps.findIndex((item) => item.id === cap.id);
+  if (index >= 0) publicCaps[index] = cap;
+  else publicCaps.push(cap);
+}
+publicCaps.sort((a, b) => a.id.localeCompare(b.id));
 
 writeFileSync(
   out,

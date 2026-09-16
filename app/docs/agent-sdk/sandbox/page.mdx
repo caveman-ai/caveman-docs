@@ -8,7 +8,7 @@ Every agent has a sandbox mode. The default is `required`. The mode is set on th
 
 | Mode | Where tool closures run | Writes | Lock eligible |
 |---|---|---|---|
-| `required` | Isolated, network-denied Node workers, from a staged source graph | Allowed inside the worker | Yes, when the rest of the build passes |
+| `required` | Contained Node workers from a staged source graph; network denied unless scoped egress is configured | Allowed inside the worker | Yes, when the rest of the build passes |
 | `fixture` | Host process. Trusted tests only | Blocked before execute | For fixture corpora |
 | `host` | This process, no worker | Execute | No |
 
@@ -22,9 +22,9 @@ Before provider traffic, the framework copies the project-relative source graph 
 
 The worker starts from a fixed environment baseline (`LANG`, `LC_ALL`, `PATH`, `TZ`, plus a fixture marker), not a spread of the parent env. One runtime-owned provider capability may be requested: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or the Google pair (`GEMINI_API_KEY` / `GOOGLE_API_KEY` as aliases). Signing, deployment, bootstrap, database, loader, and ambient secret names are denied.
 
-Network egress is blocked at the OS: a network namespace on Linux (`unshare --net`), `sandbox-exec (deny network*)` on macOS. In-process monkeypatching is defence in depth, not the boundary. Requesting unbounded egress fails closed with `cave_sandbox_network_egress_unbounded`. There is no scoped-egress mechanism yet.
+Network egress is blocked at the OS: a network namespace on Linux (`unshare --net`), `sandbox-exec (deny network*)` on macOS. In-process monkeypatching is defence in depth, not the boundary. Requesting unbounded egress fails closed with `cave_sandbox_network_egress_unbounded`. Scoped egress is available on supported backends through an explicit host and port policy.
 
-Linux unix-domain sockets are not covered by a network namespace. That gap is documented in the package threat model; do not treat required mode as a complete host firewall.
+Linux without bubblewrap uses a network namespace without a mount namespace, so reachable Unix sockets remain a gap. Scoped egress refuses that backend. Install bubblewrap for the stronger Linux boundary; no backend here provides VM isolation.
 
 ## Windows
 
@@ -33,6 +33,23 @@ Ordinary agent runs, runtime startup, and explicit `sandbox: "host"` coding tool
 ## Fixture mode
 
 Trusted tests may set `sandbox: "fixture"`. Closures run in the host process, which is why writes are blocked: a test that needs to observe a write belongs on a contained worker or an explicit host-mode agent, not in fixture.
+
+## Scoped network access
+
+```ts
+await run(support, "Read the approved API", {
+  entryPath: "./agent.ts",
+  sandboxProfile: {
+    network: { allowedHosts: ["api.example.com"], allowedPorts: [443] },
+    childProcess: false,
+    credentialEnv: [],
+  },
+});
+```
+
+The tool reaches a parent-owned proxy, which enforces the allowlist. Exact hosts and leading `*.` wildcards are supported; `*.example.com` does not match the apex `example.com`. Ports default to 443. Unbounded `network: true` remains refused.
+
+A backend without a reachable protected proxy path returns `cave_sandbox_scoped_egress_unavailable`. Node's environment-proxy support requires Node 22.21 or later for native HTTP clients. The proxy does not decrypt TLS: this controls the named destination, not the contents of a tunnel, and does not prevent domain fronting. Child-process containment remains separately gated.
 
 ## What it will not do
 

@@ -1,0 +1,80 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/coding");
+
+<DocSchema slug="agent-sdk/coding" />
+
+The coding-agent package adds a workspace-oriented agent and terminal interface to the SDK. The smaller `shellTools()` factory lets any agent use selected file and shell tools without adopting that interface.
+
+These examples use the current source workspace. Check [Install](/docs/agent-sdk/install) before installing a registry version.
+
+## Compose a workspace agent
+
+```ts
+import { agent, auto, run } from "@caveman-ai/agent";
+import { shellTools } from "@caveman-ai/agent/shell-tools";
+
+const reader = agent({
+  id: "workspace-reader",
+  instructions: "Read the workspace and explain what you find.",
+  model: auto(),
+  sandbox: "host",
+  tools: shellTools({
+    workspace: process.cwd(),
+    tools: ["read_file", "grep", "read_tool_output"],
+  }),
+});
+await run(reader, "Where is the parser defined?");
+```
+
+This selects read tools only. `sandbox: "host"` explicitly permits host execution; it is not OS isolation. Do not add `bash` when a read-only file interface is the intended boundary: a shell can mutate files and access other host resources.
+
+## Tools and output limits
+
+| Tool | Purpose | Default inline output cap |
+| --- | --- | --- |
+| `read_file` | Read UTF-8 files, optionally by line range | 24,000 bytes |
+| `grep` | Search workspace text | 16,000 bytes; at most 200 matches |
+| `bash` | Run a bounded foreground command | 24,000 bytes |
+| `write_file` | Write a workspace file | 2,000 bytes |
+| `edit_file` | Edit a workspace file | 2,000 bytes |
+| `read_tool_output` | Page a retained output handle | 24,000 bytes |
+
+`read_file` prefixes lines with their one-based number and a tab. Remove those prefixes before copying the content into a file. `outputCaps` overrides caps per tool. `bash` has a 120-second default timeout.
+
+Selecting `read_tool_output` allows longer captured output to be retained behind an opaque handle. Handles belong to one agent instance and disappear on restart or eviction. Process capture itself is bounded, so a handle is not proof that unlimited command output was saved. If the paging tool is absent, capped output is explicitly incomplete.
+
+## Use the coding product
+
+```ts
+import { createCodingAgent, runCodingSession } from "@caveman-ai/coding-agent";
+
+const coding = createCodingAgent({ workspace: process.cwd() });
+await runCodingSession({ agent: coding });
+```
+
+The CLI is `caveman-code --workspace .`. The package depends on `@caveman-ai/agent` as a peer. Core SDK installation does not install the coding interface.
+
+Pass `executionBackend` to run workspace effects through a [remote backend](/docs/agent-sdk/execution). Interactive shell sessions require a local backend. They are optional; foreground shell execution works without them.
+
+## Authorize each tool call
+
+Use `RunOptions.toolPolicy` for decisions made by your application, outside model output:
+
+```ts
+await run(reader, "Inspect the repository", {
+  toolPolicy: ({ effect }) => effect === "read"
+    ? { allow: true }
+    : { deny: "read_only" },
+});
+```
+
+The policy receives run and agent ids, agent path, tool call id, name, effect, validated arguments, and an optional parent call id. It covers declared root, subagent, and nested tool calls. Framework-reserved `cave_*` tools are excluded.
+
+A denial returns `cave_tool_denied:<code>` to the model and is counted under denied calls in the receipt. Denial codes match `[a-z][a-z0-9_]{0,63}`; use a short reason code, not user data. Returning `undefined` permits the call. The policy decides whether to run the existing arguments; it does not rewrite them.
+
+A thrown or timed-out policy fails the run with `cave_tool_policy_failed`. The policy deadline is ten seconds. Malformed decisions and invalid reason codes also fail closed. Use a separate application approval workflow when a human needs more time.
+
+## What it does not provide
+
+Tool declarations and policies are not OS containment. Effect labels describe tool semantics and must be truthful. Output handles are bounded local storage, not durable recovery records. Local usage and reduction estimates remain `inferred`.

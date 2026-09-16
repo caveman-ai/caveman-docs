@@ -1,0 +1,53 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/plugins");
+
+<DocSchema slug="agent-sdk/plugins" />
+
+The optional workspace loader turns installed skills and declarative plugin commands into agent context. The core runtime does not search your filesystem automatically.
+
+## Load an explicit environment
+
+```ts
+import { agent, auto } from "@caveman-ai/agent";
+import { applyAgentEnvironment, loadAgentEnvironment } from "@caveman-ai/agent/plugins";
+
+const environment = await loadAgentEnvironment({
+  cwd: process.cwd(),
+  includeDefaultRoots: false,
+  includeWorkspacePlugin: false,
+  skillRoots: ["./.agents/skills"],
+});
+const reviewer = applyAgentEnvironment(agent({
+  id: "reviewer",
+  instructions: "Review the requested changes.",
+  model: auto(),
+}), environment);
+```
+
+This example uses only the declared skill root. The default loader also discovers project and user `.agents/skills` and `.agents/plugins` directories. Read `environment.diagnostics` to see skipped or unsupported material.
+
+## What reaches the model
+
+Skill descriptions and command metadata enter stable context. Full skill text, resources, and command bodies are loaded only when activated. A large skill therefore does not become part of every request.
+
+`loadAgentDir()` uses the same loader for `.agents/skills/<name>/SKILL.md` inside the agent project. It does not enable user-home or plugin discovery. Use the optional environment loader when your product needs those additional roots.
+
+## Accepted plugin layouts
+
+| Manifest | Format |
+| --- | --- |
+| `plugin.json` | Agent Plugins v1 |
+| `.plugin/plugin.json` | OpenPlugin |
+| `.claude-plugin/plugin.json` | Claude-compatible manifest |
+| `.cursor-plugin/plugin.json` | Cursor-compatible manifest |
+
+The first applicable format takes precedence. Extra `skillRoots` and exact `pluginRoots` use highest-precedence-first ordering. `pluginCollections` searches immediate child packages.
+
+Plugin commands and skills use qualified names such as `review:check`. `expandAgentEnvironmentSlashCommand()` expands a command invocation; command templates support `$ARGUMENTS` and `$1` through `$9`.
+
+## What stays disabled
+
+The loader supports declarative skills and Markdown commands. It reports MCP declarations, hooks, and custom agents without launching them. It does not spawn plugin subprocesses or inherit ambient secrets. Installing a manifest does not authorize its executable integrations.
+
+See [Define an agent](/docs/agent-sdk/define) for directory loading and [Coding agents](/docs/agent-sdk/coding) for tool execution.

@@ -33,7 +33,7 @@ const publicIds = new Set(manifest.public.map((c) => c.id));
 
 /* Private ids that are also ordinary English words. Naming one of these in a
  * sentence is not a leak; naming its path is, and rule 2 covers that. */
-const AMBIGUOUS = new Set(["gateway", "proxy", "web", "worker", "database", "catalog", "metering", "deployment", "optimizer"]);
+const AMBIGUOUS = new Set(["gateway", "proxy", "web", "worker", "database", "catalog", "metering", "deployment", "optimizer", "identity"]);
 const deniedIds = manifest.privateIds.filter((id) => !AMBIGUOUS.has(id));
 
 /* Directories that exist only in the private repository. A docs page has no

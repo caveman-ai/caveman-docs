@@ -1,15 +1,18 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { DocsSidebar } from "@/components/docs/sidebar";
+import { PRODUCTS, docPath, productOf, slugOf } from "@/lib/docs-nav";
 import { cn } from "@/lib/cn";
 
 /** Trigger plus drawer, kept together so the header stays a server component. */
 export function DocsMobileNav() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
+  const active = productOf(slugOf(pathname))?.id;
 
   React.useEffect(() => {
     setOpen(false);
@@ -64,6 +67,32 @@ export function DocsMobileNav() {
                 <X className="size-4" />
               </button>
             </div>
+            {/* The header tabs are hidden at this width, so the products come first. */}
+            <nav aria-label="Products">
+            <ul className="mb-5 border-b border-border pb-4">
+              {PRODUCTS.map((p) => (
+                <li key={p.id}>
+                  {p.soon || p.home === undefined ? (
+                    <span className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] text-muted-foreground/50">
+                      {p.title}
+                      <span className="ml-auto text-2xs">soon</span>
+                    </span>
+                  ) : (
+                    <Link
+                      href={docPath(p.home)}
+                      aria-current={p.id === active ? "page" : undefined}
+                      className={cn(
+                        "flex h-8 items-center rounded-md px-2 text-[13px] transition-colors",
+                        p.id === active ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {p.title}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+            </nav>
             <DocsSidebar onNavigate={() => setOpen(false)} />
           </div>
         </div>

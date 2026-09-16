@@ -4,18 +4,24 @@ export const metadata = docMetadata("licensing");
 
 <DocSchema slug="licensing" />
 
-Caveman uses three licences, one per kind of surface. Which one applies depends on what a piece of code
+Caveman uses MIT, Apache-2.0, BSL 1.1, and commercial terms across its products. Which one applies depends on what a piece of code
 is, not on how much you use it. Nothing here has a usage threshold that changes your terms.
 
 <OpenCoreBoundary />
 
 ## MIT: adoption and interop
 
-Anything a developer installs to work with Caveman is MIT, and stays MIT inside your commercial product.
+The Caveman skill and adoption clients use MIT.
 
-The skill, the CLI, the TypeScript and Python SDKs, the Agent SDK and its initialiser, cavekit, the eval
+The skill, the CLI, the TypeScript and Python SDKs, cavekit, the eval
 graders, the extension shell, the wire contracts, the provider catalog, and the JavaScript and Python
 clients for cavemem.
+
+## Apache-2.0: current Agent SDK source
+
+The standalone Agent SDK repository uses Apache-2.0 throughout: runtime, initializer, coding agent, React hooks, adapters, evals, and public protocol. Check the licence shipped with the release you install; this source change does not relabel an older npm tarball.
+
+The authoritative maps are [Caveman licensing](https://github.com/JuliusBrussee/caveman/blob/4df4b03ba538751131d24415c59a1fad0d8c2c18/LICENSING.md) and [Agent SDK licensing](https://github.com/caveman-ai/agent-sdk/blob/311be4013340ffa900993836c3ecc79b314e374a/LICENSING.md).
 
 ## BSL 1.1: the engine-linked runtime
 
@@ -32,7 +38,7 @@ self-hosted use for your own first-party traffic, production included.
 ### What needs a commercial licence
 
 Offering Caveman or its functionality to third parties as a hosted, managed or embedded service. That is
-the OEM and platform boundary, and it is the only restriction.
+the OEM and platform boundary, under the terms in the shipped licence.
 
 ### When it becomes Apache 2.0
 

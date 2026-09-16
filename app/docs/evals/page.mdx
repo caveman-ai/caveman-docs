@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("evals");
+
+<DocSchema slug="evals" />
 
 `@caveman/evals` is the public fail-closed grader package. Each grader takes one candidate and returns
 `{ passed, reason }`. Unknown types, invalid options, missing measurements, and unsafe execution paths fail.

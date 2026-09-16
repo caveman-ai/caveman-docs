@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { CaveMark } from "@/components/site/mark";
+import { ProductTabs } from "@/components/site/product-tabs";
 import { SITE } from "@/lib/site";
 
 /* The one bar. Hairline bottom, nothing else: no shadow, no blur stack, no
- * second row of chrome. The only filled control on the page lives here. */
+ * second row of chrome. The product tabs sit in this row, not under it. The
+ * only filled control on the page lives here. */
 export function SiteHeader({ left }: { left?: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
@@ -17,6 +19,7 @@ export function SiteHeader({ left }: { left?: React.ReactNode }) {
           <span>Caveman</span>
           <span className="text-muted-foreground">docs</span>
         </Link>
+        <ProductTabs />
 
         <div className="ml-auto flex items-center gap-1">
           <a

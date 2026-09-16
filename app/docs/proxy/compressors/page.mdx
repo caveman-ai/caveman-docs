@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("proxy/compressors");
+
+<DocSchema slug="proxy/compressors" />
 
 The engine routes each payload to a compressor built for its shape. Detection and compression are deterministic
 local code. Neither step calls a model.

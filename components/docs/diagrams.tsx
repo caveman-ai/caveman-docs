@@ -266,8 +266,6 @@ export function OpenCoreBoundary() {
         "CLI",
         "TypeScript SDK",
         "Python SDK",
-        "Agent SDK",
-        "create-agent",
         "cavemem JS and Python clients",
         "Eval graders",
         "Provider catalog",
@@ -281,6 +279,11 @@ export function OpenCoreBoundary() {
       parts: ["Compression engine", "Local proxy", "cavemem core", "caveman-shrink core", "MCP server core", "caveman-browse", "Shared platform libraries"],
     },
     {
+      license: "Apache-2.0",
+      rule: "Current standalone Agent SDK source. Check the licence shipped with an older release.",
+      parts: ["Agent SDK", "Initializer", "React hooks", "Framework adapters", "Coding agent", "Public protocol"],
+    },
+    {
       license: "Commercial",
       rule: "Runs on our machines, under an account.",
       parts: ["Caveman Cloud"],
@@ -288,7 +291,7 @@ export function OpenCoreBoundary() {
   ];
   return (
     <figure className="not-prose my-8">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {cols.map((c) => (
           <div key={c.license} className="rounded-xl border border-border bg-card p-4">
             <div className="font-mono text-2xs text-muted-foreground">{c.license}</div>

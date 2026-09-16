@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("memory/offload");
+
+<DocSchema slug="memory/offload" />
 
 Offloading moves recurring context out of an always-read instruction file and into local cavemem. A short pointer
 stays where the block used to be, so an agent knows how to recall the compact form and recover exact source bytes.

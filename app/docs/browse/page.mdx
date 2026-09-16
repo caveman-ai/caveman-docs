@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("browse");
+
+<DocSchema slug="browse" />
 
 `caveman-browse` is a local Chrome driver for agents. It reads Chrome's accessibility tree, turns it into compact
 UID-addressed text, and stores raw tree bytes behind a recovery handle.

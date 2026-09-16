@@ -1,0 +1,70 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/react");
+
+<DocSchema slug="agent-sdk/react" />
+
+`@caveman-ai/react` renders an agent event stream. Use `useAgent` for one independent run and `useSession` for an ongoing conversation. Neither hook stores a provider credential or agent-server bearer token.
+
+The package is available in the source workspace; npm returned 404 on 15 September 2026. Pack the workspace package before installing it into your app; React ships source JavaScript and declarations with no build step. See [Install](/docs/agent-sdk/install).
+
+## Put your backend between the browser and agent
+
+<figure className="my-6 rounded-md border p-4 text-sm">
+  <div>Browser hook → same-origin app route → agent server → provider</div>
+  <figcaption className="mt-3 text-xs text-muted-foreground">Your app authenticates the user, checks ownership and spending permission, then attaches the server credential.</figcaption>
+</figure>
+
+Use a relative `api` path such as `/api/agent`. Implement that route in your app. Authenticate every request and authorize its run or session before forwarding it. The agent bearer token belongs in server-side configuration, never a browser bundle, URL, or browser WebSocket subprotocol.
+
+Forward SSE response bodies without buffering and preserve `Last-Event-ID`. For WebSockets, your backend must attach authorization during the upstream upgrade or terminate and forward the socket itself.
+
+## One independent run
+
+```tsx
+"use client";
+import { useAgent } from "@caveman-ai/react";
+
+export function AskAgent() {
+  const { text, status, error, submit, usage } = useAgent({ api: "/api/agent" });
+  return (
+    <section>
+      <button disabled={status === "streaming"}
+        onClick={() => void submit("Explain the latest result.")}>Ask</button>
+      <p aria-live="polite" aria-busy={status === "streaming"}>{text}</p>
+      {error && <p role="alert">{error.message}</p>}
+      {usage && <p>{usage.costUsd === null ? "Cost unknown" : "Catalog cost available"}</p>}
+    </section>
+  );
+}
+```
+
+Each `submit` creates a separate run. It does not append a message to the previous conversation. `submit` returns the run id; save it if your app should call `watch(runId)` after a reload.
+
+`stopWatching()` detaches this view. It does not cancel execution. Cancellation requires `DELETE /runs/{id}`. A detached run may continue spending.
+
+## A conversation
+
+```tsx
+import { useSession } from "@caveman-ai/react";
+
+const { events, send, cancel, status, gap } = useSession({
+  api: "/api/agent",
+  sessionId: "case-42",
+  transport: "sse",
+});
+
+await send("Check the new evidence", { author: "Ada", mode: "followUp" });
+```
+
+Use the id returned by session creation. `transport: "ws"` selects WebSocket. `cancel()` cancels the active session run and drops its queue.
+
+SSE reconnects with its event cursor. WebSocket reconnects also request the missed sequence. If the server has evicted history, `gap` reports the missing span and retained events continue streaming. Show that gap to the user instead of presenting an incomplete transcript as complete.
+
+## Output and limits
+
+`useAgent` exposes `text`, `thinking`, `tools`, `status`, `usage`, `route`, `stopReason`, `error`, `gap`, and `runId`, plus its control methods. Reasoning appears only when the provider emits it. `usage.costUsd === null` means unknown, never zero; known amounts are catalog estimates, not invoices.
+
+Events are applied in arrival order and renders are batched to animation frames. For a custom transport, use the exported pure reducers `reduceAgentEvent` and `reduceSessionEvent`.
+
+The hooks do not provide authentication, permanent transcript storage, or an authorization policy. Your application owns those decisions.

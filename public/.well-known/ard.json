@@ -1,0 +1,96 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Caveman documentation",
+    "identifier": "did:web:docs.caveman.so",
+    "documentationUrl": "https://docs.caveman.so/llms.txt"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:docs.caveman.so:docs:llms-txt",
+      "displayName": "Caveman documentation index (llms.txt)",
+      "type": "text/markdown",
+      "mediaType": "text/markdown",
+      "url": "https://docs.caveman.so/llms.txt",
+      "description": "Every documentation page with a one-line summary, grouped by layer, plus when-to-use guidance and the measurement vocabulary.",
+      "tags": ["documentation", "token-efficiency", "ai-agents", "llm-cost"],
+      "representativeQueries": [
+        "how do I install the caveman skill",
+        "how does the caveman proxy compress tool output",
+        "what does inferred mean in caveman",
+        "how do I use caveman with litellm"
+      ],
+      "trustManifest": {
+        "identity": "did:web:docs.caveman.so",
+        "identityType": "did",
+        "homepage": "https://caveman.so",
+        "sourceRepository": "https://github.com/JuliusBrussee/caveman",
+        "trustSchema": { "governanceUri": "https://caveman.so/terms", "verificationMethods": ["dns", "https"] }
+      }
+    },
+    {
+      "identifier": "urn:air:docs.caveman.so:docs:llms-full",
+      "displayName": "Caveman documentation, full text",
+      "type": "text/markdown",
+      "mediaType": "text/markdown",
+      "url": "https://docs.caveman.so/llms-full.txt",
+      "description": "The whole documentation site as one Markdown file. Any single page is also available at its URL plus .md.",
+      "tags": ["documentation", "markdown"],
+      "trustManifest": {
+        "identity": "did:web:docs.caveman.so",
+        "identityType": "did",
+        "homepage": "https://caveman.so",
+        "sourceRepository": "https://github.com/JuliusBrussee/caveman",
+        "trustSchema": { "governanceUri": "https://caveman.so/terms", "verificationMethods": ["dns", "https"] }
+      }
+    },
+    {
+      "identifier": "urn:air:docs.caveman.so:docs:index-json",
+      "displayName": "Caveman documentation machine index",
+      "type": "application/json",
+      "mediaType": "application/json",
+      "url": "https://docs.caveman.so/llms-index.json",
+      "description": "Every page with its headings, anchors, licence, capability id and last-changed date, for choosing which page to fetch without fetching any.",
+      "tags": ["documentation", "index"],
+      "trustManifest": {
+        "identity": "did:web:docs.caveman.so",
+        "identityType": "did",
+        "homepage": "https://caveman.so",
+        "sourceRepository": "https://github.com/JuliusBrussee/caveman",
+        "trustSchema": { "governanceUri": "https://caveman.so/terms", "verificationMethods": ["dns", "https"] }
+      }
+    },
+    {
+      "identifier": "urn:air:caveman.so:skill:caveman",
+      "displayName": "Caveman skill (Agent Skills)",
+      "type": "application/ai-skill+md",
+      "mediaType": "text/markdown",
+      "url": "https://caveman.so/.well-known/agent-skills/caveman/SKILL.md",
+      "description": "Instructions for an agent that wants to install or evaluate the Caveman stack. Published on the product site; listed here so a reader of the docs finds it.",
+      "tags": ["skill", "install", "token-efficiency"],
+      "trustManifest": {
+        "identity": "did:web:caveman.so",
+        "identityType": "did",
+        "homepage": "https://caveman.so",
+        "sourceRepository": "https://github.com/JuliusBrussee/caveman",
+        "trustSchema": { "governanceUri": "https://caveman.so/terms", "verificationMethods": ["dns", "https"] }
+      }
+    },
+    {
+      "identifier": "urn:air:caveman.so:api:openapi",
+      "displayName": "Caveman Platform control-plane API (OpenAPI 3.1)",
+      "type": "application/vnd.oai.openapi+json;version=3.1",
+      "mediaType": "application/vnd.oai.openapi+json;version=3.1",
+      "url": "https://caveman.so/openapi.json",
+      "description": "The hosted control-plane API specification. Served from the product site; the documentation site links to it rather than copying it.",
+      "tags": ["api", "openapi"],
+      "trustManifest": {
+        "identity": "did:web:caveman.so",
+        "identityType": "did",
+        "homepage": "https://caveman.so",
+        "sourceRepository": "https://github.com/JuliusBrussee/caveman",
+        "trustSchema": { "governanceUri": "https://caveman.so/terms", "verificationMethods": ["dns", "https"] }
+      }
+    }
+  ]
+}

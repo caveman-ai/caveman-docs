@@ -1,0 +1,106 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("agent-sdk/durable");
+
+<DocSchema slug="agent-sdk/durable" />
+
+A durable run journals what it is about to do before it does it, so a process that dies mid-run leaves a record of exactly where it stopped. Give a run an id and it becomes resumable.
+
+```ts
+import { run } from "@caveman-ai/agent";
+import support from "./agent.js";
+
+const result = await run(support, "Can I get a refund?", {
+  durable: { runId: "ticket-8231" },
+});
+```
+
+`runId` is a caller-assigned idempotency key. The same id always means the same logical run.
+
+| Resubmitting the same `runId` | What happens |
+|---|---|
+| The run finished | The journaled result is returned. Nothing is spent. |
+| The run failed terminally | The same error is re-thrown. Nothing is spent. |
+| The run was interrupted | It resumes from its last journaled boundary. |
+| The run is in flight elsewhere | `cave_durable_run_locked`. Two processes never drive one run. |
+
+## What is journaled, and when
+
+The journal is append-only JSONL, one file per run, and nothing is durable until the store acknowledges the write.
+
+The ledger is fine-grained on purpose. A provider-call **intent** is written before the call and its **settlement** after, so a resume preloads the meter with every journaled settlement: money already spent is never re-reserved and never lost. Conversation state checkpoints at turn boundaries, which is why a resume never asks the same question twice, a partial turn is discarded while its spend is kept.
+
+Tool effects use a stricter protocol than provider calls. A `read` may simply re-drive. An `idempotent` tool re-drives with a stable key and is told it is a retry. A `write` or `external` call whose settlement was never journaled **fails closed** rather than firing twice.
+
+## The honest ceiling
+
+The guarantee is **at-least-once at the step boundary**, not exactly-once.
+
+A provider call whose intent was journaled but whose settlement was not may have been billed without this ledger ever seeing it. That uncertainty is never swallowed: it appears on the receipt as `resume.possibleDoubleCountCalls`, and the resumed receipt prints a line naming prior attempts.
+
+## What fails closed
+
+A resume continues the original contract or refuses. The journal carries the identity of the run it belongs to, and a mismatch stops before spending:
+
+- `cave_durable_definition_changed`, the agent is not the one the run started with.
+- `cave_durable_input_mismatch`, a new task needs a new `runId`.
+- `cave_durable_budget_changed`, a resume continues the original money contract.
+- `cave_durable_journal_version_unsupported`, the journal was written by a newer runtime.
+
+The journal necessarily contains message content, since resuming a conversation requires the conversation. The disk store writes `0700` directories and `0600` files for that reason.
+
+## Where the journal lives
+
+The default is disk, under `.caveman/runs/durable/<runId>/`. `DurableStore` is four methods, so anything ordered, durable and single-writer can back it:
+
+```ts
+import { HttpDurableStore, run } from "@caveman-ai/agent";
+
+await run(support, "Can I get a refund?", {
+  durable: {
+    runId: "ticket-8231",
+    store: new HttpDurableStore({
+      url: process.env.CAVE_JOURNAL_URL,
+      token: process.env.CAVE_JOURNAL_TOKEN,
+    }),
+  },
+});
+```
+
+Use the HTTP store wherever local disk does not survive a restart, container platforms, autoscaled fleets. Its wire contract is six endpoints, and two of its behaviours are deliberate refusals: an append is **never retried** (a duplicated settlement is silently wrong money, so the run fails and the resume re-drives from a journal that is still true), and a lost lock lease **poisons** that run for the process that lost it, which can no longer prove it is the only driver.
+
+## Reading a journal without driving it
+
+`durableRunSummary` answers "is this finished, and with what" from the journal alone, no definition, budget, or input required. It is what a status endpoint and a recovery sweep read.
+
+```ts
+import { durableRunSummary } from "@caveman-ai/agent";
+
+const summary = durableRunSummary(await store.load("ticket-8231"));
+// { status: "pending" | "completed" | "failed" | "missing", ... }
+```
+
+It deliberately cannot resume anything. Every resume still goes through the full identity check.
+
+## Limits in this version
+
+Root runs only, a subagent journals through its root. `maxCostUsd` is not accepted; use `budget`. Breaker windows restart on resume. Compaction counters are not restored, so a resumed run may pay to compact again; the budget remains the real bound.
+
+Serving durable runs over HTTP, with recovery on boot, is [Deploy](/docs/agent-sdk/deploy).
+
+## SQL and object stores
+
+`SqlDurableStore` and `ObjectDurableStore` are exported from `@caveman-ai/agent/durable`. Use SQL when your platform exposes ordered transactional storage, or the object adapter when it supplies conditional writes and the required lease semantics.
+
+```ts
+import { SqlDurableStore } from "@caveman-ai/agent/durable";
+
+const store = new SqlDurableStore({
+  dialect: "sqlite",
+  sql: { exec: (query, params) => db.prepare(query).all(...params) },
+});
+```
+
+Here `db` is your application-owned database connection. Apply `SqlDurableStore.schema("sqlite")` during database setup; the store does not create tables automatically. The SQL adapter also supports Postgres. These adapters do not make an arbitrary object bucket or database wrapper safe: implement the exact conditional-write and lease contract in the [API reference](/docs/agent-sdk/reference).
+
+A durable run lock protects one run. It does not share a live session queue across server instances. Keep the session server's single-instance guard enabled for a shared store.

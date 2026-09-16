@@ -114,3 +114,9 @@ promise about your bill, and it covers output tokens only.
 
 The range matters more than the average here. A tightly scoped refactor prompt saved 22 percent. A long
 explanatory answer saved 87 percent. Which end you land on depends on how much of your traffic is prose.
+
+## Hook state in redirected config folders
+
+The [current hook source](https://github.com/JuliusBrussee/caveman/blob/cc067b2b3813e3187ba656b1d908761ad3e5b904/src/hooks/caveman-config.js) supports a Windows config directory redirected through a writable junction, including a target on another drive. Mode-state writes and history appends check whether the resolved directory is writable instead of requiring it to remain under your home directory.
+
+The flag file itself must not be a symbolic link. Clearing the legacy mode flag uses the same directory checks as writing it. If mode persistence or lifetime stats disappear in a redirected folder, check the target directory's permissions and update the installed hooks from current source. This source behavior does not certify every Windows filesystem configuration.

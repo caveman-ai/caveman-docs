@@ -36,9 +36,11 @@ Environment fallback: `ANTHROPIC_API_KEY`.
 ```text
 /openai/v1/chat/completions
 /openai/v1/responses
+/openai/v1/responses/input_tokens
 /openai/v1/embeddings
 /v1/chat/completions
 /v1/responses
+/v1/responses/input_tokens
 /v1/embeddings
 ```
 
@@ -52,7 +54,7 @@ Environment fallback: `OPENAI_API_KEY`.
 /gemini/v1beta/models/{model}:countTokens
 ```
 
-Bare `/v1beta/models/{model}:…` paths are also accepted when a profile uses them.
+Both `v1beta` and `v1` are accepted. Bare model paths are also accepted when a profile uses them.
 
 Environment fallback: `GEMINI_API_KEY`.
 
@@ -63,6 +65,7 @@ Environment fallback: `GEMINI_API_KEY`.
 /bedrock/model/{model}/invoke-with-response-stream
 /bedrock/model/{model}/converse
 /bedrock/model/{model}/converse-stream
+/bedrock/model/{model}/count-tokens
 ```
 
 No raw endpoint URL is required in standalone mode. Use a bearer key or a complete IAM pair:
@@ -72,10 +75,10 @@ AWS_REGION=us-east-1 AWS_BEARER_TOKEN_BEDROCK=… caveman-proxy
 AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… caveman-proxy
 ```
 
-`AWS_SESSION_TOKEN` is honoured for temporary credentials. A partial IAM pair fails closed.
+`AWS_SESSION_TOKEN` is honoured for temporary credentials. A partial IAM pair fails closed. The AWS default credential chain also supports workload roles, including container credentials and web identity, when no explicit credential takes precedence.
 
 Credential precedence is the inbound credential, then the Bedrock bearer token, then a complete IAM
-pair. Region precedence is `providers.bedrock.region` in `caveman.yaml`, then `CAVE_BEDROCK_REGION`,
+pair or the configured AWS role chain. Region precedence is `providers.bedrock.region` in `caveman.yaml`, then `CAVE_BEDROCK_REGION`,
 `AWS_REGION`, `AWS_DEFAULT_REGION`, then `us-east-1`.
 
 The Mantle-style Anthropic Messages route at `/bedrock/anthropic` stays off unless
@@ -110,8 +113,7 @@ compat:
     api_key_env: LOCAL_MODEL_API_KEY
 ```
 
-Compatibility means HTTP shape. It does not mean every provider extension works. Private, loopback,
-and link-local upstreams are blocked until you add an exact host to `CAVE_SSRF_ALLOWLIST`. See
+Compatibility means HTTP shape. It does not mean every provider extension works. Private and loopback upstreams require an exact `CAVE_SSRF_ALLOWLIST` entry. Link-local and metadata destinations remain blocked even when listed. See
 [Security](/docs/proxy/security).
 
 ## Applications and SDKs
@@ -145,3 +147,19 @@ A 404 usually means the agent used the wrong provider prefix, or a bare path the
 not own. Authentication failures should be checked at the inbound header and at the environment
 fallback, without printing the secret. A blocked custom base URL almost always needs a precise
 `CAVE_SSRF_ALLOWLIST` entry, not a wider listen address.
+
+## Adapter limits and newer routes
+
+OpenAI Responses input-token counting, Bedrock CountTokens, and Vertex Google `:countTokens` use dedicated count routes. Count requests preserve request and response bytes in every mode and are not recorded as generated-model usage or spend.
+
+Vertex Express supports projectless `/vertex/v1/publishers/google/models/{model}:generateContent`, `:streamGenerateContent`, and `:countTokens`. Native Google key headers are supported; query-key handling normalizes credentials to the header. This does not make every Vertex publisher or endpoint interchangeable.
+
+Bedrock's OpenAI-compatible Runtime and Mantle protocols are not implemented by the Bedrock mount. `/bedrock/openai/v1/...` and `/bedrock/v1/...` return 404. Enabling the Anthropic Mantle route does not enable those protocols.
+
+The built-in `/compat/opencode-go/` mount forwards to `https://opencode.ai/zen/go` and reads `OPENCODE_API_KEY`. A configured mount of the same name overrides it.
+
+On a [shared proxy](/docs/proxy/shared), the inbound team token is consumed before provider authentication. Local OAuth passthrough is not a promise of shared-token OAuth compatibility. Keep the authentication and recovery limitations separate from HTTP route support.
+
+## Streaming failures and usage
+
+Native SSE, Gemini streamed JSON arrays, and AWS EventStream frames remain streaming. HTTP errors retain their status and body. A provider error arriving inside an already-started HTTP 200 stream cannot change that HTTP status; the local record marks `provider_stream_error`. A billed call may still have failed generation. Complete usage does not establish a successful answer or a saving.

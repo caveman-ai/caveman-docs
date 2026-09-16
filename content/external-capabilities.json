@@ -1,0 +1,20 @@
+{
+  "public": [
+    {
+      "id": "agent-sdk",
+      "name": "Caveman Agent SDK",
+      "path": "external:caveman-ai/agent-sdk",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "create-agent",
+      "name": "Caveman Agent initializer",
+      "path": "external:caveman-ai/agent-sdk/packages/create-caveman-agent",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    }
+  ]
+}

@@ -128,3 +128,7 @@ foreign process on the port  -> do not restart or trust it
 ```
 
 Every row resolves toward doing less. A mode you did not ask for cannot turn itself on.
+
+## Prompt caching and history rewriting
+
+Provider-native cache hints reuse a stable prefix. A history rewrite makes a separate model call and must pass acceptance and recovery checks. See [Caching and rewriting](/docs/proxy/caching) for their distinct costs, gates, and evidence.

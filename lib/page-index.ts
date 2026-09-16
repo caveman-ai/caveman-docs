@@ -2,7 +2,7 @@ import "server-only";
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { DOCS_LIVE, DOCS_NAV, docPath, layerOf, type DocLink } from "@/lib/docs-nav";
+import { DOCS_LIVE, docPath, layerOf, productOf, type DocLink } from "@/lib/docs-nav";
 import { SITE } from "@/lib/site";
 
 /* ==========================================================================
@@ -92,10 +92,6 @@ function headingsOf(source: string): Heading[] {
   return out;
 }
 
-function sectionOf(slug: string): string {
-  return DOCS_NAV.find((g) => g.items.some((i) => i.slug === slug))?.title ?? "";
-}
-
 function record(doc: DocLink): PageRecord {
   const file = sourcePath(doc.slug);
   let source = "";
@@ -112,7 +108,7 @@ function record(doc: DocLink): PageRecord {
     summary: doc.blurb,
     url: `${SITE.url}${docPath(doc.slug)}`,
     markdown: `${SITE.url}${docPath(doc.slug)}.md`,
-    section: sectionOf(doc.slug),
+    section: productOf(doc.slug)?.title ?? "",
     layer: doc.layer ?? null,
     layerRank: layer ? layer.rank : null,
     license: doc.license ?? null,

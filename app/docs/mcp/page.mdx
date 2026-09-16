@@ -1,5 +1,8 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("mcp");
+
+<DocSchema slug="mcp" />
 
 `caveman-mcp` exposes engine compression, recovery, statistics, and TOON conversion to any MCP host. It speaks
 line-delimited JSON-RPC over stdin and stdout and opens no network connection.

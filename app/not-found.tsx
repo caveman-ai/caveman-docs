@@ -18,6 +18,20 @@ export default function NotFound() {
         >
           Go to the documentation index
         </Link>
+        <ul className="mt-8 max-w-measure space-y-1.5 text-[13px] text-muted-foreground">
+          <li>
+            <a href="/llms.txt" className="underline-offset-4 hover:underline">/llms.txt</a>: every page with a one-line summary.
+          </li>
+          <li>
+            <a href="/sitemap.xml" className="underline-offset-4 hover:underline">/sitemap.xml</a>: every page that exists.
+          </li>
+          <li>
+            <a href="/llms-full.txt" className="underline-offset-4 hover:underline">/llms-full.txt</a>: the whole site as one Markdown file.
+          </li>
+          <li>
+            Any page is also Markdown at its URL plus <code className="font-mono">.md</code>.
+          </li>
+        </ul>
       </main>
       <SiteFooter />
     </>
