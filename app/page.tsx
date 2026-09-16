@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
-import { StackDiagram, RequestPath } from "@/components/docs/diagrams";
 import { DOCS_NAV, SECTIONS, docPath, layerOf, type DocLink } from "@/lib/docs-nav";
 import { SITE } from "@/lib/site";
 
@@ -56,7 +55,6 @@ function PageLink({ doc }: { doc: DocLink }) {
 
 export default function HomePage() {
   const groups = Object.fromEntries(DOCS_NAV.map((g) => [g.title, g]));
-  const start = groups["Start"]?.items.filter((i) => i.slug !== "") ?? [];
   const reference = groups["Reference"]?.items.filter((i) => !i.soon) ?? [];
 
   return (
@@ -64,80 +62,69 @@ export default function HomePage() {
       <SiteHeader />
       <main id="main" className="mx-auto max-w-[92rem] px-4 sm:px-6 lg:px-8">
         {/* ---------------------------------------------------------------- */}
-        <section className="border-b border-border py-14 lg:py-20">
-          <p className="font-mono text-2xs text-muted-foreground">docs.caveman.so</p>
-          <h1 className="mt-4 max-w-[22ch] text-[34px] font-medium leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[44px]">
-            Documentation for the parts of Caveman you run yourself.
+        <section className="border-b border-border py-12 lg:py-16">
+          <p className="font-mono text-2xs text-muted-foreground">Caveman documentation</p>
+          <h1 className="mt-4 max-w-[23ch] text-[34px] font-medium leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[44px]">
+            Make your existing agent more efficient.
           </h1>
           <p className="mt-5 max-w-measure text-[15px] leading-relaxed text-muted-foreground">
-            Caveman is an efficiency stack for AI agents. Four layers sit between an agent you already use
-            and the bill it generates, and three of them run on your machine and are open. A second
-            repository, the Agent SDK, is for the other case: writing an agent whose budget is declared
-            rather than discovered. This site documents both, and says plainly what each can and cannot
-            prove.
+            Start with the coding agent you use or the application you already run.
+            Follow the setup, try it on a real task, and check what changed.
           </p>
-
-          <StackDiagram />
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/docs/quickstart"
-              className="flex h-9 items-center gap-2 rounded-md bg-primary px-3.5 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 active:scale-[0.98]"
-            >
-              Start here
-              <ArrowRight className="size-3.5" aria-hidden />
+          <div className="mt-8 grid gap-3 lg:grid-cols-3">
+            <Link href="/docs/quickstart" className="group flex flex-col rounded-xl border border-foreground/30 bg-card p-6 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+              <span className="font-mono text-2xs text-muted-foreground">Claude Code · Codex · more</span>
+              <h2 className="mt-4 text-lg font-medium">Optimize your coding agent</h2>
+              <p className="mb-6 mt-2 text-sm leading-relaxed text-muted-foreground">Install the skill for shorter replies. Add local tools when you want to inspect and reduce context.</p>
+              <span className="mt-auto flex items-center justify-between rounded-md bg-primary px-3 py-2 text-[13px] font-medium text-primary-foreground">Set up your coding agent <ArrowRight className="size-4" aria-hidden /></span>
             </Link>
-            <Link
-              href="/docs"
-              className="flex h-9 items-center rounded-md border border-input px-3.5 text-[13px] transition-colors hover:bg-accent"
-            >
-              Read the overview
+            <Link href="/docs/integrations" className="group flex flex-col rounded-xl border border-border p-6 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+              <span className="font-mono text-2xs text-muted-foreground">Vercel AI SDK · Python · more</span>
+              <h2 className="mt-4 text-lg font-medium">Optimize your existing app</h2>
+              <p className="mb-6 mt-2 text-sm leading-relaxed text-muted-foreground">Keep your framework and provider. Add middleware to compress eligible tool results in your own agent.</p>
+              <span className="mt-auto flex items-center justify-between py-2 text-[13px] font-medium">Choose your framework <ArrowRight className="size-4" aria-hidden /></span>
+            </Link>
+            <Link href="/docs/agent-sdk" className="group flex flex-col rounded-xl border border-border p-6 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+              <span className="font-mono text-2xs text-muted-foreground">Starting a new project</span>
+              <h2 className="mt-4 text-lg font-medium">Build a new agent</h2>
+              <p className="mb-6 mt-2 text-sm leading-relaxed text-muted-foreground">Use the Agent SDK to define tools, context, budgets, and durable runs in a new application.</p>
+              <span className="mt-auto flex items-center justify-between py-2 text-[13px] font-medium">Explore the Agent SDK <ArrowRight className="size-4" aria-hidden /></span>
             </Link>
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        <section className="border-b border-border py-12">
-          <SectionHead label="in one picture" title="What happens to a request">
-            The skill shapes what the agent writes. The engine reduces what leaves. The dashed path is the
-            part that makes the rest safe: anything the engine removed can be fetched back exactly.
-          </SectionHead>
-          <RequestPath />
-        </section>
-
-        {/* ---------------------------------------------------------------- */}
-        <section className="border-b border-border py-12">
-          <SectionHead label="get going" title="First three pages" />
-          <div className="grid gap-3 sm:grid-cols-3">
-            {start.map((doc) => (
-              <Link
-                key={doc.slug}
-                href={docPath(doc.slug)}
-                className="rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent"
-              >
-                <div className="text-[13px] font-medium text-foreground">{doc.title}</div>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{doc.blurb}</p>
-              </Link>
+        <section className="grid gap-6 border-b border-border py-10 md:grid-cols-2 md:items-start">
+          <div>
+            <p className="font-mono text-2xs text-muted-foreground">Existing application</p>
+            <h2 className="mt-2 text-xl font-medium">Already using Vercel AI SDK?</h2>
+            <p className="mt-3 max-w-measure text-sm leading-relaxed text-muted-foreground">Follow one working example from installation to an applied report. Your application keeps its model, tools, streams, and original conversation.</p>
+            <Link href="/docs/sdk/middleware/vercel-ai-sdk" className="mt-5 inline-flex items-center gap-2 text-sm font-medium underline decoration-border underline-offset-4 hover:decoration-foreground">Add Caveman to Vercel AI SDK <ArrowRight className="size-4" aria-hidden /></Link>
+          </div>
+          <ol className="divide-y divide-border rounded-xl border border-border text-sm">
+            {[
+              ["01", "Check the fit", "Tool-result compression, supported versions, and a local runtime."],
+              ["02", "Make the change", "A complete example and a small diff for your existing call."],
+              ["03", "See what happened", "Applied or skipped, recovery, and a repeatable local check."],
+            ].map(([number, title, detail]) => (
+              <li key={number} className="flex gap-4 px-5 py-4">
+                <span className="font-mono text-xs text-muted-foreground" aria-hidden>{number}</span>
+                <div><p className="font-medium">{title}</p><p className="mt-1 text-[13px] text-muted-foreground">{detail}</p></div>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Grouped the way the sidebar groups it, and for the same reason: the
-         * first question about any product here is what it is part of and
-         * where it comes from. Answering that on the front page means a reader
-         * never has to reverse-engineer it from a URL. */}
+        {/* Product reference follows the task-based entry paths. */}
         <section className="border-b border-border py-12">
-          <SectionHead label="everything there is" title="Two repositories and one hosted plane">
-            Layers carry a rank and stack bottom to top. Nothing above a layer is required by the one below
-            it, and the Agent SDK needs none of them.
+          <SectionHead label="everything there is" title="Explore the reference">
+            Look up a specific capability, configuration option, or API. Each product can be adopted on its own.
           </SectionHead>
-          <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
             {SECTIONS.map((section) => {
               const products = DOCS_NAV.filter((g) => g.section === section.id && g.items.length > 0);
               if (products.length === 0) return null;
               return (
-                <div key={section.id} className="border-t border-border pt-4">
+                <div key={section.id} className="min-w-0 border-t border-border pt-4">
                   <div className="flex items-baseline gap-2">
                     <span className="font-mono text-2xs text-ember">{section.label}</span>
                     <span className="text-2xs text-muted-foreground">

@@ -1,0 +1,57 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk");
+
+<DocSchema slug="sdk" />
+
+The Caveman SDKs connect an existing Python or TypeScript application to a configured Caveman service. Use them for provider requests, compression, deferred tool search, context management, and tracing. Both packages live in the main [caveman repository](https://github.com/JuliusBrussee/caveman/tree/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk).
+
+These are thin clients. Your application owns its agent loop, tools, conversation, and provider request bodies. For a runtime that defines and runs agents, see the separate [Agent SDK](/docs/agent-sdk).
+
+## Choose your language
+
+| | TypeScript | Python |
+| --- | --- | --- |
+| Install | `npm install @caveman-ai/sdk@1.1.0` | `python -m pip install caveman-sdk==1.1.0` |
+| Import | `@caveman-ai/sdk` | `caveman_cloud` |
+| Runtime | Node.js 22.13+ | Python 3.13+ |
+| HTTP | Async `fetch` | Synchronous `urllib` |
+| Runtime dependencies | None | None |
+| Licence | MIT | MIT |
+
+These guides target the published `1.1.0` packages, checked on 16 September 2026, and cross-check the current public source. A service must support each connected endpoint you use; installing a client does not enable that endpoint.
+
+<CardGrid>
+  <Card href="/docs/sdk/typescript" title="TypeScript quickstart" meta="Node.js">
+    Install, configure, and run a complete first request.
+  </Card>
+  <Card href="/docs/sdk/python" title="Python quickstart" meta="Python">
+    Create a virtual environment and run a complete first request.
+  </Card>
+</CardGrid>
+
+## Choose the integration
+
+| Developer goal | Choose | Automatic or explicit | Credentials and data path |
+| --- | --- | --- | --- |
+| Shorter assistant answers | [Skill](/docs/skill) | Instructions shape responses | No Caveman service; model account belongs to your agent |
+| Keep an existing provider client and change its base URL | [Proxy](/docs/proxy) | Runtime considers eligible traffic | Local accountless runtime; provider credentials still required |
+| Compress eligible tool results inside an existing framework | [Native middleware](/docs/sdk/middleware) | Automatic at the attached native boundary | Local accountless runtime; inference stays with your provider client |
+| Call compression, tool search, context, or tracing APIs directly | [Thin SDK quickstarts](/docs/sdk/typescript) | Explicit API calls | Endpoint requirements and credentials vary by operation |
+| Define and run a new agent runtime | [Separate Agent SDK](/docs/agent-sdk) | Its own runtime and tool lifecycle | Separate packages, deployment, and licensing |
+
+Use the thin SDK [configuration guide](/docs/sdk/configuration) to distinguish local runtime operations from connected services. Installing a package does not provision an endpoint or enable automatic optimization. Middleware is not an inference proxy. Avoid stacking both until one documented component owns each model call.
+
+## Before you connect
+
+Obtain your service base URL and its accepted API key. Set them explicitly; the SDK has no default service address and does not discover or start a local process. Supply a provider credential when your service requires bring-your-own-key access. See [configuration](/docs/sdk/configuration) for the difference between those credentials.
+
+A local provider proxy, a framework middleware runtime, and the connected SDK API expose different surfaces. A listener on port 8787 is not proof that it serves every `/sdk/v1/*` endpoint. Use the endpoint configured for your deployment.
+
+## What stays your responsibility
+
+The SDK does not execute a model's tool calls, parse an entire provider streaming protocol, persist your conversation, or retry business operations automatically. Keep original context when using compression or selection. Configure recovery before relying on lossy output.
+
+Compression and schema-token reports have `basis="inferred"`. They describe estimates for one operation, not invoice savings. No SDK estimate becomes a monthly or `verified` saving.
+
+Find signatures and language mappings in the [API reference](/docs/sdk/reference), or resolve a failed call in [troubleshooting](/docs/sdk/troubleshooting).

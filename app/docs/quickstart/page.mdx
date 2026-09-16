@@ -4,9 +4,9 @@ export const metadata = docMetadata("quickstart");
 
 <DocSchema slug="quickstart" />
 
-There are two products, and they are independent. The skill changes how your agent writes and takes about
-thirty seconds. The proxy, launched through the CLI, shrinks what the agent reads and gives you a local
-report on where those tokens actually go.
+Use this path for Claude Code, Codex, or another coding agent you already run. Start with the skill for shorter replies. Add the CLI when you want to inspect token use and manage local compression.
+
+Building an application with Vercel AI SDK or Python? [Optimize your existing app](/docs/integrations) instead.
 
 ## Install the skill
 
@@ -60,7 +60,7 @@ aside on its own for security warnings, irreversible actions, and any moment whe
 an instruction ambiguous.
 </Note>
 
-## Install the local tools
+## Inspect token use with the local tools
 
 The CLI is published on npm under a scoped name.
 
@@ -85,7 +85,7 @@ Turn it off with `caveman telemetry off`, `CAVEMAN_TELEMETRY=0`, or `DO_NOT_TRAC
 listed on [Telemetry](/docs/telemetry).
 </Note>
 
-Then start your agent through the CLI so traffic goes through the [local proxy](/docs/proxy):
+Then start your agent through the CLI so traffic goes through the [local proxy](/docs/proxy). The default record mode observes traffic without changing it:
 
 ```bash
 caveman claude
@@ -121,3 +121,12 @@ suite, not a promise about your bill.
 
 Nothing you run locally will ever report a dollar figure or a monthly total. That is deliberate and
 [the reasoning is here](/docs/counting).
+
+
+## Enable compression when you are ready
+
+After inspecting a representative task, follow [Wrap an agent](/docs/proxy/wrap) to enable compression for your agent and check its recovery support. Read [modes](/docs/proxy/modes) before comparing runs: a successful response in record mode does not mean compression ran.
+
+## Remove it
+
+Say `normal mode` to stop the skill in the current conversation. To stop using the proxy, close the wrapped session and launch your agent directly. Keep your original prompts and compare the same task before and after each change.

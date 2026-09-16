@@ -4,17 +4,27 @@ export const metadata = docMetadata("");
 
 <DocSchema slug="" />
 
-Caveman makes agents cheaper to run. It is not one program and not a framework you commit to. It is a
-short list of separate things, each of which you can adopt on its own and remove on its own.
+Start with the agent you already use. Caveman can change how a coding agent writes, compress eligible context in an existing application, or provide the runtime for a new agent.
 
-There are two repositories and one hosted plane. Knowing which is which is most of what you need to
-navigate this site.
+## Choose your starting point
 
-<Facts rows={[
-  ["caveman", "Makes an agent you already use cheaper. The skill, the proxy and the compression engine inside it, memory, and the adoption surfaces: CLI, SDKs, MCP server."],
-  ["agent-sdk", "Builds a new agent that is efficient by construction. A separate repository and a separate install. It does not need the proxy."],
-  ["Caveman Cloud", "The managed plane, across a network boundary. The only paid part, and the only place a number can be verified against a bill."],
-]} />
+<CardGrid cols={3}>
+  <Card href="/docs/quickstart" title="Optimize your coding agent" meta="Start here">
+    Claude Code, Codex, or another coding agent. Install the skill, then inspect your token use.
+  </Card>
+  <Card href="/docs/integrations" title="Optimize your existing app">
+    Vercel AI SDK, Python, or your own tool loop. Keep your framework and add Caveman.
+  </Card>
+  <Card href="/docs/agent-sdk" title="Build a new agent">
+    Define tools, context, budgets, and durable runs with the Agent SDK.
+  </Card>
+</CardGrid>
+
+Already using Vercel AI SDK? Go straight to the [complete middleware guide](/docs/sdk/middleware/vercel-ai-sdk). It covers setup, a working tool loop, reports, and deployment.
+
+## How the products fit
+
+The sections below explain the parts behind those paths. Each has its own installation and can be adopted independently.
 
 ## caveman: make an existing agent cheaper
 
@@ -75,9 +85,7 @@ It lives in its own repository, ships as its own package, and shares no runtime 
 use either without the other.
 
 <Note title="Which one do I want">
-If you already have Claude Code, Codex or a provider SDK and want it to cost less, you want the skill and
-the [proxy](/docs/proxy). If you are writing an agent from scratch and want its budget to be a declared
-property rather than something you discover on the bill, you want the [Agent SDK](/docs/agent-sdk).
+For Claude Code or Codex, start with [coding-agent setup](/docs/quickstart). For an application you own, [choose your framework](/docs/integrations). For a new runtime, see the [Agent SDK](/docs/agent-sdk).
 </Note>
 
 ## What the numbers mean

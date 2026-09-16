@@ -1,0 +1,122 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/providers");
+
+<DocSchema slug="sdk/providers" />
+
+Provider clients forward your request body through the configured Caveman service and decode the provider response. They are thin HTTP wrappers, not replacements for the provider's complete official SDK. Examples below assume the `cave` client from your language quickstart and an enabled `CAVE_MODEL`.
+
+## OpenAI responses and chat completions
+
+```ts
+const provider = cave.openai({ upstreamKey: process.env.OPENAI_API_KEY });
+const answer = await provider.responses.create({
+  model: process.env.CAVE_MODEL!,
+  input: "Explain retry backoff.",
+});
+const chat = await provider.chat.completions.create({
+  model: process.env.CAVE_MODEL!,
+  messages: [{ role: "user", content: "Explain retry backoff." }],
+});
+console.log(answer, chat);
+```
+
+```python
+provider = cave.openai(upstream_key=os.environ.get("OPENAI_API_KEY"))
+answer = provider.responses.create({
+    "model": os.environ["CAVE_MODEL"],
+    "input": "Explain retry backoff.",
+})
+chat = provider.chat["completions"].create({
+    "model": os.environ["CAVE_MODEL"],
+    "messages": [{"role": "user", "content": "Explain retry backoff."}],
+})
+print(answer, chat)
+```
+
+These methods parse JSON. Do not set `stream: true` on them: SSE is not a JSON document. Response fields and model availability remain provider-specific.
+
+## Native provider routes
+
+| Factory | Route prefix added by the SDK | Credential supplied as upstream key |
+| --- | --- | --- |
+| `openai()` | `/openai/v1` | OpenAI-compatible provider key |
+| `anthropic()` | `/anthropic` | Anthropic key |
+| `gemini()` | `/gemini` | Gemini API key |
+| `vertex()` | `/vertex` | Google access token |
+
+Use native paths for providers without a matching convenience method. TypeScript `raw()` takes a URL/path that includes the provider prefix, plus standard fetch options and a serialized body. Python `raw()` takes a suffix appended to the provider prefix, plus a dictionary.
+
+```ts
+const anthropicResponse = await cave.anthropic({
+  upstreamKey: process.env.ANTHROPIC_API_KEY,
+}).raw("/anthropic/v1/messages", {
+  method: "POST",
+  headers: { "content-type": "application/json", "anthropic-version": "2023-06-01" },
+  body: JSON.stringify({
+    model: process.env.CAVE_ANTHROPIC_MODEL!,
+    max_tokens: 256,
+    messages: [{ role: "user", content: "Explain retry backoff." }],
+  }),
+});
+if (!anthropicResponse.ok) throw new Error(`HTTP ${anthropicResponse.status}`);
+console.log(await anthropicResponse.json());
+```
+
+```python
+anthropic_answer = cave.anthropic(
+    upstream_key=os.environ.get("ANTHROPIC_API_KEY"),
+).raw("/v1/messages", {
+    "model": os.environ["CAVE_ANTHROPIC_MODEL"],
+    "max_tokens": 256,
+    "messages": [{"role": "user", "content": "Explain retry backoff."}],
+})
+print(anthropic_answer)
+```
+
+Set `CAVE_ANTHROPIC_MODEL` to a model enabled on that route. Python's helper does not accept arbitrary headers; the configured service must supply any provider-specific headers it requires. Use your existing provider HTTP client when you need additional request control.
+
+For Gemini, a native suffix is `/v1beta/models/{model}:generateContent`; for Vertex it is `/v1/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:generateContent`. Supply the corresponding factory's prefix in TypeScript and omit it in Python. Your service must expose the route.
+
+## Streaming in TypeScript
+
+Use `raw()` for access to status, headers, and a response body stream:
+
+```ts
+const streamed = await cave.openai({
+  upstreamKey: process.env.OPENAI_API_KEY,
+}).raw("/openai/v1/responses", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    model: process.env.CAVE_MODEL!,
+    input: "Explain retry backoff.",
+    stream: true,
+  }),
+});
+if (!streamed.ok) throw new Error(`HTTP ${streamed.status}`);
+if (!streamed.body) throw new Error("Missing response stream");
+for await (const chunk of streamed.body) {
+  process.stdout.write(chunk);
+}
+```
+
+This prints raw stream bytes, including SSE framing. Network chunks do not correspond to complete events; use a provider-compatible SSE parser in your application. Close or cancel the stream when its consumer stops. Python `raw()` still reads and parses a whole JSON response and does not expose SSE.
+
+## Request hints
+
+Direct OpenAI response clients accept `latencyClass` and `toolSessionId` in TypeScript under `{ cave: { … } }`; Python uses `latency_class` and `tool_session_id` keyword arguments. The latency hint sets `x-cave-async` to `false` for `interactive` and `true` for other supplied values. It does not create an asynchronous job or change the response into a job handle.
+
+Pass a search result's tool session ID on later calls as shown in [deferred tools](/docs/sdk/tools). Per-request `optimize` is not supported by these published client methods.
+
+## Bedrock
+
+`cave.bedrock({ region: "us-east-1" })` in TypeScript and `cave.bedrock("us-east-1")` in Python return a route descriptor. The default runtime prefix is `/bedrock`; explicit `endpoint: "mantle"` or `endpoint="mantle"` selects `/bedrock/anthropic`.
+
+This method sends no request, signs no AWS request, and supplies no AWS credential. Your AWS integration remains responsible for those steps.
+
+## Errors and boundaries
+
+TypeScript JSON helpers reject non-success responses; `raw()` returns the response for your code to inspect. Its URL must stay on the configured origin and inside the selected provider prefix. Use `/openai/v1/responses`, not `/v1/responses`.
+
+Python raises urllib HTTP or transport exceptions and returns parsed dictionaries on success. Neither language automatically retries provider requests. Retries may repeat paid inference or tool effects, so your application must decide when replay is valid.

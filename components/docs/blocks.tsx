@@ -89,7 +89,7 @@ export function Card({
         <span className="text-[13px] font-medium text-foreground">{title}</span>
         {meta ? <span className="ml-auto text-2xs text-muted-foreground">{meta}</span> : null}
       </div>
-      {children ? <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{children}</p> : null}
+      {children ? <div className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground [&>p]:m-0">{children}</div> : null}
     </>
   );
   const shell = "block rounded-xl border border-border bg-card p-4 transition-colors";

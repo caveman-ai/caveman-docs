@@ -1,0 +1,190 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/typescript-frameworks");
+
+<DocSchema slug="sdk/middleware/typescript-frameworks" />
+
+These eight adapter entrypoints ship in `@caveman-ai/middleware@0.1.0-alpha.2`. Start with the [complete AI SDK quickstart](/docs/sdk/middleware/typescript); it installs the runtime and supplies a model, tools, messages, credentials, recovery, and shutdown.
+
+The modules below are complete integration functions for an existing application. Every native object is an explicit function argument; configure it through its framework as you already do. Reuse the runtime and trusted conversation scope from the quickstart. After all calls and streams finish, the application calls `runtime.close()` and closes its native transports. A successful import validates package assembly, not compression or provider acceptance.
+
+For each family, create a separate Node 22.13+ project, set `"type": "module"`, install the listed dependencies, and save the code as `integration.mjs`. The unpaid reproduction command is `node -e "import('./integration.mjs')"`. Calling the exported function with a real provider model can incur charges. Runtime access happens inside the function, not during the import check. These JavaScript modules are also usable from TypeScript; use your native framework types for application parameters.
+
+All adapters are async in Node. None establishes browser or edge support. See [compatibility](/docs/sdk/middleware/compatibility) for exact import evidence and accepted ranges.
+
+## AI SDK
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 ai@7.0.94 @ai-sdk/provider@4.0.11 zod@4.4.3
+```
+
+```js
+import { generateText, stepCountIs } from 'ai';
+import { withCaveman } from '@caveman-ai/middleware/ai-sdk';
+export async function run({ model, tools, messages, runtime, scope }) {
+  await runtime.ready();
+  return generateText({
+    ...withCaveman({ model, tools }, { runtime, scope }),
+    messages, stopWhen: stepCountIs(4), maxRetries: 0,
+  });
+}
+```
+
+Async `generateText`, `streamText`, and native tool loops. Supply a V4 language model. `withCaveman` owns registration in the tool table and native callbacks; retain all returned fields. `createCavemanMiddleware` is model-only and cannot attest an executor. Consume the native stream to obtain final usage.
+
+Your model retains its provider transport. Unknown message parts, structured tool outputs, provider-executed tools, and forced/structured tool-choice shapes can bypass. The [complete unpaid example](/docs/sdk/middleware/typescript) defines every model, message, and tool input used by this module.
+
+## OpenAI
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 openai@7.12.1
+```
+
+```js
+import { withCavemanOpenAITools } from '@caveman-ai/middleware/openai';
+export async function run({ client, fetch, model, messages, runtime, scope }) {
+  await runtime.ready();
+  const loop = withCavemanOpenAITools(client, {
+    runtime, scope, fetch, protocol: 'openai-chat', tools: [], functions: {},
+  });
+  const history = structuredClone(messages);
+  for (let step = 0; step < 4; step++) {
+    const response = await loop.client.chat.completions.create({ model, messages: history, tools: loop.tools });
+    const message = response.choices[0].message;
+    history.push(message);
+    if (!message.tool_calls?.length) return response;
+    for (const call of message.tool_calls) {
+      if (call.type !== 'function') throw new Error('Unsupported tool call');
+      const output = await loop.functions[call.function.name](JSON.parse(call.function.arguments));
+      history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(output) });
+    }
+  }
+  throw new Error('Tool step limit reached');
+}
+```
+
+Native async Chat Completions and Responses APIs, SDK promises, parsers, and streaming stay native. `withCavemanOpenAI` also integrates the native Chat `runTools` runner. A plain `.create()` wrapper is recovery-free. `withCavemanOpenAITools` registers an application-owned Chat or Responses loop; dispatch through its returned `functions`, as above.
+
+Pass the same `fetch` used to construct the native client, including custom transport behavior. The example has no application tools beyond recovery; add each tool definition and matching function together. Server-held Responses history (`previous_response_id` without materialized inputs), signed/opaque requests, and other API families are not general compression surfaces. The application closes its own client resources.
+
+## Anthropic
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 @anthropic-ai/sdk@0.124.0
+```
+
+```js
+import { withCavemanAnthropic } from '@caveman-ai/middleware/anthropic';
+export async function run({ client, fetch, model, messages, runtime, scope }) {
+  await runtime.ready();
+  const wrapped = withCavemanAnthropic(client, { runtime, scope, fetch });
+  return wrapped.messages.create({ model, max_tokens: 512, messages });
+}
+```
+
+Async Messages and native stream helpers remain native. Plain Messages calls use recovery-free transforms. The wrapped `beta.messages.toolRunner` path registers the real executor in Anthropic’s native loop.
+
+Pass the original fetch. Existing client auth, retry settings, middleware, and provider options remain native. Signed/opaque bodies, unsupported endpoints, and unknown block shapes are bypassed. Preserve caller history and consume/close the native stream. Do not promise lossy compression from the model-only example.
+
+## Google
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 @google/genai@2.21.0
+```
+
+```js
+import { CavemanGoogleGenAI } from '@caveman-ai/middleware/google';
+export async function run({ nativeOptions, model, contents, runtime, scope }) {
+  await runtime.ready();
+  const client = new CavemanGoogleGenAI(nativeOptions, { runtime, scope });
+  return client.models.generateContent({ model, contents });
+}
+```
+
+Async `models.generateContent`/`generateContentStream` and native Chats keep Google execution semantics. Recovery is attached where the native automatic function-calling loop can execute it. Plain calls without that ownership stay recovery-free.
+
+Pass the original `GoogleGenAIOptions`, including auth, API endpoint, and custom HTTP options. An already-constructed client cannot be cloned through a public transport API; construct this client from the original options. The adapter uses native module constructors and a protected ApiClient seam, which is version sensitive. Other Google modules are not compression surfaces.
+
+## LangChain
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 langchain@1.5.10 @langchain/core@1.2.9 @langchain/langgraph@1.4.14
+```
+
+```js
+import { createAgent } from 'langchain';
+import { withCavemanAgent } from '@caveman-ai/middleware/langchain';
+export async function run({ model, tools, messages, runtime, scope }) {
+  await runtime.ready();
+  const agent = createAgent(withCavemanAgent({ model, tools }, { runtime, scope }));
+  return agent.invoke({ messages }, { recursionLimit: 12 });
+}
+```
+
+Async native agents, model invoke/stream, and document compression. `withCavemanAgent` registers middleware and recovery together; `createCavemanLangChain` returns separate `middleware` and `recoveryTool` for manual registration. `withCavemanModel` / `CavemanChatModel` wrap model calls. `CavemanDocumentCompressor` is a separate RAG boundary.
+
+Model/provider transport remains on the native model. `scopeFromConfig(config, namespace)` derives scope from trusted checkpoint configuration; retain a nonempty `thread_id`. Document compression needs an actual `sourceExpansion` binding for lossy results. Only native ToolMessage text is projected; custom classes/blocks can bypass. Version detection depends on Node resolution and accessible package metadata; inspect decisions even when import succeeds.
+
+## Strands
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 @strands-agents/sdk@1.17.0
+```
+
+```js
+import { Agent } from '@strands-agents/sdk';
+import { withCavemanStrands } from '@caveman-ai/middleware/strands';
+export async function run({ model, tools, prompt, runtime, scope }) {
+  await runtime.ready();
+  const agent = new Agent(withCavemanStrands({ model, tools }, { runtime, scope }));
+  return agent.invoke(prompt);
+}
+```
+
+`CavemanStrandsModel` and `withCavemanStrandsModel` preserve the native async model stream and aggregate flow. `withCavemanStrands` adds the native plugin and executable recovery registration. The Strands agent owns scheduling and tools.
+
+Pass a native Model instance; its provider configuration and transport stay with that model. Model-only wrapping does not attest the agent’s tool table. Preserve plugins returned by the helper. The published package can report `unsupported_version` for an installed ESM-only Strands entrypoint. Also isolate it from AI SDK V4 projects when its optional provider peer conflicts; see compatibility.
+
+## Mastra
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 @mastra/core@1.65.0
+```
+
+```js
+import { withCavemanMastra } from '@caveman-ai/middleware/mastra';
+export async function run({ agent, messages, runtime, scope }) {
+  await runtime.ready();
+  const wrapped = withCavemanMastra(agent, { runtime, scope });
+  return wrapped.generate(messages, { maxSteps: 4 });
+}
+```
+
+Async native `generate`/`stream`. `withCavemanMastra` wraps an existing Agent’s public entrypoints and validates tool registration at the final prepare-step boundary. `createCavemanMastraProcessor` alone observes a model call without a lossy recovery grant.
+
+Keep the Agent’s existing model, tools, processors, and provider transport. Resolve tenant/session from authenticated RequestContext when using a scope callback. Replacing the attested callback or tool executor invalidates recovery ownership. The application owns stream consumption and agent lifecycle.
+
+## MCP
+
+```sh
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 @modelcontextprotocol/sdk@1.30.0
+```
+
+```js
+import { bindMCPTool, CavemanMCPHost } from '@caveman-ai/middleware/mcp';
+export async function project({ client, tool, args, callId, contextManifest,
+  serverId, protocolVersion, runtime, scope }) {
+  await runtime.ready();
+  const host = new CavemanMCPHost({ runtime, scope, serverId, protocolVersion });
+  const source = bindMCPTool(client, tool);
+  const registeredTools = host.register([source]);
+  const original = await source.execute(args);
+  const view = await host.projectResult(original, { tool, callId, contextManifest, registeredTools });
+  return { original, view, registeredTools };
+}
+```
+
+Async MCP tool-result projection, not an MCP server, transport, or inference loop. Register the returned native definitions **and their execute functions** with your host before presenting the view to the model. Persist `original`; use `view` only for outbound context.
+
+The caller supplies an already-connected MCP Client, actual negotiated protocol version, stable server identity, call ID, and original append-only context manifest. `bindMCPTool` preserves its transport/auth/request IDs. Recovery remains host-owned. Only eligible successful text parts are projected; framing, errors, images, resources, and final provider serialization are outside this boundary.
+

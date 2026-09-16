@@ -1,0 +1,209 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/vercel-ai-sdk");
+
+<DocSchema slug="sdk/middleware/vercel-ai-sdk" />
+
+Add Caveman to your existing Vercel AI SDK application to compress eligible tool-result text. Keep your model provider, tools, streaming, and original conversation. This guide takes you from a running tool loop to an applied report and exact recovery.
+
+## Check the fit
+
+Use this when your tools return long text, such as deployment logs. The middleware changes the outbound copy of eligible successful tool results. It leaves system prompts, user messages, reasoning, errors, images, and structured object results alone. A chat without eligible tool results can work without applying any compression.
+
+You need a Node server and a separately running Caveman runtime. These alpha packages do not embed the compression engine, start a service, or provision hosting. This example uses Node.js 22.13 or later with ESM; it is not a browser or Edge example.
+
+| Package | Version used in this example |
+| --- | --- |
+| `@caveman-ai/sdk` | `1.1.0` |
+| `@caveman-ai/middleware` | `0.1.0-alpha.2` |
+| `ai` | `7.0.94` |
+| `@ai-sdk/provider` | `4.0.11` |
+| `@ai-sdk/openai` | `4.0.63` |
+
+The example typechecks against these published packages. Its local check uses a real runtime built from public commit `eae856e9ea2bc06b433185f31710961c05c43afa`, with a fixture provider. That proves the integration mechanism, not live model quality or provider billing savings. Other combinations need their own checks; an accepted version range is not a list of tested versions.
+
+## Install the application packages
+
+In a fresh directory:
+
+```bash
+mkdir caveman-ai-sdk-demo
+cd caveman-ai-sdk-demo
+npm init -y
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 ai@7.0.94 @ai-sdk/provider@4.0.11 @ai-sdk/openai@4.0.63
+npm install --save-dev --save-exact typescript@5.9.3 @types/node@22.13.10
+```
+
+For an existing project, check its AI SDK and provider versions before changing dependencies. The published adapter accepts AI SDK 7 from `7.0.94` and provider 4 from `4.0.11`. It is not an AI SDK 5 or 6 integration. Keep the complete options bundle returned by `withCaveman`; replacing its tools or removing its callbacks can disable lossy compression.
+
+## Start the Caveman runtime
+
+In a separate terminal, install the local tools and leave the runtime running:
+
+```bash
+npm install -g @caveman-ai/cli@1.3.4
+caveman setup --install
+CAVEMAN_MODE=compress caveman start
+```
+
+The server listens on `http://127.0.0.1:8787`. The application below starts in record mode, so it observes candidates before replacing anything. Both server and client must allow compression before a transform can apply. A plain `caveman start` defaults to record mode.
+
+The example calls `runtime.ready()` before inference. A listening port alone does not establish middleware support. If your installed binary fails that check, stop the old process and build the public runtime used for this example with Go 1.26.5 or later:
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman.git caveman-runtime
+cd caveman-runtime
+git checkout eae856e9ea2bc06b433185f31710961c05c43afa
+go build -o caveman-proxy ./proxy/cmd/caveman-proxy
+CAVEMAN_MODE=compress ./caveman-proxy
+```
+
+Run only one runtime on the selected port. For a different address, set `CAVE_RUNTIME_URL` in the example process. The CLI installation and source build are alternative runtime setup paths.
+
+## Run a complete tool loop
+
+Save this as `demo.mts`, or [download the same file](/examples/vercel-ai-sdk/demo.mts). It reads a deterministic deployment log, streams an answer, and checks that the native tool result remains the original.
+
+```ts
+import { randomUUID } from "node:crypto";
+import { createOpenAI } from "@ai-sdk/openai";
+import { jsonSchema, stepCountIs, streamText, tool } from "ai";
+import { createMiddlewareRuntime } from "@caveman-ai/sdk/middleware";
+import { withCaveman } from "@caveman-ai/middleware/ai-sdk";
+
+const mode = process.env.CAVE_MODE ?? "record";
+if (mode !== "off" && mode !== "record" && mode !== "compress") {
+  throw new Error("CAVE_MODE must be off, record, or compress");
+}
+if (!process.env.OPENAI_API_KEY || !process.env.CAVE_MODEL) {
+  throw new Error("Set OPENAI_API_KEY and CAVE_MODEL before running");
+}
+const runtime = createMiddlewareRuntime({
+  endpoint: process.env.CAVE_RUNTIME_URL ?? "http://127.0.0.1:8787",
+  mode,
+  deadlineMs: 2000,
+  onReport: report => console.error("Caveman:", JSON.stringify(report)),
+});
+const openai = createOpenAI({ baseURL: process.env.OPENAI_BASE_URL });
+const deploymentLog = Array.from({ length: 400 }, (_, i) =>
+  `2026-09-16T10:00:00Z INFO worker=${i} health check passed`,
+).join("\n") + "\n2026-09-16T10:01:00Z ERROR deployment failed: missing DATABASE_URL";
+const scope = {
+  namespace: "vercel-ai-sdk-demo",
+  session_id: randomUUID(),
+  branch_id: "main",
+  cache_epoch: "0",
+};
+
+try {
+  if (mode !== "off") await runtime.ready();
+  const options = {
+    model: openai.chat(process.env.CAVE_MODEL),
+    prompt: "Read the deployment log. Explain the failure in one sentence. Recover the original if needed.",
+    tools: {
+      readDeploymentLog: tool({
+        description: "Read the deployment log.",
+        inputSchema: jsonSchema<Record<string, never>>({
+          type: "object", properties: {}, additionalProperties: false,
+        }),
+        execute: async () => deploymentLog,
+      }),
+    },
+    stopWhen: stepCountIs(5),
+  };
+  const result = streamText(withCaveman(options, { runtime, scope }));
+  for await (const chunk of result.textStream) process.stdout.write(chunk);
+  process.stdout.write("\n");
+  // The native tool result remains the original, even if its outbound copy shrinks.
+  const source = (await result.steps).flatMap(step => step.toolResults)
+    .find(part => part.toolName === "readDeploymentLog");
+  if (!source || source.output !== deploymentLog) {
+    throw new Error("The example did not preserve its original tool result");
+  }
+  console.error("Original tool result preserved.");
+  console.error("Provider usage:", JSON.stringify(await result.totalUsage));
+} finally {
+  runtime.close(); // The stream and any recovery calls have finished.
+}
+```
+
+The 2-second optimization deadline gives this small local example room to run. Choose a deadline from your application's latency budget before deployment.
+
+## Verify locally without a provider key
+
+With the runtime running, download the local verifier into the same directory:
+
+```bash
+curl -fSLo verify.mjs https://docs.caveman.so/examples/vercel-ai-sdk/verify.mjs
+npx tsc --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck demo.mts
+node verify.mjs
+```
+
+The verifier runs the exact `demo.mts` above in off, record, and compress modes. It starts a loopback fixture provider, supplies a dummy key, and sends synthetic log data through the real Caveman runtime. It makes no calls to a paid model provider. Expected output:
+
+```text
+PASS off: disabled; original tool result preserved; streaming completed.
+PASS record: recorded; original tool result preserved; streaming completed.
+PASS compress: applied; original tool result preserved; streaming completed; exact recovery passed.
+Local mechanism proof only. Provider responses are fixtures; no live model quality or billing claim.
+```
+
+The compression check fails if the outbound tool result does not shrink, if the applied report is missing, or if the native `caveman_retrieve` call cannot return the exact original. The fixture provider requests recovery deliberately. A real model may decide differently.
+
+## Try your provider
+
+This step makes real provider calls and can incur provider charges. Set `OPENAI_API_KEY` to your provider key and `CAVE_MODEL` to a tool-capable OpenAI Chat Completions model available to your account. The runtime does not need that key. Leave `OPENAI_BASE_URL` unset to use OpenAI's default endpoint.
+
+Run once to observe, then enable compression:
+
+```bash
+CAVE_MODE=record node --experimental-strip-types demo.mts
+CAVE_MODE=compress node --experimental-strip-types demo.mts
+```
+
+Read the streamed answer and `Caveman:` reports. Confirm that the failure is still identified correctly. The first model call has no tool results to compress, so a skip on that call is expected. A later call can apply compression after `readDeploymentLog` returns text.
+
+The sample also prints the AI SDK's provider usage fields. Missing counters remain missing. Compare representative tasks with the same model, tool outputs, and success checks; include recovery calls, retries, latency, and warm or cold cache conditions. One smaller tool result does not establish a smaller total bill.
+
+## Apply the change to your project
+
+Keep your existing options object. After creating and readying the runtime as above, change the call that submits it:
+
+```diff
+- const result = streamText(options);
++ const result = streamText(withCaveman(options, { runtime, scope }));
+```
+
+Keep the complete returned object so the framework can execute recovery in its native tool loop. `withCaveman` registers `caveman_retrieve`. The model-only `createCavemanMiddleware` variant cannot register an executor and only allows recovery-free transforms.
+
+Create one runtime client for your server process. Use your authenticated conversation identity for `session_id`; the sample generates a new one only because each invocation starts a new conversation. Preserve that scope across turns, use a distinct branch for a fork, and keep original history in your application's store. Do not reuse the example's namespace and one fixed session across all users.
+
+## Read the result
+
+| Report status | Meaning | What to do |
+| --- | --- | --- |
+| `disabled` | Client mode is off | Your request proceeds without optimization |
+| `recorded` | Candidates were observed without replacement | Switch the client to compress when ready; check server mode too |
+| `applied` | The adapter applied an accepted transformation | Check task quality and total provider usage separately |
+| `reused` | A previous replacement was reused | Keep session and branch identity stable |
+| `skipped` | The original request was kept | Read `reason` and the table below |
+
+Call reports contain status, reason, transform IDs, replacement counts, and call IDs. They do not contain token counters. Low-level optimization plans expose inferred segment-token estimates; the model provider's usage belongs to a separate measurement surface. Neither is verified bill savings.
+
+| Symptom | Check |
+| --- | --- |
+| `ready()` throws before the model runs | Runtime address, middleware-capable binary, and runtime authentication |
+| Only record reports appear | Server and client must both allow compress mode |
+| `unsupported_version` | Installed AI SDK and provider versions, including duplicate dependency copies |
+| `no_candidate` or no replacement | Successful text tool results must exist in a later provider request |
+| `recovery_unavailable` | Keep the wrapper's tools and callbacks; use a runtime with persistent recovery |
+| `deadline` or `runtime_unavailable` | Runtime reachability and the configured optimization deadline |
+| Recovery fails after a move or restart | Original storage, routing, scope identity, and 24-hour idle expiry |
+
+By default, per-call declines preserve the original request. Startup `ready()` can still throw. Read [runtime lifecycle](/docs/sdk/middleware/deployment) for the distinction and strict-mode behavior.
+
+## Deploy or remove it
+
+Follow [Deploy middleware](/docs/sdk/middleware/deployment) before moving off your laptop. A serverless function cannot reach your laptop's loopback listener. Keep the runtime client alive through streaming and recovery, then close it during application shutdown.
+
+To switch off, set `CAVE_MODE=off` in this example. To remove the integration, pass your original `options` directly to `streamText` and remove the runtime setup. Your stored original conversation does not need a migration.

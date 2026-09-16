@@ -1,0 +1,113 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/reference");
+
+<DocSchema slug="sdk/reference" />
+
+This reference maps the public Python and TypeScript clients in `caveman/packages/sdk`. It targets published version `1.1.0`, checked on 16 September 2026. TypeScript uses camelCase; Python generally uses snake_case, with wire-shaped option dictionaries called out below.
+
+## Packages and source
+
+| Surface | TypeScript | Python |
+| --- | --- | --- |
+| Package | `@caveman-ai/sdk` | `caveman-sdk` |
+| Core import | `@caveman-ai/sdk` | `caveman_cloud` |
+| Middleware import | `@caveman-ai/sdk/middleware` | `caveman_cloud.middleware` |
+| Minimum runtime | Node.js 22.13 | Python 3.13 |
+| Result objects | Plain objects, Promises for I/O | Dataclasses or parsed dictionaries; blocking I/O |
+| License | MIT | MIT |
+
+Read the pinned [TypeScript source](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/typescript/src/index.ts), [Python source](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/python/caveman_cloud/core.py), and [Python exports](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/python/caveman_cloud/__init__.py) for complete declarations. The installed package's declarations remain authoritative for that release.
+
+## Core client
+
+| TypeScript | Python | Return / guide |
+| --- | --- | --- |
+| `new Cave(options)` | `Cave(**options)` | Client; [all options](/docs/sdk/configuration). |
+| `compress(text, { contentType? })` | `compress(text, content_type=...)` | `CompressResult`; [compression](/docs/sdk/compression). |
+| `tools({ catalog, strategy?, initialToolCount?, maxLoadedTools? })` | `tools(catalog, strategy=..., initial_tool_count=..., max_loaded_tools=...)` | Local catalog handle with `initial`, `strategy`, `search`. |
+| `toolSearch(catalog, query, options?)` | `tool_search(tools, query, **options)` | `ToolSearchResult`; [deferred tools](/docs/sdk/tools). |
+| `context.pack(query, items, options)` | `context.pack(query, items, options)` | `ContextPackResult`; connected selection. |
+| `assemble(options)` | `assemble(AssembleOptions(...))` | `AssemblyResult`; local prefix construction. |
+| `sharedContext.put(key, content)` / `.get(key)` | `shared_context.put(key, content)` / `.get(key)` | Service JSON; [context](/docs/sdk/context). |
+| `trace(options, async callback)` | `with trace(workflow=..., tags=...) as trace` | Callback/block result; [tracing](/docs/sdk/tracing). |
+| `exporter({ serviceName? })` | `exporter(service_name=...)` | `OTelExporter`; explicitly flush. |
+| `runtimePolicy(options?)` | `runtime_policy(**options)` | `RuntimePolicyClient`; [policy](/docs/sdk/policy). |
+| `retryLoopBreaker(threshold?)` | `retry_loop_breaker(threshold=3)` | `RetryLoopBreaker`; local consecutive-call guard. |
+| `prompts.internalBrevity(options)` | `prompts.internal_brevity(**options)` | Prompt string; no request or automatic injection. |
+| `cavePlan()` | `cave_plan()` | Connected account-specific JSON; requires service support/access. |
+| `jobs` | `jobs` | Reserved client; all operations fail locally. |
+
+Prompt styles are `technical-concise`, `caveman`, and `none`. `none` returns an empty string. Optional `preserveErrorsVerbatim` / `preserve_errors_verbatim` and `preserveCodeVerbatim` / `preserve_code_verbatim` control the generated instruction text. A prompt is not an enforcement mechanism.
+
+## Provider clients
+
+`openai`, `anthropic`, `gemini`, and `vertex` accept an optional upstream key: `{ upstreamKey }` in TypeScript and `upstream_key=...` in Python.
+
+| Operation | TypeScript | Python |
+| --- | --- | --- |
+| Responses JSON | `client.responses.create(body, options?)` | `client.responses.create(body, **options)` |
+| Chat completions JSON | `client.chat.completions.create(body, options?)` | `client.chat["completions"].create(body, **options)` |
+| Native route | `client.raw(prefixedPath, fetchOptions)` | `client.raw(pathSuffix, body)` |
+| Bedrock descriptor | `cave.bedrock({ region, endpoint? })` | `cave.bedrock(region, endpoint="runtime")` |
+
+TypeScript raw calls return a fetch `Response`; Python raw calls return parsed JSON. Convenience methods always parse JSON. Use native provider endpoints with the correct factory; a generic `.responses` property is not evidence that every provider has a Responses API. See [routes and streaming](/docs/sdk/providers).
+
+## Trace methods
+
+| TypeScript | Python | Behavior |
+| --- | --- | --- |
+| `trace.traceId` / `.spanId` | `trace.trace_id` / `.span_id` | Correlation IDs. |
+| `trace.tool(name, options, fn)` | `trace.tool(name, options, fn)` | Execute callback, emit best-effort metadata. |
+| `trace.model.openai.responses.create(body)` | `trace.model["openai"].responses.create(body)` | Trace-bound provider request. |
+| `trace.model.openai.chat.completions.create(body)` | `trace.model["openai"].chat["completions"].create(body)` | Trace-bound chat request. |
+| `trace.context.checkpoint(messages, options)` | `trace.checkpoint(messages, options)` | Connected checkpoint JSON. |
+| `trace.context.expand(sourceRef)` | `trace.expand(source_ref)` | Stored messages and checkpoint metadata. |
+| `trace.artifacts.page(value, options)` | `trace.artifacts.page(value, options)` | Original value or artifact marker. |
+| `trace.artifacts.get(id)` | `trace.artifacts.get(id)` | Stored JSON value. |
+| `trace.exporter(options?)` | `trace.exporter(service_name=...)` | Per-service trace-bound exporter buffer. |
+
+Python also retains `trace.page_artifact()` and `trace.get_artifact()` aliases. Python trace tool/artifact option dictionaries use wire keys such as `readOnly`, `artifactEligible`, `contentType`, and `maxInlineTokens`.
+
+## Result types
+
+| Type | Main fields; Python uses snake_case |
+| --- | --- |
+| `CompressResult` | `output`, `contentType`, `tokensBefore`, `tokensAfter`, `ratio`, `basis`, `tokenCountBasis`, optional recovery/method/lossless fields. |
+| `ToolSearchResult` | `tools`, `sessionId`, `sentSchemaTokens`, `fullSchemaTokens`, `deferredCount`, `method`, `tokenBasis`, `basis`, derived `savedTokens` and `reductionPct`. |
+| `ContextPackResult` | `items`, `tokensUsed`, `tokensBefore`, `tokensSaved`, `deferredCount`, `deferredIds`, `basis`. |
+| `AssemblyResult` | `request`, `headers`, `prefixHash`, `breakpoints`, `stableTokens`, `tokenBasis`, `basis`, `volatileBelowBreakpoint`. |
+| `PolicyDecision` | `decision`, `reason`, `signed`, optional workflow/policy/experiment fields and application-owned controls. |
+| `RuntimePolicyRefresh` | `ok`, `signed`, optional `error`. |
+| `RuntimePolicyState` | `hasBundle`, `signed`, `kill`, `killedLocally`, optional `policyVersion` and `sequence`. |
+
+TypeScript search results contain local `CaveTool` descriptors; Python search results contain wire dictionaries. Validate Python results against your local catalog before dispatching.
+
+Python context inputs are `ContextPackItem`, `ContextPackOptions`, `AssemblySlot`, and `AssembleOptions` dataclasses. TypeScript uses typed object literals. Service JSON responses such as checkpoints keep their snake_case wire keys in both languages.
+
+## Exporter and policy lifecycle
+
+An exporter offers `recordSpan` / `record_span`, `buildPayload` / `build_payload`, `pending`, `export`, and `flush`. Recording is local; exporting is connected. The policy client offers `refresh`, `decide`, `state`, `kill`, and `close`. Refresh is connected; decisions are local. Both require explicit application lifecycle management.
+
+`policyUnitFraction(...keys)` in TypeScript and `policy_unit_fraction(*keys)` in Python expose deterministic assignment input. They do not refresh policy or pick an executable workflow by themselves.
+
+## Middleware entrypoints
+
+TypeScript exports `createMiddlewareRuntime`, `MiddlewareRuntime`, `MiddlewareError`, `sha256`, `scopeKey`, and middleware contract types. Python exports `MiddlewareRuntime`, `AsyncMiddlewareRuntime`, `Scope`, `Candidate`, `Adapter`, `CallReport`, `Optimization`, `RecoveryBinding`, `MiddlewareError`, `sha256`, and `scope_key`, plus recovery description/schema constants.
+
+Framework adapters install separately. Follow [framework middleware](/docs/sdk/middleware) for scope, recovery, mode, and shutdown requirements.
+
+## Errors and reserved surfaces
+
+| Condition | TypeScript | Python |
+| --- | --- | --- |
+| Stable content changed | `AssemblyStabilityError`, `slotId` | `AssemblyStabilityError`, `slot_id` |
+| Identical calls exceed threshold | `RetryLoopError`, `repeats`, `threshold` | `RetryLoopError`, `repeats`, `threshold` |
+| Reserved jobs operation | `AsyncJobsUnavailableError` | `AsyncJobsUnavailableError` |
+| Connected HTTP failure | API-specific error; generic requests can expose `CaveRequestError` with `status`/`path` | Usually urllib `HTTPError`/`URLError` |
+| Compression failure | Original payload report | Original payload report |
+| Packing failure | All original items, zero inferred saving | All original items, zero inferred saving |
+
+Jobs methods include `submit`, `status`, `cancel`, `wait`, and `submitAndWait` / `submit_and_wait`. Every method raises or rejects with `cave_async_jobs_unavailable` before any network request. An exported `Job`, `TaskProfile`, or account-specific result type is not proof that a service feature is available.
+
+The core packages do not export `parseReceipt`, `gatewayConfig`, or `gatewayHeaders`, or their Python snake_case spellings. Provider calls do not accept the previously documented `optimize` option. Use [troubleshooting](/docs/sdk/troubleshooting) to migrate those examples.

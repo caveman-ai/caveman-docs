@@ -15,63 +15,7 @@ import { SITE } from "@/lib/site";
  *  HTML page renders from. A second copy would drift.
  * ======================================================================== */
 
-/* Components that are purely visual carry no words worth mirroring. Named
- * rather than pattern-matched so a component with real content in it can never
- * be silently dropped. */
-const VISUAL_ONLY: Record<string, string> = {
-  StackDiagram: "[Diagram: the four layers of the stack, bottom to top: Skill, Engine, Memory, Cloud.]",
-  RequestPath: "[Diagram: one request, from your agent through the skill and the engine to the provider, with a recovery path back.]",
-  OpenCoreBoundary: "[Diagram: the licence split across MIT, BSL 1.1 and Commercial surfaces.]",
-  ProxyPath: "[Diagram: one request through the local proxy, from your agent to the engine to the provider, with recovery back from the CCR store.]",
-};
-
-/* A <Facts> row is authored as ["label", value]. In the mirror it reads better
- * as a definition line. A row whose value is JSX rather than a string is left
- * exactly as written: guessing at its text would be a worse answer than
- * showing the source. */
-function factsRow(line: string): string | null {
-  const row = /^\s*\[\s*"([^"]+)"\s*,\s*(.+?)\s*\]\s*,?\s*$/.exec(line);
-  if (!row?.[1] || !row[2]) return null;
-  const value = row[2];
-  const asString = /^"(.*)"$/.exec(value);
-  if (asString) return `- ${row[1]}: ${asString[1]}`;
-  // Strip JSX tags but keep their text, so <code>x</code> becomes `x`.
-  const text = value
-    .replace(/<code[^>]*>(.*?)<\/code>/g, "`$1`")
-    .replace(/<\/?([A-Za-z][^>]*)?>/g, "")
-    .trim();
-  return text ? `- ${row[1]}: ${text}` : null;
-}
-
-function toMarkdown(source: string): string {
-  const out: string[] = [];
-  let inFacts = false;
-
-  for (const line of source.split("\n")) {
-    if (/^\s*(import|export)\s/.test(line)) continue;
-
-    if (/^\s*<Facts\s+rows=\{\[/.test(line)) {
-      inFacts = true;
-      continue;
-    }
-    if (inFacts) {
-      if (/^\s*\]\}\s*\/>\s*$/.test(line)) {
-        inFacts = false;
-        out.push("");
-        continue;
-      }
-      const row = factsRow(line);
-      out.push(row ?? line);
-      continue;
-    }
-
-    const visual = /^\s*<(\w+)\s*\/>\s*$/.exec(line);
-    const replacement = visual?.[1] ? VISUAL_ONLY[visual[1]] : undefined;
-    out.push(replacement ?? line);
-  }
-
-  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
+import { toMarkdown } from "@/lib/markdown-source";
 
 /** The Markdown for one page, with a short header naming what it is. */
 export async function rawPage(slug: string): Promise<string | null> {

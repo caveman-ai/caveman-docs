@@ -1,0 +1,69 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware");
+
+<DocSchema slug="sdk/middleware" />
+
+Native middleware projects eligible tool-result text into a smaller outbound model request. Your framework still owns inference, tools, retries, streams, and saved conversation. The local Caveman runtime compresses content; it does not forward these model calls.
+
+The adapters are **alpha**. These guides use published TypeScript middleware `0.1.0-alpha.2`, Python middleware `0.1.0a1`, SDK `1.1.0`, and the signed `bin-v1.1.7` runtime. They do not require a Caveman account. Provider calls still require your provider credentials and can incur charges.
+
+For an existing streaming Vercel AI SDK project, follow [Add to Vercel AI SDK](/docs/sdk/middleware/vercel-ai-sdk). For deterministic compression and exact-recovery checks, use the language quickstarts below.
+
+## Start with a complete run
+
+<CardGrid>
+  <Card href="/docs/sdk/middleware/typescript" title="TypeScript and AI SDK" meta="Unpaid local validation">
+    Run a native tool loop, inspect decisions, and recover the exact original.
+  </Card>
+  <Card href="/docs/sdk/middleware/python" title="Python and LangChain" meta="Unpaid local validation">
+    Create a clean environment and exercise the real compression runtime.
+  </Card>
+</CardGrid>
+
+## What happens automatically
+
+Once attached at a supported framework boundary, middleware considers successful text tool results on each model call. It sends eligible candidate text and context hashes to the configured runtime. In `compress` mode, it applies an accepted plan to a copied request. It leaves stored history intact. When recovery is required, the adapter must attest a real executable `caveman_retrieve` tool in the native loop.
+
+It does not shorten every prompt, run your tools for you, select models, change provider prices, or guarantee better answers. User messages, system prompts, unsupported shapes, opaque content, and protected content remain unchanged. A short or incompressible result can produce no replacement. A tool schema alone is not a recovery executor.
+
+| Integration | Operation | Where inference runs |
+| --- | --- | --- |
+| Native middleware | Automatic projection of eligible framework inputs | Your existing provider client |
+| [Proxy](/docs/proxy) | Base-URL change; runtime forwards inference | Through the proxy |
+| [Thin SDK](/docs/sdk) | Explicit compression, provider, context, tool-search, or tracing calls | As configured for each explicit API |
+| [Agent SDK](/docs/agent-sdk) | A separate agent runtime and package family | According to its agent configuration |
+
+Choose one owner for a model call. Do not stack a framework adapter, provider adapter, and proxy compression by default. Nested ownership guards are not a general guarantee across unrelated transports or services. The OpenAI and Anthropic TypeScript transport adapters have explicit `cavemanProxy` coordination for a discovered runtime origin; this does not make arbitrary mixed stacks supported.
+
+## Modes and final decisions
+
+The client defaults to `compress`; a freshly started standalone runtime defaults to `record`. Set both deliberately. A client requesting compression cannot force a recording runtime to replace text.
+
+| Client mode | Behavior |
+| --- | --- |
+| `off` | Native delegation; no optimization requests or receipts |
+| `record` | Candidate observation, no text replacement |
+| `compress` | Eligible replacements, with recovery when required |
+
+`onReport` / `on_report` receives a final decision after the adapter chooses its native request view. `lastReport` / `last_report` holds only the latest decision. Callback failures do not break inference.
+
+| Report status | Meaning |
+| --- | --- |
+| `applied` | At least one newly selected replacement reached the native input |
+| `reused` | All replacements reused established choices for this scope |
+| `skipped` | Native originals retained; inspect `reason` |
+| `recorded` | Recording decision; originals retained |
+| `disabled` | Middleware off |
+
+Reports include reason, transform IDs, replacement/reuse counts, adapter, logical call ID, and attempt ID. **They contain no token counters.** See [measurement](/docs/sdk/middleware/measurement) for the separate sources of segment estimates, provider usage, latency, and task success.
+
+## Continue by task
+
+- [TypeScript frameworks](/docs/sdk/middleware/typescript-frameworks): eight adapter families.
+- [Python frameworks](/docs/sdk/middleware/python-frameworks): thirteen families and native execution boundaries.
+- [Compatibility](/docs/sdk/middleware/compatibility): resolver constraints, accepted ranges, exact evidence, and dependency conflicts.
+- [Deployment](/docs/sdk/middleware/deployment): local processes, containers, remote runtimes, storage, and rollback.
+- [Recovery and scope](/docs/sdk/middleware/recovery): identity, exact pages, excerpts, and expiry.
+- [Troubleshooting](/docs/sdk/troubleshooting#middleware-decisions): installation and runtime failures versus normal skips.
+- [Releases and support](/docs/sdk/middleware/releases): licensing, alpha limits, and upgrade policy.

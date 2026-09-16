@@ -1,0 +1,62 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/compression");
+
+<DocSchema slug="sdk/compression" />
+
+For framework evaluation, use the [middleware measurement guide](/docs/sdk/middleware/measurement). Final decision reports contain no token counters.
+
+`compress()` sends a string to the configured service's `/sdk/v1/compress` API and returns its compression report. It does not compress locally inside Python or JavaScript. The examples assume the `cave` client from your language quickstart.
+
+## Compress tool output
+
+```ts
+const original = "status=ok\n".repeat(300);
+const result = await cave.compress(original, { contentType: "log" });
+console.log(result.output);
+console.log(result.tokensBefore, result.tokensAfter, result.ratio);
+console.log(result.basis, result.tokenCountBasis, result.recoveryHandle);
+```
+
+```python
+original = "status=ok\n" * 300
+result = cave.compress(original, content_type="log")
+print(result.output)
+print(result.tokens_before, result.tokens_after, result.ratio)
+print(result.basis, result.token_count_basis, result.recovery_handle)
+```
+
+Omit the content hint to let the service detect the content. Hints include `json`, `toon`, `log`, `code`, `diff`, `search-result`, `text`, and `toolschema`. A hint is not a guarantee that a transform applies or that the output shrinks.
+
+## Read the report
+
+| TypeScript | Python | Meaning |
+| --- | --- | --- |
+| `output` | `output` | Compressed string, or the exact original on pass-through. |
+| `contentType` | `content_type` | Detected or supplied content type. |
+| `tokensBefore` | `tokens_before` | Estimated original token count. Zero when unavailable. |
+| `tokensAfter` | `tokens_after` | Estimated output token count. Zero when unavailable. |
+| `ratio` | `ratio` | Fraction removed, not a percentage. `0.2` means 20% by this counter. |
+| `basis` | `basis` | Always `inferred`. |
+| `tokenCountBasis` | `token_count_basis` | Counter or estimation method, or `unavailable`. |
+| `recoveryHandle` | `recovery_handle` | Optional reference to stored original content. |
+| `method` | `method` | Optional transform name. |
+| `losslessToModel` | `lossless_to_model` | Optional report of whether the visible representation retains the full value. |
+
+Optional fields may be absent in TypeScript or `None` in Python. Do not interpret a missing field as an affirmative guarantee.
+
+## Failure behavior
+
+On transport failure, rejected HTTP status, or an invalid compression report, the SDK returns the original input, zero reduction, and no recovery handle. This lets your application continue with its own input instead of dropping context.
+
+A pass-through does not explain whether the cause was an unavailable endpoint, bad credentials, an unsupported payload, or no useful reduction. The result has no comprehensive error-reason field. Diagnose the service separately; never use this method alone to verify connectivity.
+
+## Keep a recovery path
+
+Retain the original string in your application. A recovery handle is a reference, not the original bytes, and this API does not automatically register a retrieval tool in your model loop. Its availability depends on the service that stored it.
+
+For tool-result compression with a registered recovery executor, use [framework middleware](/docs/sdk/middleware). For explicit JSON artifacts and reversible message checkpoints, use [context and recovery](/docs/sdk/context). Do not assume an artifact ID, checkpoint reference, and compression handle are interchangeable.
+
+## What the counts prove
+
+These are per-payload token estimates from the reported counter. They do not establish provider input usage, a quality result, a cache hit, or money saved. Keep a negative or zero result when evaluating your workload. Installing the SDK does not install or start the [local engine](/docs/proxy/engine).

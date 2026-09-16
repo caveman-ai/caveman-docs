@@ -1,0 +1,72 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/policy");
+
+<DocSchema slug="sdk/policy" />
+
+The runtime-policy client fetches an existing published policy bundle from your configured service and makes decisions locally. Use it when your deployment already supports that API. The SDK does not create policies or execute their workflows.
+
+## Refresh and decide
+
+Examples assume your quickstart's `cave` client. Set `CAVE_POLICY_PUBLIC_KEY` to the service's raw 32-byte Ed25519 public key encoded as base64.
+
+```ts
+const policies = cave.runtimePolicy({
+  publicKey: process.env.CAVE_POLICY_PUBLIC_KEY!,
+});
+try {
+  const refreshed = await policies.refresh();
+  if (!refreshed.ok) console.error("Policy refresh failed", refreshed.error);
+  const decision = policies.decide("support", {
+    unitKey: "case-42",
+    context: { priority: "normal" },
+  });
+  console.log(decision.decision, decision.workflow, decision.reason);
+  // Map an allowed workflow to your application's handler; otherwise use its baseline.
+} finally {
+  policies.close();
+}
+```
+
+```python
+policies = cave.runtime_policy(public_key=os.environ["CAVE_POLICY_PUBLIC_KEY"])
+try:
+    refreshed = policies.refresh()
+    if not refreshed.ok:
+        print("Policy refresh failed", refreshed.error)
+    decision = policies.decide("support", unit_key="case-42", context={"priority": "normal"})
+    print(decision.decision, decision.workflow, decision.reason)
+    # Map an allowed workflow to your application's handler; otherwise use its baseline.
+finally:
+    policies.close()
+```
+
+Validate the TypeScript environment variable before constructing the client if signed policy is required; a non-null assertion does not validate it at runtime.
+
+## Interpret decisions
+
+| Decision | Application behavior |
+| --- | --- |
+| `execute` | Resolve the returned workflow through your own allowed handlers. |
+| `fallback` | Use the returned fallback workflow when supported, otherwise your baseline. |
+| `baseline` | Continue your application's normal path. No workflow is selected. |
+
+`decide()` performs no network request and does not throw. No valid bundle, a kill switch, a failed guard, or an invalid experiment can produce a non-executing path with a reason. Always retain a working baseline. A workflow string is not executable code and does not bypass your application permissions.
+
+## Refresh, signatures, and lifecycle
+
+`refresh()` returns an outcome with `ok`, `signed`, and optional `error`; failure retains the last accepted bundle. A configured `publicKey` / `public_key` requires signature verification. Without a pinned key, the client also supports unsigned input and first-use trust of a supplied signing key; do not confuse that with a key you independently authenticated.
+
+Refresh is explicit unless you set `autoRefreshSeconds` / `auto_refresh_seconds`. Close the client at shutdown to stop background refresh. `state()` reports whether a bundle exists, its signature state, version/sequence when available, and kill flags.
+
+`kill()` latches a local stop. The `CAVEMAN_POLICY_KILL` environment variable is checked on decisions by default; `killEnv` / `kill_env` can select another variable. Killing policy execution does not cancel already-running application work.
+
+## Experiments and spans
+
+Supply a stable `unitKey` / `unit_key` when a policy has an experiment. Do not invent a random key for each retry of the same task. Decisions expose an experiment ID, arm, and propensity when applicable; missing assignment inputs must not be treated as a guessed arm.
+
+Pass a trace or exporter via the `trace` decision option to buffer a decision span, then [flush the exporter](/docs/sdk/tracing). Decision evaluation does not send a span by itself. Budget, verification, and escalation fields are returned to your application; the SDK does not enforce or execute them.
+
+## Limits
+
+This client routes according to a received policy. It does not optimize a model, validate task quality, or measure savings. The presence of the API in the package does not prove your service has a policy endpoint or published bundle.

@@ -1,0 +1,58 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/recovery");
+
+<DocSchema slug="sdk/middleware/recovery" />
+
+Middleware recovery restores stored tool content. It is separate from the thin SDK's connected checkpoints, artifacts, and shared context. A recovery handle is scoped authority, not a portable document ID.
+
+## Keep originals as application history
+
+Store the original tool result before projection. Give the framework the original conversation on every turn; let middleware create the outbound view. Do not persist shortened provider requests as your canonical history.
+
+The [AI SDK](/docs/sdk/middleware/typescript) and [LangChain](/docs/sdk/middleware/python) examples assert that caller-owned messages remain unchanged and that exact pages reconstruct the original UTF-8 bytes. LangGraph can assign missing message IDs itself, so the Python example assigns stable IDs before invoking it.
+
+Recoverability does not guarantee task quality. A model can ignore a marker, retrieve the wrong section, or draw the wrong conclusion. Evaluate task success with compression enabled.
+
+## Own the scope
+
+| Field | Choose it from | Change it when |
+| --- | --- | --- |
+| `namespace` | Authenticated tenant/application identity | Isolation boundary changes |
+| `session_id` | Your conversation or workflow ID | A new independent conversation begins |
+| `branch_id` | Your conversation/checkpoint branch | History forks or rewinds into another branch |
+| `cache_epoch` | Your app's explicit history/cache generation | You replace or reorder history, or deliberately invalidate established choices |
+
+The runtime also binds access to its authenticated principal. Never let a model or an untrusted request header select another user's scope. Random per-request session IDs prevent reuse; one global session ID mixes unrelated conversations. Reuse a scope for its actual append-only conversation, across application-worker changes when routing preserves recovery reachability.
+
+Keep the original manifest and ordering consistent. Do not rewrite already-established content under an old identity to chase better compression. Changed epochs and revoked scopes can produce `epoch_changed`, `deleted`, or `not_found` instead of recovering earlier handles.
+
+## Register execution, not just a schema
+
+Use the framework's complete helper, such as `withCaveman` or `with_caveman_agent`, to register the real tool in the native tool loop. A model-only wrapper, schema copied into a tool list, or replaced executor cannot attest recovery. In those cases, required-recovery transforms are declined.
+
+Application-owned OpenAI loops must dispatch through the helper's immutable `functions` table. MCP hosts must register the actual `MCPToolBinding` entries they later execute. RAG document/node compressors require a registered source-expansion reader for lossy transformations. Never claim that sending a `caveman_retrieve` name in JSON makes a recovery path exist.
+
+## Exact paging and excerpts
+
+TypeScript calls `await runtime.retrieve(scope, { handle, offset, limit })`; Python calls `runtime.retrieve(scope, handle=handle, offset=offset, limit=limit)` or awaits its async counterpart. The downloadable quickstarts include complete pagination loops.
+
+An exact response includes `kind: "original_page"`, `text`, `original_sha256`, `total_bytes`, `offset`, `next_offset`, and `complete`. Offsets and limits are bytes, not JavaScript string lengths or Python character counts. Follow the returned `next_offset`; do not calculate it from character count. The service preserves UTF-8 boundaries. A limit must be at least 4 and no greater than the advertised page size.
+
+Stop when `next_offset` is null. `complete` is true only when one page contains the entire original. It can remain false on the final page of a multi-page read. Concatenate exact page text, encode as UTF-8, and compare its SHA-256 with `original_sha256` when verifying full reconstruction.
+
+A nonempty `query` requests labeled excerpts and must start at offset 0. An excerpt is not the original. A returned `next_offset` of 0 is a signal to restart exact paging with the query omitted, not a reason to loop the same excerpt request forever.
+
+## Expiry and errors
+
+The runtime used here advertises a 24-hour scope retention period, renewed by activity. Read `retention_seconds` at startup. A durable volume permits recovery after restart only while the scope and grant remain valid. Losing the store, changing scope, or replaying old markers after expiry breaks recovery.
+
+| Recovery result | Action |
+| --- | --- |
+| `not_found` | Check the complete scope and runtime routing; do not probe other users' scopes |
+| `expired` or `deleted` | Resume from application originals under a fresh appropriate scope |
+| `epoch_changed` | Use the epoch that owns the original conversation, or start from originals |
+| `invalid_range` | Use returned byte offset and supported page size |
+| `deadline`, `capacity`, `runtime_unavailable` | Retry only under your bounded tool policy; surface failure if unavailable |
+
+Do not insert an empty successful tool response after failed retrieval. Your loop should either expose the tool error to its normal error policy or reconstruct the next request from retained originals. Middleware does not supply a replacement agent loop.

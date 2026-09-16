@@ -1,0 +1,79 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/deployment");
+
+<DocSchema slug="sdk/middleware/deployment" />
+
+Middleware uses the same public runtime as the proxy, through `/caveman/v1/middleware/`. Inference stays in the application. The runtime needs no provider credential for this data path. See the public [deployment guide](https://github.com/JuliusBrussee/caveman/blob/main/docs/technical/deploy.md) for the existing runtime packaging and deployment manifests.
+
+## Local process
+
+Use Node.js 22.13 or later for the installer, including when the application is Python. A Python-only production image can instead use the runtime container.
+
+```sh
+npm install @caveman-ai/cli@1.3.4
+export CAVEMAN_HOME="$PWD/.caveman-runtime"
+npx caveman setup --install
+export CAVEMAN_PROXY_BIN="$CAVEMAN_HOME/bin/caveman-proxy"
+CAVEMAN_MODE=compress npx caveman start --host 127.0.0.1 --port 8787
+```
+
+The installer verifies the signed runtime release and checksums. The CLI package alone does not contain the runtime. The explicit binary path avoids selecting another `caveman-proxy` from `PATH`. Windows uses `caveman-proxy.exe`; use PowerShell environment syntax there. The downloadable quickstarts were executed on macOS arm64, not Windows.
+
+Keep this process running in its terminal. Set the client to `record` initially, then `compress` after inspecting decisions. Stop this runtime with Ctrl+C. Closing the client does not stop the process.
+
+## One application and one runtime container
+
+The following pins the runtime release used by these guides. Use an immutable image digest in a production lockfile after pulling and verifying your chosen release.
+
+```sh
+export CAVEMAN_AUTH_TOKEN="$(openssl rand -hex 24)"
+docker volume create caveman-runtime-data
+docker run --rm --name caveman-runtime   -p 127.0.0.1:8787:8787   -e CAVEMAN_LISTEN=0.0.0.0:8787   -e CAVEMAN_MODE=compress   -e CAVEMAN_HOME=/data   -e CAVEMAN_AUTH_TOKEN   -v caveman-runtime-data:/data   ghcr.io/juliusbrussee/caveman-proxy:bin-v1.1.7
+```
+
+The image runs as UID/GID `65532`. For a bind mount, provision writable ownership for that identity before startup. Persist the whole data directory; mounting only the database can omit recovery content. Container commands are deployment recipes; the quickstart proof used the signed native binary, not Docker.
+
+In the application, configure `endpoint="http://127.0.0.1:8787"` and `token` from `CAVEMAN_AUTH_TOKEN`. A sibling container uses its private service DNS instead of loopback. Such a non-loopback endpoint requires HTTPS and explicit remote-content opt-in in the client, even on your own private network. Terminate TLS on an internal ingress, or colocate the listener with the application if you need loopback HTTP.
+
+## Remote runtime and authentication
+
+Use `https://runtime.example.com`, `allowRemoteContent: true` in TypeScript or `allow_remote_content=True` in Python, and a runtime token. This opt-in acknowledges that candidate text and recovery reads leave the application machine. The endpoint is an origin, not an inference provider base URL.
+
+A non-loopback listener requires runtime authentication. The public runtime accepts a configured token of at least 16 characters with no whitespace. Keep the bearer token in a secret store. Never substitute `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or another provider key. TLS termination, certificate renewal, network policy, and app-user authentication belong to your deployment.
+
+This runtime advertises `single_operator` trust. One shared runtime token does not create independently authenticated tenants. Derive namespace/session from trusted application state, enforce authorization before resolving scope, and use separate runtime deployments where operators require an isolation boundary. Do not expose the runtime directly to arbitrary browsers; browser origins are rejected.
+
+## Lifecycle, deadlines, and fallback
+
+Create a client once per application worker, and provide a separate trusted scope per conversation. Prime capability discovery with `await runtime.ready()` in TypeScript, `runtime.ready()` for synchronous Python, or `await runtime.ready()` for `AsyncMiddlewareRuntime`. It performs no provider call and sends no candidate content.
+
+`ready()` is strict and can throw during startup even when ordinary inference would fall back. Decide explicitly whether your app requires the optimizer to become ready or may start with it unavailable. Published SDK `1.1.0` has no `preflight()` method. See [releases](/docs/sdk/middleware/releases) before using source-only diagnostics.
+
+The SDK optimizer deadline defaults to 100 ms; recovery reads default to 5 seconds. The examples use 500 ms for deterministic local setup. The runtime advertises its own limits: the tested release reported a 500 ms server deadline, 2 MiB request limit, 512 KiB segment limit, and 256 KiB recovery page limit. Read capabilities rather than assuming later releases retain these values.
+
+Normal optimizer unavailability, deadline, client queue capacity, or an open circuit retains originals and reports a skip. Clients admit at most 16 pending optimization operations; after repeated runtime failures, a temporary circuit avoids repeatedly waiting. `strict: true` / `strict=True` deliberately changes bypasses into errors. Cancellation remains cancellation. Recovery is a requested tool operation: an unavailable or expired original returns an error, not fabricated content and not a successful model fallback.
+
+Consume or close provider streams, allow active requests to finish, then call `runtime.close()` (or `await runtime.close()` for the async Python client). Closing aborts or rejects outstanding client work; it is not a guaranteed receipt flush. Close provider clients and framework resources separately. Send SIGTERM/Ctrl+C to the runtime after draining application calls.
+
+## Persistence, expiry, and restarts
+
+The runtime stores local SQLite state and recovery data beneath `CAVEMAN_HOME`, defaulting to `~/.caveman`. Treat this directory as containing original tool content, even when your logging system omits prompts. Restrict access and protect backups accordingly.
+
+The tested runtime advertised `persistent: true`, `recovery: true`, and `retention_seconds: 86400`. Scope activity renews its lifetime; inactivity can expire access after 24 hours. Persistent storage preserves applicable choices and recovery across process restarts, within the retention and scope rules. An ephemeral filesystem, lost volume, changed scope, expired grant, or incompatible policy invalidates that assumption. Always retain application originals.
+
+`deleteSession(scope)` / `delete_session(scope)` revokes scope access. The runtime explicitly returns `originals_deleted: false`; do not describe it as a guarantee that every stored original was physically erased. Follow your deployment's storage retention and deletion procedure for data removal.
+
+## Multiple workers and capacity
+
+Several application workers may use one runtime. Route each conversation to the same runtime instance and preserve all four scope fields. If you shard runtimes, maintain session affinity for both optimization and recovery, including tool calls served by another application worker.
+
+Do not run multiple runtime writers against one SQLite volume or describe the runtime as stateless. Separate instances have separate recovery stores. Round-robin routing without affinity can produce valid-looking markers that the next instance cannot resolve. Capacity fallback protects inference availability; it does not prove that your chosen capacity meets a latency target.
+
+## Serverless, bundling, and rollback
+
+Run adapters in a supported Node server or Python process. TypeScript adapters read installed package metadata and use Node APIs. Browser, edge-isolate, and single-file bundles without framework metadata are not certified. Keep dependencies external and use the [compatibility table](/docs/sdk/middleware/compatibility). A long-lived remote runtime does not make the adapter itself edge compatible.
+
+Pin the client, adapter, framework, and runtime together. Re-run the unpaid quickstart against staging, inspect capabilities and skips, then run your workload evaluation. Back up the data directory before runtime upgrades. Do not assume storage downgrade compatibility; use a snapshot or a fresh runtime and original history when reverting.
+
+To disable, recreate clients with mode `off`, or remove the wrapper and its recovery tool. Keep original history and retain any needed recovery service while in-flight compressed calls drain. Roll back package locks and runtime image together. Avoid deleting the volume during an incident unless data removal is explicitly intended.

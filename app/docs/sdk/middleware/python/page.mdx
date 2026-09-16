@@ -1,0 +1,172 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/python");
+
+<DocSchema slug="sdk/middleware/python" />
+
+Run a complete LangChain agent loop against the local Caveman runtime. The default model is a deterministic `BaseChatModel`; it needs no provider account. The optional OpenAI model is a separate paid run.
+
+## Install in a fresh environment
+
+Use Python 3.13 or later. These exact primary framework versions were exercised together.
+
+```sh
+mkdir caveman-langchain-demo
+cd caveman-langchain-demo
+python3.13 -m venv .venv
+. .venv/bin/activate
+python -m pip install 'caveman-sdk==1.1.0' 'caveman-middleware[langchain]==0.1.0a1' 'langchain==1.4.1' 'langchain-core==1.6.3' 'langgraph==1.2.11'
+curl -fsSLo quickstart.py https://docs.caveman.so/examples/middleware/quickstart.py
+python -m pip freeze > requirements.lock.txt
+```
+
+PowerShell activates the environment with `.venv\Scripts\Activate.ps1`. [Download the complete file](/examples/middleware/quickstart.py), or copy it below. Install other adapter families in separate environments until you have checked their dependency compatibility.
+
+## Start the local runtime
+
+In a second terminal, follow [local runtime installation](/docs/sdk/middleware/deployment#local-process). Run it on `127.0.0.1:8787` with `CAVEMAN_MODE=compress`. The application starts in `record` mode; the server can remain in compress mode while that client records.
+
+No Caveman account or model API key is needed for the default run. `CAVEMAN_ENDPOINT` selects the runtime; `CAVEMAN_AUTH_TOKEN` is its optional local bearer credential. Provider credentials are separate and used only by the optional paid run. The code performs strict capability discovery with `ready()` before inference. If it fails, fix runtime reachability/authentication first; ordinary non-strict inference fallback is a separate contract.
+## Run record, compress, and off
+
+```sh
+DEMO_MODE=record python quickstart.py
+DEMO_MODE=compress python quickstart.py
+DEMO_MODE=off python quickstart.py
+```
+
+The sync agent uses `MiddlewareRuntime`. For async application calls, use the framework's `ainvoke`/`astream` path with a compatible async runtime; do not call synchronous model or recovery methods on `AsyncMiddlewareRuntime`. The [framework guide](/docs/sdk/middleware/python-frameworks#langchain) covers those boundaries.
+
+## Complete source
+
+```python
+import copy
+import hashlib
+import json
+import os
+import re
+import time
+import uuid
+from caveman_cloud.middleware import MiddlewareRuntime, Scope
+from caveman_middleware.langchain import with_caveman_agent
+from langchain.agents import create_agent
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.tools import tool
+
+mode = os.getenv("DEMO_MODE", "record")
+if mode not in ("off", "record", "compress"):
+    raise ValueError("Invalid DEMO_MODE")
+paid = os.getenv("PAID_PROVIDER") == "1"
+original = "".join(f"[INFO] worker=alpha request={i} status=healthy latency_ms=12 café 🌍\r\n" for i in range(800))
+reports = []
+
+def on_report(report):
+    from dataclasses import asdict
+    reports.append(report)
+    print(json.dumps(asdict(report)))
+
+runtime = MiddlewareRuntime(endpoint=os.getenv("CAVEMAN_ENDPOINT", "http://127.0.0.1:8787"),
+    token=os.getenv("CAVEMAN_AUTH_TOKEN"), mode=mode, deadline_ms=500,
+    retrieve_deadline_ms=5000, on_report=on_report)
+# In an application, derive namespace/session from authenticated account/conversation IDs.
+scope = Scope("docs-demo", str(uuid.uuid4()), "main", "1")
+
+@tool
+def read_log() -> str:
+    """Read the demo worker log."""
+    return original
+
+history = [HumanMessage("Read log; recover all original pages if shortened, then summarize status."),
+    AIMessage("", tool_calls=[{"id": "read-1", "name": "read_log", "args": {}}]),
+    ToolMessage(original, tool_call_id="read-1", name="read_log")]
+for i, message in enumerate(history):
+    message.id = f"history-{i}"
+before = copy.deepcopy(history)
+
+class ScriptedModel(BaseChatModel):
+    handle: str | None = None
+    recovery_calls: int = 0
+
+    @property
+    def _llm_type(self):
+        return "deterministic-caveman-docs-fixture"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        match = re.search(r"cmw_[a-f0-9]{48}", str(messages))
+        if match:
+            self.handle = match.group(0)
+        recovered = any(isinstance(m, ToolMessage) and m.name == "caveman_retrieve" for m in messages)
+        if self.handle and not recovered:
+            self.recovery_calls += 1
+            output = AIMessage("", tool_calls=[{"id": "recover-1", "name": "caveman_retrieve", "args": {"handle": self.handle, "limit": 262144}}])
+        else:
+            output = AIMessage("Deterministic fixture completed.")
+        return ChatResult(generations=[ChatGeneration(message=output)])
+
+try:
+    if mode != "off":
+        caps = runtime.ready()
+        print("capabilities", {key: caps[key] for key in ("mode", "persistent", "recovery", "retention_seconds")})
+    model = ScriptedModel()
+    if paid:
+        if not os.getenv("OPENAI_API_KEY") or not os.getenv("OPENAI_MODEL"):
+            raise ValueError("Set OPENAI_API_KEY and OPENAI_MODEL for paid run")
+        from langchain_openai import ChatOpenAI
+        model = ChatOpenAI(model=os.environ["OPENAI_MODEL"], max_retries=0)
+    agent = create_agent(**with_caveman_agent({"model": model, "tools": [read_log]}, runtime=runtime, scope=scope))
+    started = time.perf_counter()
+    result = agent.invoke({"messages": history}, {"recursion_limit": 12})
+    assert history == before, "Application history must retain original bytes"
+    if not paid and mode == "off":
+        assert any(r.status == "disabled" for r in reports)
+    if not paid and mode == "record":
+        assert any(r.status == "recorded" for r in reports)
+    if not paid and mode == "compress":
+        assert any(r.status in ("applied", "reused") for r in reports), "Expected compression; inspect reports"
+        assert model.recovery_calls == 1, "Native loop must execute recovery"
+        offset, restored = 0, ""
+        while offset is not None:
+            page = runtime.retrieve(scope, handle=model.handle, offset=offset, limit=4096)
+            assert page["kind"] == "original_page"
+            restored += page["text"]
+            offset = page["next_offset"]
+        assert restored == original
+        print("exact recovery SHA-256", hashlib.sha256(restored.encode()).hexdigest())
+    print({"text": result["messages"][-1].content, "elapsed_ms": round((time.perf_counter()-started)*1000),
+        "usage": [m.usage_metadata for m in result["messages"] if isinstance(m, AIMessage)] if paid else "fixture; not provider usage",
+        "unchanged_history": True})
+finally:
+    runtime.close()
+```
+
+## Optional paid provider run
+
+```sh
+python -m pip install 'langchain-openai==1.6.2'
+export OPENAI_API_KEY="your-provider-key"
+export OPENAI_MODEL="your-tool-capable-model-id"
+PAID_PROVIDER=1 DEMO_MODE=compress python quickstart.py
+```
+
+Choose a provider model that supports tools. `ChatOpenAI` retains its normal credentials and transport. The example disables its automatic retries and bounds the graph recursion. This path was not executed during documentation validation. It can incur provider charges, and the model may choose not to recover. Inspect `AIMessage.usage_metadata`, including unavailable values, separately from Caveman decisions.
+
+## Read the result
+
+The record run retains original text. The compression run must emit `applied`, then can emit `reused` as the same result appears on the next model call. It must invoke `caveman_retrieve` through the native tool loop and print the reconstructed SHA-256:
+
+```text
+10ca78813d5f173b897be30f06f6dd82367a1c11cdb221e1bf046e3d90c69f9d
+```
+
+The example asserts exact recovery across 4096-byte pages and unchanged original history. It begins from a complete prior `read_log` call/result so the first model request contains eligible content; the tool remains registered for any further calls. The model is scripted locally and supplies no measured provider usage. This is real framework plus real Engine proof, not model-quality or billing proof.
+
+A different report is useful evidence, not a successful compression test. `skipped` means inspect its reason; `disabled` is expected in off mode. See [diagnostics](/docs/sdk/troubleshooting#middleware-decisions), [measurement](/docs/sdk/middleware/measurement), and [safe recovery](/docs/sdk/middleware/recovery).
+
+## Shutdown and remove
+
+The `finally` block closes the runtime client. Stop the separate runtime terminal with Ctrl+C. To disable middleware without changing your saved conversation, select `DEMO_MODE=off` or remove the wrapper and its recovery tool. Keep originals and let active compressed calls finish before taking their recovery service away. Delete this disposable demo directory only after stopping its processes; production retention is a separate decision.

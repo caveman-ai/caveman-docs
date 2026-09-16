@@ -1,0 +1,147 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/middleware/typescript");
+
+<DocSchema slug="sdk/middleware/typescript" />
+
+Run a complete Vercel AI SDK tool loop with the published Caveman packages. The default model is deterministic and local. The optional OpenAI path makes paid provider requests.
+
+## Install in a fresh directory
+
+Use Node.js 22.13 or later. This example is TypeScript running in Node ESM; it does not target browsers or edge isolates.
+
+```sh
+mkdir caveman-ai-sdk-demo
+cd caveman-ai-sdk-demo
+npm init -y
+npm pkg set type=module
+npm install --save-exact @caveman-ai/sdk@1.1.0 @caveman-ai/middleware@0.1.0-alpha.2 ai@7.0.94 @ai-sdk/provider@4.0.11 zod@4.4.3
+curl -fsSLo quickstart.ts https://docs.caveman.so/examples/middleware/quickstart.ts
+```
+
+Keep the generated lockfile. [Download the complete file](/examples/middleware/quickstart.ts), or copy it below. The `ai/test` model is included in the installed `ai` package.
+
+## Start the local runtime
+
+In a second terminal, follow [local runtime installation](/docs/sdk/middleware/deployment#local-process). Run it on `127.0.0.1:8787` with `CAVEMAN_MODE=compress`. The application starts in `record` mode; the server can remain in compress mode while that client records.
+
+No Caveman account or model API key is needed for the default run. `CAVEMAN_ENDPOINT` selects the runtime; `CAVEMAN_AUTH_TOKEN` is its optional local bearer credential. Provider credentials are separate and used only by the optional paid run. The code performs strict capability discovery with `ready()` before inference. If it fails, fix runtime reachability/authentication first; ordinary non-strict inference fallback is a separate contract.
+## Run record, compress, and off
+
+```sh
+DEMO_MODE=record node --experimental-strip-types quickstart.ts
+DEMO_MODE=compress node --experimental-strip-types quickstart.ts
+DEMO_MODE=off node --experimental-strip-types quickstart.ts
+```
+
+These three commands make no provider request and require no API key. Give each real conversation its own session identity. The demo creates a fresh session per run so earlier trials do not leak into its assertions.
+
+## Complete source
+
+```ts
+import assert from 'node:assert/strict';
+import { createHash, randomUUID } from 'node:crypto';
+import { generateText, stepCountIs, tool, jsonSchema, type ModelMessage } from 'ai';
+import { MockLanguageModelV4 } from 'ai/test';
+import { MiddlewareRuntime, type CallReport } from '@caveman-ai/sdk/middleware';
+import { withCaveman } from '@caveman-ai/middleware/ai-sdk';
+
+const mode = process.env.DEMO_MODE ?? 'record';
+if (mode !== 'off' && mode !== 'record' && mode !== 'compress') throw new Error('Invalid DEMO_MODE');
+const paid = process.env.PAID_PROVIDER === '1';
+const original = Array.from({ length: 800 }, (_, i) =>
+  `[INFO] worker=alpha request=${i} status=healthy latency_ms=12 café 🌍\r\n`).join('');
+const reports: CallReport[] = [];
+const runtime = new MiddlewareRuntime({
+  endpoint: process.env.CAVEMAN_ENDPOINT ?? 'http://127.0.0.1:8787',
+  token: process.env.CAVEMAN_AUTH_TOKEN,
+  mode, deadlineMs: 500, retrieveDeadlineMs: 5000,
+  onReport: report => { reports.push(report); console.log(JSON.stringify(report)); },
+});
+// Use authenticated account + conversation IDs in an application. Never share this across users.
+const scope = { namespace: 'docs-demo', session_id: randomUUID(), branch_id: 'main', cache_epoch: '1' };
+const messages: ModelMessage[] = [
+  { role: 'user', content: 'Read the log. Recover all original pages if shortened, then summarize its status.' },
+  { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'read-1', toolName: 'read_log', input: {} }] },
+  { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'read-1', toolName: 'read_log', output: { type: 'text', value: original } }] },
+];
+const before = structuredClone(messages);
+let handle: string | undefined;
+let recoveryCalls = 0;
+const scripted = new MockLanguageModelV4({
+  doGenerate: async ({ prompt }) => {
+    const text = JSON.stringify(prompt);
+    handle ??= text.match(/cmw_[a-f0-9]{48}/)?.[0];
+    const recovered = prompt.some(m => m.role === 'tool' && m.content.some(p => p.type === 'tool-result' && p.toolName === 'caveman_retrieve'));
+    const recover = handle && !recovered;
+    if (recover) recoveryCalls++;
+    return {
+      content: recover
+        ? [{ type: 'tool-call', toolCallId: 'recover-1', toolName: 'caveman_retrieve', input: JSON.stringify({ handle, limit: 262144 }) }]
+        : [{ type: 'text', text: 'Deterministic fixture completed.' }],
+      finishReason: { unified: recover ? 'tool-calls' : 'stop', raw: recover ? 'tool_calls' : 'stop' },
+      // Synthetic fixture counts; these are not provider usage or savings.
+      usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [],
+    };
+  },
+});
+try {
+  if (mode !== 'off') { const c = await runtime.ready(); console.log('capabilities', { mode: c.mode, persistent: c.persistent, recovery: c.recovery, retention_seconds: c.retention_seconds }); }
+  let model: import('@ai-sdk/provider').LanguageModelV4 = scripted;
+  if (paid) {
+    if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) throw new Error('Set OPENAI_API_KEY and OPENAI_MODEL for paid run');
+    const { openai } = await import('@ai-sdk/openai');
+    model = openai(process.env.OPENAI_MODEL);
+  }
+  const started = performance.now();
+  const result = await generateText({
+    ...withCaveman({ model, tools: { read_log: tool({ description: 'Read demo worker log.', inputSchema: jsonSchema({ type: 'object', properties: {}, additionalProperties: false }), execute: async () => original }) } }, { runtime, scope }),
+    messages, stopWhen: stepCountIs(4), maxRetries: 0,
+  });
+  assert.deepEqual(messages, before, 'Application history must keep original bytes');
+  if (!paid && mode === 'off') assert(reports.some(r => r.status === 'disabled'));
+  if (!paid && mode === 'record') assert(reports.some(r => r.status === 'recorded'));
+  if (!paid && mode === 'compress') {
+    assert(reports.some(r => r.status === 'applied' || r.status === 'reused'), 'Expected compression; inspect reports');
+    assert.equal(recoveryCalls, 1, 'Native loop must execute recovery');
+    assert(handle);
+    let offset: number | null = 0, restored = '';
+    do {
+      const page = await runtime.retrieve(scope, { handle, offset, limit: 4096 });
+      assert.equal(page.kind, 'original_page');
+      restored += page.text;
+      offset = page.next_offset;
+    } while (offset !== null);
+    assert.equal(restored, original, 'All exact pages must reconstruct original');
+    console.log('exact recovery SHA-256', createHash('sha256').update(restored).digest('hex'));
+  }
+  console.log({ text: result.text, elapsedMs: Math.round(performance.now() - started), usage: paid ? result.totalUsage : 'synthetic; not provider usage', unchangedHistory: true });
+} finally { runtime.close(); }
+```
+
+## Optional paid provider run
+
+```sh
+npm install --save-exact @ai-sdk/openai@4.0.63
+export OPENAI_API_KEY="your-provider-key"
+export OPENAI_MODEL="your-tool-capable-model-id"
+PAID_PROVIDER=1 DEMO_MODE=compress node --experimental-strip-types quickstart.ts
+```
+
+Select a model available to your provider account that supports function tools. This changes only the model; the same log tool, recovery registration, history, and stopping condition remain. This path was not executed during documentation validation. A provider may choose not to retrieve, may reject a request, and can charge for every model step and retry. Check native usage and task success independently.
+
+## Read the result
+
+The record run retains original text. The compression run must emit `applied`, then can emit `reused` as the same result appears on the next model call. It must invoke `caveman_retrieve` through the native tool loop and print the reconstructed SHA-256:
+
+```text
+10ca78813d5f173b897be30f06f6dd82367a1c11cdb221e1bf046e3d90c69f9d
+```
+
+The example asserts exact recovery across 4096-byte pages and unchanged original history. It begins from a complete prior `read_log` call/result so the first model request contains eligible content; the tool remains registered for any further calls. The model is scripted locally and supplies no measured provider usage. This is real framework plus real Engine proof, not model-quality or billing proof.
+
+A different report is useful evidence, not a successful compression test. `skipped` means inspect its reason; `disabled` is expected in off mode. See [diagnostics](/docs/sdk/troubleshooting#middleware-decisions), [measurement](/docs/sdk/middleware/measurement), and [safe recovery](/docs/sdk/middleware/recovery).
+
+## Shutdown and remove
+
+The `finally` block closes the runtime client. Stop the separate runtime terminal with Ctrl+C. To disable middleware without changing your saved conversation, select `DEMO_MODE=off` or remove the wrapper and its recovery tool. Keep originals and let active compressed calls finish before taking their recovery service away. Delete this disposable demo directory only after stopping its processes; production retention is a separate decision.

@@ -1,0 +1,126 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("sdk/tools");
+
+<DocSchema slug="sdk/tools" />
+
+Deferred tools let your application begin with a small tool catalog and ask a compatible service for relevant tools later. The SDK selects descriptors; your application still converts them into provider schemas, validates arguments, and executes tools. Examples assume your quickstart's `cave` client.
+
+## Define and search a catalog
+
+```ts
+import type { CaveTool } from "@caveman-ai/sdk";
+
+const catalog: CaveTool[] = [{
+  name: "lookup_status",
+  description: "Look up the current service status",
+  inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  readOnly: true,
+  idempotent: true,
+  handler: () => ({ status: "ok" }),
+}];
+const tools = cave.tools({ catalog, strategy: "deferred", initialToolCount: 0 });
+const selected = await tools.search("check service status", { maxTools: 1 });
+console.log(selected.tools.map(tool => tool.name), selected.sessionId);
+```
+
+```python
+from caveman_cloud import CaveTool
+
+catalog = [CaveTool(
+    name="lookup_status",
+    description="Look up the current service status",
+    input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+    read_only=True,
+    idempotent=True,
+)]
+handlers = {"lookup_status": lambda: {"status": "ok"}}
+tools = cave.tools(catalog, strategy="deferred", initial_tool_count=0)
+selected = tools.search("check service status", max_tools=1)
+# Search returns wire dictionaries, not CaveTool instances.
+by_name = {tool.name: tool for tool in catalog}
+selected_names = [item["name"] for item in selected.tools]
+if len(selected_names) != len(set(selected_names)) or any(name not in by_name for name in selected_names):
+    raise ValueError("Search returned unknown or duplicate tools")
+selected_tools = [by_name[name] for name in selected_names]
+print(selected_names, selected.session_id)
+```
+
+TypeScript descriptors include a local `handler`. Search sends schema metadata, not executable handler code, and reattaches selected descriptors from the local catalog. Python's `CaveTool` has no handler field, and search returns wire dictionaries. Validate returned names against your local catalog, then recover your own descriptors and handlers as shown above. Tool names must be unique and nonempty.
+
+## Initial selection and limits
+
+| Option | Behavior |
+| --- | --- |
+| `strategy: "all"` / `strategy="all"` | Default. Initial tools are the full catalog. |
+| `strategy: "deferred"` | Include every `alwaysLoad` / `always_load` tool, plus an initial subset of other tools. |
+| `initialToolCount` / `initial_tool_count` | Number of additional non-mandatory initial tools; default 8. |
+| `maxLoadedTools` / `max_loaded_tools` | Optional cap for deferred initial selection and default search cap. Must accommodate all mandatory tools. |
+| Search `maxTools` / `max_tools` | Explicit search cap, overriding the handle's default. |
+
+Creating the handle is local. Every `search()` call sends the full catalog to the service, even with strategy `all`. `ranker` accepts `bm25` or `embeddings`; the latter requires service support. The SDK does not compute embeddings itself.
+
+## Pass selected tools to a provider
+
+Continue after the catalog example:
+
+```ts
+const toolResponse = await cave.openai().responses.create({
+  model: process.env.CAVE_MODEL!,
+  input: "Check service status.",
+  tools: selected.tools.map(tool => ({
+    type: "function", name: tool.name, description: tool.description,
+    parameters: tool.inputSchema,
+  })),
+}, { cave: { toolSessionId: selected.sessionId } });
+console.log(toolResponse);
+```
+
+```python
+tool_response = cave.openai().responses.create({
+    "model": os.environ["CAVE_MODEL"],
+    "input": "Check service status.",
+    "tools": [{
+        "type": "function", "name": tool.name, "description": tool.description,
+        "parameters": tool.input_schema,
+    } for tool in selected_tools],
+}, tool_session_id=selected.session_id)
+print(tool_response)
+```
+
+These calls assume your service already has provider access; pass an upstream key if required. Persist the returned session ID for later search/provider calls belonging to the same tool session. The session hint does not execute a returned function call. Your existing tool loop must dispatch it and send its result back to the model.
+
+## Inspect search results
+
+The result includes selected `tools`, optional `sessionId` / `session_id`, `method`, `deferredCount` / `deferred_count`, and full/sent schema-token estimates. `savedTokens` / `saved_tokens` subtracts sent from full; `reductionPct` / `reduction_pct` expresses the reduction as a percentage. `tokenBasis` / `token_basis` identifies the counter and `basis` is `inferred`.
+
+Search failures raise errors rather than returning an invented empty match. Choose an application fallback, such as the original catalog if it fits your budget. A fallback that exceeds the model window is not safe merely because it includes more tools.
+
+## Stop identical tool loops
+
+```ts
+import { RetryLoopError } from "@caveman-ai/sdk";
+
+const breaker = cave.retryLoopBreaker(3);
+try {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await breaker.guard("lookup_status", {}, () => ({ status: "ok" }));
+  }
+} catch (error) {
+  if (!(error instanceof RetryLoopError)) throw error;
+  console.log("Stopped repeated tool calls", error.repeats);
+}
+```
+
+```python
+from caveman_cloud import RetryLoopError
+
+breaker = cave.retry_loop_breaker(3)
+try:
+    for attempt in range(4):
+        breaker.guard("lookup_status", {}, handlers["lookup_status"])
+except RetryLoopError as error:
+    print("Stopped repeated tool calls", error.repeats)
+```
+
+Threshold 3 allows three identical consecutive calls and blocks the fourth before invoking its callback. A different name or arguments resets the streak; `reset()` clears it explicitly. Use one breaker per logical loop. This is not a retry policy, a rate limit, or a detector for longer cycles of different calls.

@@ -1,121 +1,108 @@
 import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
 export const metadata = docMetadata("sdk/python");
 
-`caveman-sdk` is the Python client for the same connected surface as the TypeScript SDK. It uses only the Python
-standard library and includes type information.
+<DocSchema slug="sdk/python" />
 
-<Facts rows={[
-  ["Distribution", <code key="d">caveman-sdk</code>],
-  ["Import", <code key="i">caveman_cloud</code>],
-  ["Runtime", "Python 3.13 or newer."],
-  ["Dependencies", "None at runtime."],
-  ["Licence", "MIT."],
-]} />
+`caveman-sdk` is the MIT-licensed Python client in the main Caveman repository. Import it as `caveman_cloud`. Version `1.1.0` requires Python 3.13 or newer, uses only the standard library at runtime, and includes `py.typed` type information.
 
 ## Install
 
 ```bash
-python -m pip install caveman-sdk
+mkdir caveman-python-example
+cd caveman-python-example
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install caveman-sdk==1.1.0
 ```
 
-The `caveman` package on PyPI is unrelated. Distribution and import names are deliberately different.
+On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Use `python -m pip` so installation targets the interpreter running your app. The PyPI package named `caveman` is unrelated.
 
-## Create a client
+## Configure your service
+
+Set these variables through your shell or secret manager:
+
+```bash
+export CAVE_BASE_URL="https://your-caveman-service.example"
+export CAVE_API_KEY="your-service-key"
+export CAVE_MODEL="your-enabled-model-id"
+# Only when your service requires a provider key:
+export OPENAI_API_KEY="your-provider-key"
+```
+
+Replace the placeholder address with your configured service. The SDK does not supply a default address, obtain credentials, or start a local runtime. See [configuration](/docs/sdk/configuration).
+
+## Make your first request
+
+Save this as `quickstart.py`:
 
 ```python
+import json
 import os
+from urllib.error import HTTPError, URLError
 from caveman_cloud import Cave
 
 cave = Cave(
     api_key=os.environ["CAVE_API_KEY"],
-    base_url="http://127.0.0.1:8787",
+    base_url=os.environ["CAVE_BASE_URL"],
     agent="support-agent",
+    default_workflow="answer-question",
 )
+
+try:
+    response = cave.openai(
+        upstream_key=os.environ.get("OPENAI_API_KEY"),
+    ).responses.create({
+        "model": os.environ["CAVE_MODEL"],
+        "input": "Explain what a retry loop is in one sentence.",
+    })
+    print(json.dumps(response, indent=2))
+except HTTPError as error:
+    raise SystemExit(f"Provider request failed: HTTP {error.code}") from error
+except (URLError, TimeoutError) as error:
+    raise SystemExit(f"Service connection failed: {error}") from error
 ```
 
-`api_key`, `base_url`, and `agent` are required. URLs must be absolute HTTP or HTTPS service URLs without embedded
-credentials, a query, or a fragment.
+```bash
+python quickstart.py
+```
 
-## Compress
+A successful call returns the provider JSON as a Python dictionary. It is not an HTTP response object: it has no `.headers`, `.json()`, or `.output_text` attribute.
+
+## Compress a string
+
+After creating `cave`, call a service that supports the compression API:
 
 ```python
-result = cave.compress("large payload")
-
-print(result.output)
-print(result.tokens_before, result.tokens_after)
-print(result.ratio, result.basis)
-print(result.recovery_handle)
+original = json.dumps({"records": [
+    {"id": 1, "status": "ok"},
+    {"id": 2, "status": "ok"},
+]})
+compressed = cave.compress(original, content_type="json")
+print(compressed.output)
+print(compressed.tokens_before, compressed.tokens_after)
+print(compressed.basis, compressed.recovery_handle)
 ```
 
-`compress()` delegates to the configured service. A transport or response problem returns original payload, ratio
-zero, and no recovery handle. Python does not carry a second compressor implementation.
+The return value is a `CompressResult` dataclass. Access its fields with dots. The SDK preserves the original string on transport or parse failure; small inputs may also remain unchanged. Read [compression](/docs/sdk/compression) before treating an unchanged result as a working service check.
 
-Counts use `basis="inferred"`. They are local compressor estimates, not provider-reported usage.
+## Call from an async application
 
-## Provider clients
+Core client methods perform blocking I/O. They are not coroutines. Move a call off the event loop when integrating with an async application:
 
 ```python
-openai = cave.openai(upstream_key=os.environ.get("OPENAI_API_KEY"))
-anthropic = cave.anthropic(upstream_key=os.environ.get("ANTHROPIC_API_KEY"))
-gemini = cave.gemini(upstream_key=os.environ.get("GEMINI_API_KEY"))
-vertex = cave.vertex(upstream_key=os.environ.get("GOOGLE_ACCESS_TOKEN"))
+import asyncio
 
-response = openai.responses.create({
-    "model": "gpt-5.6",
-    "input": "Summarize this incident",
-})
+async def compress_tool_output(text: str):
+    return await asyncio.to_thread(cave.compress, text, content_type="text")
 ```
 
-The provider wrappers expose native request paths through the configured provider prefix. `bedrock()` returns a
-validated configuration descriptor without making a network call.
+Cancelling the awaiting task does not forcibly stop the underlying thread's HTTP request. Provider calls, compression, and shared-context calls use a 300-second urllib timeout; most other connected SDK operations use 30 seconds. The core `Cave` constructor has no timeout or cancellation option. These socket timeouts are not a whole-workflow deadline.
 
-## Narrow one request
+For native async framework compression, the separate middleware entrypoint exposes `AsyncMiddlewareRuntime`. That does not turn the core provider clients into async clients.
 
-```python
-cave.openai().responses.create(body, optimize="off")
+## Python naming and limits
 
-cave.openai().responses.create(
-    body,
-    optimize={"compress": False, "cache_hints": False},
-)
-```
+Python uses `base_url`, `default_workflow`, `tool_search`, and `retry_loop_breaker`; TypeScript uses camelCase. Python chat completions use `cave.openai().chat["completions"].create(body)`. Trace providers use `trace.model["openai"]`.
 
-Boolean `True` asks for a capability and remains subject to project policy. It does not enable anything by itself.
-Unknown fields and invalid styles raise `ValueError` before a request.
-
-## Read disclosure headers
-
-```python
-from caveman_cloud import parse_receipt
-
-receipt = parse_receipt(response.headers)
-print(receipt.mode, receipt.optimizations)
-print(receipt.tokens_before, receipt.tokens_after)
-print(receipt.recovery_handle)
-```
-
-`parse_receipt` accepts urllib headers, a dictionary, or key-value pairs. Missing headers stay `None`.
-
-## Local helpers
-
-Python mirrors the TypeScript names in Python style:
-
-- `assemble()` orders context by stability
-- `retry_loop_breaker()` interrupts identical consecutive tool calls
-- `parse_receipt()` decodes response disclosure
-- `gateway_headers()` and `gateway_config()` build provider configuration
-- `policy_unit_fraction()` returns deterministic policy assignment input
-
-Tracing, OTLP export, deferred tool search, context packing, shared context, checkpoints, and artifacts are also
-available. Connected features use the configured service. The reserved jobs client raises
-`cave_async_jobs_unavailable` locally and performs no request.
-
-<Note tone="honest" title="Names differ on purpose">
-Install `caveman-sdk`, then `import caveman_cloud`. Avoid both bare `caveman` package names. They belong to other
-projects.
-</Note>
-
-## What it cannot do alone
-
-Installing the Python package does not install or start the local engine. It does not turn inferred compression
-counts into provider usage, currency, monthly savings, or `verified` results.
+The SDK does not execute tool calls, process provider SSE streams, or install a compression runtime. Follow [provider calls](/docs/sdk/providers), [deferred tools](/docs/sdk/tools), [tracing](/docs/sdk/tracing), and the [API reference](/docs/sdk/reference) for complete workflows.
