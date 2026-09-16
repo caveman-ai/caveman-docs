@@ -25,7 +25,7 @@ for mode in ['off','record','compress']:
  env['DEMO_MODE']=mode
  for language,command,cwd in [
   ('TypeScript',['node','--experimental-strip-types','quickstart.ts'],a.typescript_env),
-  ('Python',[str((a.python_env/'bin/python').resolve()),'quickstart.py'],a.python_env),
+  ('Python',[str(a.python_env.resolve()/'bin/python'),'quickstart.py'],a.python_env),
  ]:
   result=subprocess.run(command,cwd=cwd,env=env,text=True,capture_output=True,timeout=60)
   if result.returncode: raise SystemExit(result.stdout+result.stderr)
