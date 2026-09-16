@@ -19,7 +19,7 @@ The installed signed runtime reported `runtime_build: "dev"` in capabilities dur
 
 ## Source changes are not releases
 
-SDK `1.1.0` exposes strict `ready()`, final decision reports, and recovery. It does **not** expose `preflight()`. Work on main adds preflight diagnostics and tighter compatibility evidence, but no package release was made for that work during this documentation refresh.
+SDK `1.1.0` exposes strict `ready()`, final decision reports, and recovery. It does **not** expose `preflight()`. Unreleased development work adds preflight diagnostics and tighter compatibility evidence, but no package release was made for that work during this documentation refresh.
 
 Do not import `@caveman-ai/middleware/compatibility` from published `0.1.0-alpha.2`. That subpath and source fields separating exact test pins from supported ranges are candidate changes. The [compatibility page](/docs/sdk/middleware/compatibility) describes the published artifacts and labels source-only evidence separately.
 

@@ -166,7 +166,7 @@ export const DOCS_NAV: DocGroup[] = [
     section: "caveman",
     home: "sdk",
     items: [
-      { title: "Overview", slug: "sdk", blurb: "Choose a language, connect a service, and find the right SDK workflow.", capability: "sdk-ts", license: "MIT" },
+      { title: "Python and TypeScript SDKs", slug: "sdk", blurb: "Choose a language, connect a service, and find the right SDK workflow.", capability: "sdk-ts", license: "MIT" },
       { title: "TypeScript quickstart", slug: "sdk/typescript", blurb: "Install the ESM package and make your first provider and compression calls.", capability: "sdk-ts", license: "MIT" },
       { title: "Python quickstart", slug: "sdk/python", blurb: "Install the typed Python package and make your first synchronous calls.", capability: "sdk-python", license: "MIT" },
       { title: "Configuration", slug: "sdk/configuration", blurb: "Credentials, service URLs, workflow labels, retention, and timeouts.", capability: "sdk-ts", license: "MIT" },
@@ -180,7 +180,7 @@ export const DOCS_NAV: DocGroup[] = [
     section: "caveman",
     home: "sdk/middleware",
     items: [
-      { title: "Overview", slug: "sdk/middleware", blurb: "Native framework compression with local recovery and honest diagnostics.", capability: "sdk-ts", license: "MIT" },
+      { title: "Framework middleware", slug: "sdk/middleware", blurb: "Native framework compression with local recovery and honest diagnostics.", capability: "sdk-ts", license: "MIT" },
       { title: "Add to Vercel AI SDK", slug: "sdk/middleware/vercel-ai-sdk", blurb: "Add middleware to an existing streaming application and verify the native tool loop.", capability: "sdk-ts", license: "MIT" },
       { title: "TypeScript validation", slug: "sdk/middleware/typescript", blurb: "Run AI SDK with the real local runtime, no paid provider required.", capability: "sdk-ts", license: "MIT" },
       { title: "Python quickstart", slug: "sdk/middleware/python", blurb: "Run LangChain with deterministic compression and exact recovery.", capability: "sdk-ts", license: "MIT" },
