@@ -4,78 +4,150 @@ export const metadata = docMetadata("agent-sdk/tools");
 
 <DocSchema slug="agent-sdk/tools" />
 
-A tool declares its input, side effect, timeout, and what happens to the result, then implements `execute`. The runtime validates input before your code runs, and validates output before any result can enter model context or a durable journal.
+`tool()` declares one callable: its name, its input schema, what it does to the world, and how much of its result the model is allowed to see. The declaration is what the runtime schedules, authorizes, meters and locks against, so every field is checked when you build the tool rather than when the model calls it.
 
 ```ts
-import { schema, tool } from "@caveman-ai/agent";
+import { agent, auto, run, schema, tool } from "@caveman-ai/agent";
 
-const lookupPolicy = tool({
-  name: "lookup_policy",
-  description: "Read current refund policy.",
-  input: schema.object({ region: schema.string() }),
-  output: schema.object({
-    region: schema.string(),
-    refundWindowDays: schema.number(),
-  }),
+const lookupOrder = tool({
+  name: "lookup_order",
+  description: "Look up an order by id. Returns status and carrier.",
   effect: "read",
-  result: "auto",
-  async execute({ region }) {
-    return { region, refundWindowDays: 14 };
-  },
+  input: schema.object({ orderId: schema.string() }),
+  execute: async ({ orderId }) => ({ orderId, status: "in_transit", carrier: "DHL" }),
+});
+
+const desk = agent({
+  id: "support-desk",
+  instructions: "Answer the customer from the order record. One sentence.",
+  model: auto(),
+  tools: [lookupOrder],
+  sandbox: "host",
+});
+
+const result = await run(desk, "Where is NB-1042?");
+```
+
+```json
+[{ "name": "lookup_order", "calls": 1, "errors": 0 }]
+```
+
+`result.receipt.tools`, captured from this agent answered by a scripted stream from `@caveman-ai/agent/testing`. Every declared tool that the model called appears there with its call count and its error count, whether or not the run succeeded.
+
+## Options
+
+```text
+tool({
+  name: string
+  description: string
+  input: TSchema                       schema.*, or a Standard Schema validator
+  inputJSONSchema: TSchema             required with a Standard Schema that cannot emit draft-07
+  output?: TSchema | StandardSchemaV1  validated before the result reaches the model
+  effect: "read" | "write" | "idempotent" | "external"
+  result?: "auto" | "inline" | "page" | "compress" | "exact_ccr" | ArtifactDefinition
+  allowRepeat?: boolean
+  speculative?: boolean
+  timeoutMs?: number                   default 30_000
+  nestedTools?: readonly ToolDefinition[]
+  speculativeTools?: readonly string[] nested read tools whose started result may be consumed
+  execute: (input, signal?, context?) => Result | Promise<Result>
+})
+```
+
+`name` must match `/^[a-zA-Z][a-zA-Z0-9_-]{0,127}$/`, and `agent()` rejects any tool whose name starts with `cave_`, the prefix framework tools use. `timeoutMs` must be a positive integer; the call is aborted through the signal your `execute` receives. `speculativeTools` without `nestedTools` throws `caveman agent: speculativeTools requires nestedTools`.
+
+A declared `output` schema is validated before the result enters model context, so a tool that returns the wrong shape fails as a tool error instead of teaching the model a lie.
+
+### Standard Schema input
+
+Any Standard Schema validator works as `input`. The runtime needs a draft-07 JSON Schema to send to the provider, and Zod emits one itself. Zod is an optional peer dependency, so install it first:
+
+```bash
+npm install zod
+```
+
+```ts
+import { z } from "zod";
+
+const search = tool({
+  name: "search_traces",
+  description: "Search traces by service and status.",
+  effect: "read",
+  input: z.object({ service: z.string(), status: z.enum(["ok", "error"]) }),
+  execute: async ({ service, status }) => ({ service, status, hits: [] }),
 });
 ```
 
-Names match `^[a-zA-Z][a-zA-Z0-9_-]{0,127}$`. Names beginning with `cave_` are reserved by the framework (`cave_skill`, memory tools, recovery). Duplicate names on one agent fail at `agent()`.
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "service": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "error"] }
+  },
+  "required": ["service", "status"]
+}
+```
 
-Default timeout is 30,000 ms. Default result policy is `auto`. `effect` has no default; you have to say it.
+`search.input`, the schema the provider is shown, converted from the validator at construction. A validator that cannot emit draft-07 takes an explicit `inputJSONSchema`, and one that has neither throws with `caveman agent: Standard Schema needs inputJSONSchema or Standard JSON Schema conversion`. Refinements and transforms stay live at runtime: the JSON Schema is what the model sees, the validator is what the arguments pass through.
 
 ## Effects
 
-| Effect | Meaning |
+`effect` is a declaration about the world, and four parts of the runtime read it.
+
+| Effect | What it changes |
 |---|---|
-| `read` | No durable side effect. Fixture sandbox allows it. Programmatic mode may speculate it. |
-| `write` | Mutates something. Fixture sandbox blocks it. Host mode executes it. |
-| `idempotent` | Safe to retry with the same arguments. Never speculated. |
-| `external` | Leaves the process. Never speculated. |
+| `read` | Runs in parallel with other reads. May be `speculative`. A durable resume may re-drive it. A composite tool declared `read` cannot contain effectful nested tools. |
+| `write` | Runs sequentially, after in-flight reads settle. Blocked before execution under `sandbox: "fixture"` with `cave_side_effect_blocked`. A write intent with no recorded settlement ends the resume rather than guessing whether it ran. |
+| `idempotent` | Sequential like a write, but a durable resume re-drives it and passes `context.durable.idempotencyKey`, stable across attempts, with `resumed: true`. |
+| `external` | Sequential, and treated like a write on resume: an intent with no settlement ends the resume rather than guessing. |
 
-Repeated identical calls are stopped by default. Set `allowRepeat: true` on a polling tool whose job is to be called again with the same arguments.
+Effects stay mandatory in every sandbox posture. `host` mode changes what is enforced, not what you must declare.
 
-## Result policies
+## What the model sees of a result
 
-| Policy | What the model sees |
+`result` decides how a tool's bytes reach the context.
+
+| Policy | Behaviour |
 |---|---|
-| `auto` | A locked plan may choose inline, paging, compression, or exact recovery. |
-| `inline` | The result stays in current context. |
-| `page` | Bounded pages. |
-| `compress` | An eligible locked transform. |
-| `exact_ccr` | Replacement only after byte-exact recovery is stored. |
+| `auto` | Default. Inline while the result is at or under 32,768 bytes, otherwise offloaded like `page`. |
+| `inline` | Always inline. A result over the limit throws `cave_tool_result_inline_limit`. |
+| `page` | Offloaded: the model gets the compressed view, a `<<cave_retrieve:…>>` handle, and an instruction to page detail with a narrow query. |
+| `compress` | Offloaded with the same handle, and the instruction asks for omitted detail rather than a page. |
+| `exact_ccr` | Currently lowers to the same behaviour as `compress`, byte for byte. |
 
-`artifact()` can stand in for a result policy when you need paging or exact recovery with an inline token cap. Default artifact strategy is `page`, default `maxInlineTokens` is 1,200, default recovery is `exact_ccr`.
+Every offloading policy hands the bytes to the local Caveman engine and verifies that retrieving the handle returns the original bytes before the compressed view is emitted, so the byte-exact recovery `exact_ccr` names is what `page` and oversized `auto` results get too. With no engine on the machine, the call comes back as a tool error and the receipt counts it under `errors`; the run continues.
 
-## Schemas
+`artifact()` is the same choice expressed as a shape, and it also moves the inline ceiling:
 
-`schema` is a small TypeBox wrapper: `string`, `number`, `integer`, `boolean`, `object`, `array`, `optional`, `union`, `literal`, `null`, `any`.
+```ts
+result: artifact({ strategy: "page", maxInlineTokens: 1_200, recovery: "exact_ccr" })
+```
 
-`input` also accepts Standard Schema v1. Libraries that emit Standard JSON Schema v1 convert to draft-07 for the provider. Validation-only libraries pass `inputJSONSchema`; the framework still runs the vendor validator first, including async transforms.
+`strategy: "verbatim"` lowers to `inline`, or to `exact_ccr` when `recovery` is `exact_ccr`. `json-index` lowers to `compress`, `page` to `page`. `maxInlineTokens` defaults to 1,200 and sets the inline ceiling at four bytes per token.
 
-`output` follows the same rules. Output validation runs after `execute` and before anything reaches the model. A mismatch is a tool error. The invalid raw value stays hidden. Schema-less tools keep native JSON serialization.
+## Repeated calls
 
-Standard Schema validators can close over mutable state. Ordinary runs allow that. Cave Build locks and durable runs refuse opaque validator identity. Pass `schemaSemanticsSHA256` as the lowercase SHA-256 of validator code, dependencies, and captured state, and change it when any of those change.
+A run that declares `breakers` in its options ends when one tool is called with the same arguments `repeatedToolCalls` times, three by default, inside a window of eight assistant turns. A tool whose job is to be called again with the same arguments says so:
+
+```ts
+const pollBuild = tool({
+  name: "poll_build",
+  description: "Poll the build until it finishes.",
+  effect: "read",
+  allowRepeat: true,
+  input: schema.object({ id: schema.string() }),
+  execute: async ({ id }) => ({ id, state: "running" }),
+});
+```
+
+`allowRepeat` exempts that tool from the repeat breaker alone. The per-turn fan-out cap, the no-progress window and `RunOptions.maxToolCalls` still apply. Breakers are opt-in per run: see [Run](/docs/agent-sdk/run#breakers-and-ceilings).
 
 ## Nested tools
 
-A composite tool may declare `nestedTools`. Nested tools are flat: no nested-nested. A `read` composite cannot contain an effectful child. Nested dispatch still goes through the same budget, breaker, schema, timeout, and receipt path as a top-level call.
+A composite tool can carry `nestedTools`, dispatched through the run's own kernel from inside `execute` with `context.dispatch(name, input)`. The nested list must be flat, names must be unique and different from the parent, and a nested tool may not itself carry `nestedTools`. Composites are unavailable under `sandbox: "required"`, which blocks the call with `cave_nested_tool_sandbox_unsupported`.
 
-Programmatic mode is the usual reason to do this. See [Programmatic tools](/docs/agent-sdk/code).
+## Limits
 
-## Sandbox reminder
-
-Production tools with the default `sandbox: "required"` run in a restricted worker imported from a staged source graph. Programmatic `run()` must pass `RunOptions.entryPath` pointing at the module that exports the definition. The CLI supplies this. The [Sandbox](/docs/agent-sdk/sandbox) page is the contract.
-
-## Host-owned authorization
-
-Use `RunOptions.toolPolicy` to allow or deny declared tool calls after runtime admission checks. It covers root, subagent, and nested calls; reserved framework tools are excluded. Denial is visible in the model result and receipt. See [tool policy](/docs/agent-sdk/coding#authorize-each-tool-call) for the contract, failure behaviour, and an example.
-
-## What it will not do
-
-A tool closure does not inherit the parent environment. Signing, deployment, bootstrap, database, and ambient secret names are denied in the worker. `sandboxProfile.network: true` is not scoped egress; it requests unbounded egress and fails closed, use a scoped host-and-port policy on a supported backend instead.
+Tool names and effects are part of the frozen prefix, so changing either invalidates a build lock and forces a rebuild. Result policies other than `inline` and small `auto` results need the local Caveman engine on the machine. Site-wide counting rules are on [Numbers and limits](/docs/counting).

@@ -4,158 +4,167 @@ export const metadata = docMetadata("agent-sdk");
 
 <DocSchema slug="agent-sdk" />
 
-`@caveman-ai/agent` is a TypeScript runtime for tool-using agents. You define the agent, its tools, context, memory, output contract, and evals in one source graph. Every successful run returns a receipt. A run that fails after spending throws with the same partial receipt attached.
+`@caveman-ai/agent` is a TypeScript runtime for tool-using agents: you declare the tools, the context, the output contract and the budget, and it owns the loop. Every run returns a receipt that itemises what it spent, per model call, per tool and per subagent.
 
-It does not need a Caveman account. On a machine with Node and a provider key it calls the provider directly, in `observe-only` mode: no local transform, and no efficiency claim. When the local Caveman engine is running, eligible calls can run in `optimized` mode. Local figures stay `inferred`. Nothing in this package emits `verified`.
-
-<Facts rows={[
-  ["Package", <code key="p">@caveman-ai/agent</code>],
-  ["Source version", <code key="v">0.2.0</code>],
-  ["On npm today", <code key="n">0.1.0</code>],
-  ["Runtime", "Node.js 22.19 or newer."],
-  ["Licence", "Apache-2.0 (current source)."],
-]} />
-
-The pages that follow document the 0.2 source in [caveman-ai/agent-sdk](https://github.com/caveman-ai/agent-sdk). The registry check on 15 September 2026 returned 0.1.0, which is an older surface. Use the checkout if you are testing anything described here.
-
-## How a run is assembled
-
-<figure className="my-6">
-  <div className="flex flex-col gap-0 text-[13px]">
-    <div className="rounded-md border px-3 py-2">
-      <strong>Definition.</strong>
-      <span className="text-muted-foreground"> <span className="font-mono">agent()</span>, tools, context, memory, output, evals. One source graph.</span>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓</div>
-    <div className="rounded-md border px-3 py-2">
-      <strong>Runtime.</strong>
-      <span className="text-muted-foreground"> Sandbox, budgets, breakers, compaction, receipts. Tools never skip schema, timeout, or abort checks.</span>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓</div>
-    <div className="grid gap-2 sm:grid-cols-2">
-      <div className="rounded-md border px-3 py-2">
-        <span className="font-mono">observe-only</span>
-        <span className="text-muted-foreground"> Direct to your provider. Default when the local engine is not running.</span>
-      </div>
-      <div className="rounded-md border border-ember/40 px-3 py-2">
-        <span className="font-mono">optimized</span>
-        <span className="text-muted-foreground"> Local engine reachable. Eligible transforms and recovery can run. Still inferred.</span>
-      </div>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓</div>
-    <div className="rounded-md border px-3 py-2">
-      <strong>Receipt.</strong>
-      <span className="text-muted-foreground"> Model calls, tool calls, catalog cost basis, stop reason, compactions, subagents, resume state. <span className="font-mono">claimBasis: "inferred"</span>.</span>
-    </div>
-  </div>
-  <figcaption className="mt-2 text-xs text-muted-foreground">
-    A mixed graph that partly bypassed the local runtime reports observe-only. The label under-claims rather than averaging.
-  </figcaption>
-</figure>
-
-`auto()` picks a configured model. It does not classify tasks or route between models. That is a different product; see [Model router](/docs/router).
-
-## Smallest agent
+Want to cut the cost of an agent you already run in a terminal? Use [Wrap an agent](/docs/proxy/wrap).
 
 ```ts
 import { agent, auto, run } from "@caveman-ai/agent";
 
-const support = agent({
-  id: "support",
-  instructions: "Answer from policy. Never invent policy.",
+const reviewer = agent({
+  id: "reviewer",
+  instructions: "Review the change. Name the root cause, not the symptom.",
   model: auto(),
 });
 
-const result = await run(support, "Can I get a refund?");
-console.log(result.text);
-console.log(result.mode);
-console.log(result.receipt);
+const result = await run(reviewer, "Why does the parser drop trailing commas?");
 ```
 
-That run works with nothing but Node and a provider credential. `result.mode` is `observe-only` there.
+Nine lines and one provider key. `auto()` resolves a model from `CAVE_MODEL`, then `.caveman/provider.json`, then the first provider credential in the environment, in that fixed order. It never classifies a task and never routes on quality.
 
-Prefer a directory if the agent will grow:
+## What a run returns
+
+`RunResult` carries the answer, the ledger and the label for how the run reached the provider.
+
+| Field | What it holds |
+|---|---|
+| `text` | The final assistant message. |
+| `output` | That message parsed against the declared [output schema](/docs/agent-sdk/define#output-that-arrives-typed), typed from the schema. Absent when no schema is declared. |
+| `receipt` | This run's `RunReceipt`: every call, every tool, every subagent's own receipt. |
+| `mode` | `observe-only` when any call went straight to the provider, `optimized` when every call in the run and its subagents went through the local Caveman gateway. |
+| `stopReason` | `complete`, or why the runtime stopped between calls: `budget_exhausted`, `deadline`, `loop_detected`, `no_progress`, `wallet_revoked`, `call_budget_exhausted`. |
+
+The receipt from a two-call run against `@caveman-ai/agent/testing` at source 0.2.0, trimmed to one call, with the empty `tranches` and `breakers` arrays and `released` removed:
+
+```json
+{
+  "schema": "caveman.agent.run-receipt.v1",
+  "runId": "3df12c37-…",
+  "agentId": "support-desk",
+  "basis": "estimated_list_price_subtotal",
+  "claimBasis": "inferred",
+  "stopReason": "complete",
+  "denomination": "usd",
+  "max": 0.05,
+  "spent": 0.0043948,
+  "capBreached": false,
+  "overspent": 0,
+  "totalEstimatedUsd": 0.0043948,
+  "totalTokens": 5734,
+  "unpriced": false,
+  "calls": [
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5",
+      "inputTokens": 1260,
+      "outputTokens": 38,
+      "cacheReadTokens": 1024,
+      "cacheWriteTokens": 1024,
+      "reasoningTokens": 0,
+      "estimatedUsd": 0.0028324,
+      "unpriced": false,
+      "usageBasis": "provider_reported"
+    }
+  ],
+  "tools": [{ "name": "lookup_order", "calls": 1, "errors": 0 }],
+  "subagents": [],
+  "compactions": []
+}
+```
+
+`runId` varies per run and is shortened here. Token counts come from the provider's own usage report, which is what `usageBasis` records. Every money figure is a public-catalog list price subtotal, labelled `inferred` on the receipt itself. [Numbers and limits](/docs/counting) defines that word.
+
+<Note tone="honest" title="The receipt prices calls, it does not read your bill">
+`estimatedUsd` multiplies provider-reported tokens by the public catalog price for that model. A model the catalog cannot price sets `unpriced: true` and contributes zero, which is why the flag exists: read it before reading the total. Under a USD budget an unpriced model fails the run before the first call rather than spending against a cap nothing can meter.
+</Note>
+
+## Which version these pages describe
+
+npm has 0.1.0. These pages document 0.2.0 from source in [caveman-ai/agent-sdk](https://github.com/caveman-ai/agent-sdk), so install from the checkout to follow them.
+
+## An agent as a directory
+
+`loadAgentDir()` composes a directory into one ordinary `agent()` call, so prose lives in Markdown and tools live one per file.
 
 ```text
-support-bot/
-├── instructions.md
-├── agent.ts
-├── .agents/skills/
-├── tools/
-├── subagents/
-└── evals/
+my-agent/
+  instructions.md            required, the standing prose
+  agent.ts                   required, default-exports { model, budget?, breakers?, context? }
+  tools/lookup_order.ts      one tool() per file, filename equals tool name
+  subagents/reviewer/        the same shape again, one level down
+  .agents/skills/<name>/SKILL.md
 ```
 
 ```ts
 import { loadAgentDir, run } from "@caveman-ai/agent";
 
-const support = await loadAgentDir("./support-bot");
-const result = await run(support, "Where is order A-123?");
+const definition = await loadAgentDir(import.meta.dirname);
+const result = await run(definition, ticket, { rootDir: import.meta.dirname });
 ```
 
-Skill descriptions enter the stable prefix. Skill bodies stay on disk until the model asks for one, so adding a large skill does not enlarge every request.
+A directory-loaded run defaults `printReceipt` on and writes the receipt JSON under `rootDir/.caveman/runs/`. Skill descriptions enter the cached prefix; skill bodies stay on disk until the model loads one. [Define an agent](/docs/agent-sdk/define#load-an-agent-directory) covers the rules the loader enforces.
 
-## What lives in this product
-
-The Agent SDK is one thing you install, with several surfaces behind it.
+## Where to go next
 
 <CardGrid cols={3}>
-  <Card href="/docs/agent-sdk/install" title="Install">
-    Source build, doctor, and the npm version gap.
-  </Card>
-  <Card href="/docs/agent-sdk/create" title="Create an agent">
-    The initializer that writes a typechecking project.
+  <Card href="/docs/agent-sdk/install" title="Install" meta="5 min">
+    The package, the initializer, and `caveman-agent doctor`.
   </Card>
   <Card href="/docs/agent-sdk/define" title="Define an agent">
-    agent(), context, output, filesystem, subagents.
+    Every `agent()` field, subagents, and directory loading.
   </Card>
   <Card href="/docs/agent-sdk/tools" title="Tools">
-    Effects, result policies, schemas.
+    Schemas, effects, timeouts, and what the model sees of a result.
   </Card>
-  <Card href="/docs/agent-sdk/run" title="Run a turn">
-    run, stream, receipts, budgets, durable resume.
-  </Card>
-  <Card href="/docs/agent-sdk/sandbox" title="Sandbox">
-    required, fixture, and host.
+  <Card href="/docs/agent-sdk/run" title="Run">
+    `run()`, `stream()`, budgets, and the receipt fields.
   </Card>
   <Card href="/docs/agent-sdk/memory" title="Memory">
-    Next-turn recall, local only.
+    Durable recall that stays out of the cached prefix.
   </Card>
   <Card href="/docs/agent-sdk/compaction" title="Compaction">
-    Recover, summarise, clamp, stop.
-  </Card>
-  <Card href="/docs/agent-sdk/code" title="Programmatic tools">
-    One caveman_code cell.
-  </Card>
-  <Card href="/docs/agent-sdk/connect" title="Connect">
-    Paginated provider data, fail closed.
+    Evict, summarise, clamp, stop.
   </Card>
   <Card href="/docs/agent-sdk/build" title="Evals and builds">
-    Profile, search, freeze, holdout.
+    Write evals, run them, freeze a lock.
+  </Card>
+  <Card href="/docs/agent-sdk/sessions" title="Sessions">
+    One conversation across runs, with a message queue.
+  </Card>
+  <Card href="/docs/agent-sdk/deploy" title="Deploy">
+    One agent behind HTTP with every run journaled.
+  </Card>
+  <Card href="/docs/agent-sdk/durable" title="Durable runs">
+    A journaled run resumes where it stopped.
+  </Card>
+  <Card href="/docs/agent-sdk/react" title="React clients">
+    Stream a run into a React app through your backend.
+  </Card>
+  <Card href="/docs/agent-sdk/sandbox" title="Sandbox and execution">
+    Where tool code runs, and what each posture enforces.
+  </Card>
+  <Card href="/docs/agent-sdk/migrate" title="Migrate">
+    Three depths, from one line at fetch to a port.
   </Card>
   <Card href="/docs/agent-sdk/adapters" title="Adapters">
-    Exact-pinned framework lanes.
+    Per-call usage from a framework loop you keep.
+  </Card>
+  <Card href="/docs/agent-sdk/wire" title="Wire transport">
+    A spend ceiling on your own provider fetch.
+  </Card>
+  <Card href="/docs/agent-sdk/connect" title="Connect">
+    Paginated provider data through one stable tool.
+  </Card>
+  <Card href="/docs/agent-sdk/plugins" title="Plugins and skills">
+    Declarative skills and commands, loaded without executing plugin code.
+  </Card>
+  <Card href="/docs/agent-sdk/coding" title="Coding agents">
+    A workspace agent with bounded shell output.
+  </Card>
+  <Card href="/docs/agent-sdk/code" title="Programmatic tools">
+    One `caveman_code` cell instead of a large tool catalog.
+  </Card>
+  <Card href="/docs/agent-sdk/reference" title="API reference">
+    Every exported entrypoint, package, and command.
   </Card>
 </CardGrid>
-
-The [TypeScript SDK](/docs/sdk/typescript) is a different package. `@caveman-ai/sdk` talks to a configured Caveman service. `@caveman-ai/agent` is the agent runtime. Installing one does not start the other.
-
-The repository also ships a public wire-contract package. Find it, every exported entrypoint, and detailed CLI contracts in [API and package reference](/docs/agent-sdk/reference).
-
-## Keep a conversation and serve it
-
-A [session](/docs/agent-sdk/sessions) connects consecutive runs into one conversation. Multiple clients can watch its event stream. [React hooks](/docs/agent-sdk/react) render that stream through your own authenticated app routes. [Execution backends](/docs/agent-sdk/execution) move workspace tools to your remote service. These features are opt-in; a direct `run()` still needs only the runtime and provider credentials.
-
-## What it will not do
-
-It will not mint `verified` savings. `claimBasis` is `inferred` on every public run. USD figures are public-catalog list-price subtotals, never invoices. Token counts are not money.
-
-It will not silently call itself optimized. If any call in the graph went straight to the provider, `mode` is `observe-only`.
-
-It will not invent a routing policy from `auto()`. A pinned string model is a pinned string model.
-
-A lock hash binds reviewed bytes and policy. It is not a signature, a runtime attestation, or proof that those bytes served production traffic.
-
-Claude locked compilation is refused. The public Claude lane stays unlocked.
-
-Do not publish a savings percentage from a local build report.

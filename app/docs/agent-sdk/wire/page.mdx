@@ -4,134 +4,109 @@ export const metadata = docMetadata("agent-sdk/wire");
 
 <DocSchema slug="agent-sdk/wire" />
 
-An [adapter](/docs/agent-sdk/adapters) gives you usage records and a seam to change the request. It does
-not give you a spend ceiling, and it does not fill that seam for you. The wire transport does both, and it
-does them one layer lower, so it needs no adapter at all.
-
-Every framework worth adapting lets its provider client take a custom `fetch`. That is the attachment
-point. A transport wraps it, reserves each call before it leaves, reads the provider's own usage out of
-the response, and applies provider-native cache metadata where a grammar is proven.
+`createCavemanTransport` wraps the `fetch` your provider client already accepts and puts three things on the request itself: a spend ceiling that reserves before the call and settles on measured usage, exact provider-reported accounting per call, and provider-native cache metadata. It attaches at the provider client, so it works on any framework above it.
 
 ```ts
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createCavemanTransport } from "@caveman-ai/agent/wire";
 
-const caveman = createCavemanTransport({ budget: { maxTokens: 2_000_000 } });
+const caveman = createCavemanTransport({
+  budget: { maxTokens: 2_000 },
+  onModelUsage: (usage) => console.log("usage:", JSON.stringify(usage)),
+});
+
 const anthropic = createAnthropic({ fetch: caveman.fetch });
 ```
 
-That is the whole integration. Your framework, your loop, your provider package.
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
 
-<Facts rows={[
-  ["What it attaches to", <>The provider client's <code>fetch</code>. No adapter, no proxy, no hop.</>],
-  ["What it scales by", "Provider, not framework. Two providers cover every lane in this repository."],
-  ["What it adds", "A per-call reserve and clamp, exact provider-reported usage, and gated cache metadata."],
-  ["Providers", <>Anthropic <code>/v1/messages</code>, OpenAI <code>/v1/chat/completions</code> and <code>/v1/responses</code>.</>],
-  ["Reports", <>Always <code>inferred</code>. This transport emits no savings figure of any kind.</>],
-]} />
+`caveman.meter` is the live meter when a budget is configured, so `meter.settled` reads the measured spend so far.
 
-## Which layer owns what
+One call through it, against a stub upstream so the figures are fixed. The first line is that `onModelUsage`; the last two are the body the stub received and `caveman.meter.settled` after it answered:
 
-Caveman has two seams into a framework it does not own, and each optimisation belongs to exactly one.
-
-| Optimisation | Seam | Per-framework code |
-|---|---|---|
-| Request ceiling: reserve, clamp, deny | wire | None |
-| Exact usage accounting | wire | None |
-| Provider-native cache metadata | wire | None |
-| Compaction | model boundary | Small |
-| Model routing | model boundary | Small |
-
-The split is load bearing, not a preference. A wire transport sees the request bytes and nothing else, so
-it can bound a call and price it without knowing what a framework is. It cannot rewrite the conversation,
-because the framework holds its own copy of the message history. Dropping messages at the wire would leave
-that copy describing a transcript the model never saw, and the framework would rebuild the next request
-from it. Compaction and routing therefore stay on the model boundary, where the framework's state and the
-rewrite move together.
-
-The practical result is that LangGraph and Cloudflare Agents get a spend ceiling and exact accounting
-today, even though both adapters declare `modelInterception` as `unsupported`. The transport does not go
-through them.
-
-## The request ceiling
-
-Every call reserves its worst case before it leaves the process. The input bound is a UTF-8 byte count
-capped at the model's window, which over-reserves by roughly three to four times a real token count and
-can never come in low. Under-reserving would let a run spend past its cap, so the bound stays a hard
-over-estimate until a provider token-counting endpoint can tighten it.
-
-When the remaining budget covers the input but not the full output allowance, the transport clamps the
-outgoing output field down to what the budget affords, to a floor of 256 tokens. Below that floor the call
-is refused and nothing reaches the provider.
-
-```ts
-const caveman = createCavemanTransport({ budget: { maxTokens: 2_000_000 } });
-
-caveman.meter.remaining();  // budget available to a new reservation
-caveman.meter.settled;      // measured spend, from provider-reported counts
+```console
+usage: {"schemaVersion":1,"provider":"anthropic","model":"claude-haiku-4-5","inputTokens":812,
+        "outputTokens":96,"cacheReadTokens":0,"cacheWriteTokens":0,"reasoningTokens":null,
+        "totalTokens":908,"cost":{"status":"unknown"}}
+body max_tokens sent: 1875
+meter settled: 908
 ```
 
-Denomination is yours to declare and it fails closed. The wire cannot see which credential pays, so it
-cannot tell a metered API key from a subscription. `maxTokens` is the honest default for portable use.
-`maxUsd` is you asserting that this transport's key is billed in dollars, and it stops any call on a model
-the public catalog cannot price rather than spending an amount it cannot measure.
+The request asked for `max_tokens: 4000`. The meter could fund 1875 of them at that moment, so the body that left carried 1875. `meter.settled` then moved by the measured 908 rather than by the reserve.
 
-## Accounting
+## What it recognises
 
-The transport reads usage out of the provider's own response, merged across Anthropic's split
-`message_start` and `message_delta` events and OpenAI's final chunk. You get the same
-[`ModelUsage`](/docs/agent-sdk/adapters) record an adapter emits, with the same rules: disjoint counts,
-`null` for anything the provider did not report, and no zero standing in for a missing measurement.
+| Host | Path | Output field |
+|---|---|---|
+| `api.anthropic.com` and `*.anthropic.com` | `/v1/messages` | `max_tokens` |
+| `api.openai.com` and `*.openai.com` | `/v1/chat/completions` | `max_completion_tokens` |
+| `api.openai.com` and `*.openai.com` | `/v1/responses` | `max_output_tokens` |
 
-A response whose usage cannot be measured settles at the **full reserve**, never at zero. A call that
-cannot be priced has not been shown to be cheap.
+Host and path together, because the cache grammars are provider-specific and a wrong guess would splice one provider's keys into another's body. Anything else goes straight through, unedited and unmetered:
 
-One field is defaulted to zero anywhere in this transport: OpenAI's cache-write count, because OpenAI has
-no cache-write class at all and its catalog rate is `null`. Every other absence stays `null`.
+```console
+passed through: bedrock-runtime.us-east-1.amazonaws.com
+```
 
-Streaming settles a tick after the stream ends. The transport tees the response so your stream stays pull
-driven and untouched, and the scanning branch finishes after your last read. The meter is exact. It is not
-synchronous with the final chunk.
+A `GET`, a body that parses as anything other than a JSON object, or a body missing its `model` string also passes through untouched. Bedrock in particular carries model and region in the URL and needs SigV4 re-signing after any body edit, so it is left alone rather than half-handled.
+
+## The ceiling
+
+`budget` takes the same shape `run()` does, and the denomination is yours to declare. `maxTokens` is the honest default for portable use: the transport sees the request and leaves the billing arrangement behind it unknown, so a metered key and a subscription look alike. `maxUsd` asserts that this transport's key is billed in dollars.
+
+Each call reserves its worst case before it leaves. The input bound is a UTF-8 byte count, which over-reserves by roughly three to four times and always lands high. The declared output allowance is reserved in full when the meter can fund it, and clamped into the body down to what is left when it falls short. A reservation with nothing left to draw on stops the call:
+
+```console
+call 6: settled 0.007752 USD
+call 7: settled 0.009044 USD
+call 8: cave_wire_budget_exhausted:budget_exhausted
+```
+
+Those are identical calls under `budget: { maxUsd: 0.01 }`, and the eighth threw. A request that failed to land cancels its reservation, so the cap is charged for calls that left.
+
+Under a USD budget, a model the public catalog has no price for fails the same way rather than consuming an imaginary zero:
+
+```console
+uncataloged model: cave_wire_budget_exhausted:budget_exhausted
+```
+
+Usage the transport failed to read settles at the full reserve rather than at zero: an unmeasured call has yet to be shown cheap.
+
+## The accounting
+
+`onModelUsage` fires once per completed call. Counts are disjoint, so `inputTokens` excludes cache reads and writes, and reasoning tokens are a subset of output tokens. A field the provider left out stays `null`.
+
+Anthropic splits one call's usage across `message_start` and `message_delta`; OpenAI reports it once in a final chunk, and only when the caller asked for it. Both are merged, on a JSON body or an SSE stream. Streaming responses are teed, so your stream stays pull-driven and untouched while the scanning branch reads usage fields out of the copy. Past `WIRE_MAX_USAGE_SCAN_BYTES`, 8 MiB, usage stays unknown.
+
+`cost.status` is `estimated` with `basis: "public_catalog"` only when every count is known, including the reasoning split. Anthropic omits that split, so its records read `unknown` even though the meter can still settle exactly: reasoning is a subset of output, so pricing both extremes settles the figure when they agree and leaves it unknown when they differ.
+
+OpenAI reports prompt tokens inclusive of cached tokens while this contract treats the four classes as disjoint, so cache reads are subtracted from the input count. OpenAI's API has no cache-write class at all, the one absence anywhere in this module that becomes a zero rather than a `null`.
 
 ## Cache metadata
 
-The cache planner selects stable-prefix boundaries and writes provider-native metadata into the request
-body. It makes no network call, and it emits nothing that could be read as a saving.
-
-By default the transport releases only grammars proven against a live provider, which today is the OpenAI
-affinity routing key. The Anthropic and Bedrock splices are checked byte for byte against the reference
-engine's fixtures, but they have never been sent to a live endpoint from this SDK, so `cache: "gated"`
-holds them.
+`cache` defaults to `"gated"`, which releases only grammars proven against a live provider from this SDK. Today that is the OpenAI affinity routing key alone. The Anthropic and Bedrock splices are byte-parity tested against the engine's fixtures, and a live endpoint has yet to see one from here, so the gate holds them.
 
 ```ts
-createCavemanTransport({ cache: "gated" });  // default
-createCavemanTransport({ cache: "all" });    // opt in to unproven grammars
-createCavemanTransport({ cache: "off" });    // no planning at all
+const caveman = createCavemanTransport({
+  cache: "gated",
+  scope: "support-desk",
+  onCacheDecision: (d) =>
+    console.log("cache:", d.provider, d.model, "applied:", d.applied, "reason:", d.reason, "heldByScope:", d.heldByScope),
+});
 ```
 
-`cache: "all"` is a documented opt-in, not a tuning knob. Use it when you are prepared to check the
-outgoing bodies yourself.
+```console
+cache: anthropic claude-haiku-4-5 applied: false reason: applied heldByScope: true
+```
 
-Requests that already carry your own cache markers pass through as caller managed, so nothing is applied
-twice. Any uncertainty in planning sends the original bytes. There is never a partial edit.
+`reason: applied` with `applied: false` and `heldByScope: true` is the planner choosing to act and the gate stopping the edit. `cache: "all"` releases every grammar the planner selects, and is an explicit opt-in to behaviour a live endpoint has yet to confirm. `cache: "off"` skips the planner entirely.
 
-## What it will not do
+`scope` is the cache scope id and defaults to `caveman-wire`; requests sharing a prefix must share it. The epoch carries the digest of the stable slice (`system`, `tools`, `instructions`, `toolConfig`), so changed instructions open a new epoch rather than permanently reporting prefix drift. Any planning uncertainty sends the original bytes rather than a partial edit.
 
-It will not touch a request it does not recognise. Targets are matched on host and path together, because
-a wrong provider guess would splice the wrong keys into a body the transport does not understand. Anything
-else, any non-POST, and any body it cannot parse passes through unmetered and unedited.
+## Limits
 
-It will not cover Bedrock or rehosted endpoints such as Azure OpenAI. Bedrock carries model and region in
-the URL and needs SigV4-aware re-signing after a body edit, and that is not written.
+Compaction and model routing stay off this transport on purpose. Both rewrite what the framework above believes it sent, which would desync its message state from the transcript the model actually saw. They belong on the adapter's model boundary: [Adapters](/docs/agent-sdk/adapters).
 
-It will not stop a run cleanly. Refusing a call surfaces to your framework as a failed request, and your
-framework's retry policy decides what happens next. The clean stop stays yours: hold the `AbortController`
-and abort when `meter.remaining()` runs out.
+The transport is per client, so you can put it on one provider client and leave the rest of the process on the default `fetch` while you compare. It mints nothing and makes no efficiency claim of any kind; the figures it reports are provider-reported counts and public-catalog list prices, which [Numbers and limits](/docs/counting) defines.
 
-It will not compact context or route between models. Both belong to the model boundary, for the reason
-above.
-
-It will not gate tool calls. No adapter can deny a tool call today either. Real tool gating needs a
-per-framework tool-wrapping seam and does not exist yet.
-
-It will not report a saving. Cache results are `inferred` at most, and verified savings are `$0`.
+A budget here is a local control in one process. It is not a provider invoice, a platform quota, or a reservation anything outside this process can see.

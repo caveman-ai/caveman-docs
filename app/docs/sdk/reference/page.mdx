@@ -4,110 +4,182 @@ export const metadata = docMetadata("sdk/reference");
 
 <DocSchema slug="sdk/reference" />
 
-This reference maps the public Python and TypeScript clients in `caveman/packages/sdk`. It targets published version `1.1.0`, checked on 16 September 2026. TypeScript uses camelCase; Python generally uses snake_case, with wire-shaped option dictionaries called out below.
+Every public export of `@caveman-ai/sdk` and `caveman-sdk`, with the TypeScript signature beside the Python one. Both packages are version 1.1.0, MIT licensed, and have no runtime dependencies.
 
-## Packages and source
+## Packages
 
-| Surface | TypeScript | Python |
+| | TypeScript | Python |
 | --- | --- | --- |
-| Package | `@caveman-ai/sdk` | `caveman-sdk` |
-| Core import | `@caveman-ai/sdk` | `caveman_cloud` |
-| Middleware import | `@caveman-ai/sdk/middleware` | `caveman_cloud.middleware` |
-| Minimum runtime | Node.js 22.13 | Python 3.13 |
-| Result objects | Plain objects, Promises for I/O | Dataclasses or parsed dictionaries; blocking I/O |
-| License | MIT | MIT |
+| Install | `npm install @caveman-ai/sdk` | `pip install caveman-sdk` |
+| Client entry point | `@caveman-ai/sdk` | `caveman_cloud` |
+| Middleware entry point | `@caveman-ai/sdk/middleware` | `caveman_cloud.middleware` |
+| Runtime | Node 22.13 or newer | Python 3.13 or newer |
+| Module format | ESM, with type declarations | Typed package, `py.typed` |
+| Runtime dependencies | None | None |
+| HTTP | `fetch` | `urllib` |
 
-Read the pinned [TypeScript source](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/typescript/src/index.ts), [Python source](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/python/caveman_cloud/core.py), and [Python exports](https://github.com/JuliusBrussee/caveman/blob/eae856e9ea2bc06b433185f31710961c05c43afa/packages/sdk/python/caveman_cloud/__init__.py) for complete declarations. The installed package's declarations remain authoritative for that release.
+The TypeScript package publishes an `import` entry point. The Python distribution is `caveman-sdk` on PyPI and imports as `caveman_cloud`. [Middleware](/docs/sdk/middleware) documents the second entry point.
 
-## Core client
+## Constructor options
 
-| TypeScript | Python | Return / guide |
+`CaveOptions`, reformatted from one line in the source:
+
+```ts
+export type CaveOptions = {
+  apiKey: string;
+  baseURL: string;
+  agent: string;
+  defaultWorkflow?: string;
+  retention?: "metadata" | "zdr" | "configured";
+  verifyOnInit?: boolean;
+  controlURL?: string;
+  user?: string;
+  /** Finite deadline for every SDK HTTP request; defaults to 30 seconds. */
+  timeoutMs?: number;
+  /** Caller cancellation applied to every SDK HTTP request. */
+  signal?: AbortSignal;
+};
+```
+
+The Python `Cave` dataclass, public fields only, with its comments and two private ledger fields dropped:
+
+```python
+@dataclass
+class Cave:
+    api_key: str
+    base_url: str
+    agent: str
+    default_workflow: str = field(default_factory=lambda: _env_workflow())
+    retention: str = "metadata"
+    verify_on_init: bool = False
+    control_url: str | None = None
+    user: str | None = None
+```
+
+`apiKey`, `baseURL` and `agent` are required. TypeScript throws `apiKey, baseURL, and agent are required` when one is empty. Python raises `ValueError` at construction for an empty or non-absolute `base_url`; an empty `api_key` or `agent` is accepted and fails at the first request.
+
+`baseURL` and `controlURL` must be absolute `http` or `https` URLs with no credentials, query or fragment, and a trailing slash is stripped. `defaultWorkflow` falls back to the `CAVE_WORKFLOW` environment variable, lowercased and accepted only as 1 to 96 characters of `[a-z0-9_-]`, then to `unlabeled-workflow`. `retention` rides on every request as `x-cave-retention`. `user` is your own opaque end-user identifier, sent as `x-cave-user-hash`; hash it yourself if the raw value identifies a person.
+
+`timeoutMs` and `signal` exist in TypeScript only, and `timeoutMs` must be a positive integer. Python's deadlines are fixed per call: 30 seconds for tool search, context packing, policy refresh, the plan read, events, checkpoints and artifacts, and 300 seconds for compression, provider calls and shared context.
+
+## Cave
+
+| Method | TypeScript | Python | What it does |
+| --- | --- | --- | --- |
+| Provider client | `openai(config?)` | `openai(upstream_key=None)` | OpenAI client on `/openai/v1` |
+| | `anthropic(config?)` | `anthropic(upstream_key=None)` | Anthropic client on `/anthropic` |
+| | `gemini(config?)` | `gemini(upstream_key=None)` | Gemini client on `/gemini` |
+| | `vertex(config?)` | `vertex(upstream_key=None)` | Vertex client on `/vertex` |
+| Descriptor | `bedrock({ region, endpoint? })` | `bedrock(region, *, endpoint="runtime")` | Describes the Bedrock route, sends nothing |
+| Trace | `trace(options, fn)` | `trace(workflow=None, tags=None, *, trace_id=None, span_id=None)` | Async callback in TypeScript, context manager in Python |
+| Compression | `compress(payload, options?)` | `compress(payload, *, content_type=None)` | Compress one payload, passing through on failure |
+| Tools | `tools({ catalog, strategy?, initialToolCount?, maxLoadedTools? })` | `tools(catalog, *, strategy="all", initial_tool_count=8, max_loaded_tools=None)` | Build a catalog handle with `initial` and `search` |
+| | `toolSearch(catalog, query, options?)` | `tool_search(tools, query, *, context=None, max_tools=None, workflow=None, ranker=None, session_id=None)` | Search a catalog you manage yourself |
+| Context | `context.pack(query, items, options)` | `context.pack(query, items, options)` | Fit fragments to a token budget |
+| | `assemble(options)` | `assemble(options)` | Build a request with stable content above volatile |
+| Shared context | `sharedContext.put(key, content)` | `shared_context.put(key, content)` | Store handoff context under a session key |
+| | `sharedContext.get(key)` | `shared_context.get(key)` | Read it back byte-exact |
+| Telemetry | `exporter({ serviceName? })` | `exporter(*, service_name=None)` | An OTLP exporter bound to this client |
+| Policy | `runtimePolicy(options?)` | `runtime_policy(*, public_key=None, auto_refresh_seconds=None, kill_env="CAVEMAN_POLICY_KILL", workflow=None)` | A local runtime policy client |
+| Breaker | `retryLoopBreaker(threshold = 3)` | `retry_loop_breaker(threshold=3)` | A fresh retry loop breaker |
+| Prompts | `prompts.internalBrevity({ style, preserveErrorsVerbatim?, preserveCodeVerbatim? })` | `prompts.internal_brevity(*, style, preserve_errors_verbatim=False, preserve_code_verbatim=False)` | An output-style instruction string |
+| Plan | `cavePlan()` | `cave_plan()` | Read the project's published plan verbatim; throws on a non-200 |
+| Jobs | `jobs` | `jobs` | Reserved, see below |
+
+TypeScript's `search()` on a `tools()` handle is `async` from 1.1.0 and returns a `ToolSearchResult`. In 1.0 it was synchronous and returned an array.
+
+`prompts.internalBrevity({ style: "technical-concise", preserveErrorsVerbatim: true })` returns, in both languages:
+
+```console
+Internal output style: technical-concise. Preserve errors verbatim: true. Preserve code verbatim: false.
+```
+
+`style` is `"technical-concise"`, `"caveman"` or `"none"`, and `"none"` returns the empty string.
+
+## Provider client
+
+| TypeScript | Python | What it does |
 | --- | --- | --- |
-| `new Cave(options)` | `Cave(**options)` | Client; [all options](/docs/sdk/configuration). |
-| `compress(text, { contentType? })` | `compress(text, content_type=...)` | `CompressResult`; [compression](/docs/sdk/compression). |
-| `tools({ catalog, strategy?, initialToolCount?, maxLoadedTools? })` | `tools(catalog, strategy=..., initial_tool_count=..., max_loaded_tools=...)` | Local catalog handle with `initial`, `strategy`, `search`. |
-| `toolSearch(catalog, query, options?)` | `tool_search(tools, query, **options)` | `ToolSearchResult`; [deferred tools](/docs/sdk/tools). |
-| `context.pack(query, items, options)` | `context.pack(query, items, options)` | `ContextPackResult`; connected selection. |
-| `assemble(options)` | `assemble(AssembleOptions(...))` | `AssemblyResult`; local prefix construction. |
-| `sharedContext.put(key, content)` / `.get(key)` | `shared_context.put(key, content)` / `.get(key)` | Service JSON; [context](/docs/sdk/context). |
-| `trace(options, async callback)` | `with trace(workflow=..., tags=...) as trace` | Callback/block result; [tracing](/docs/sdk/tracing). |
-| `exporter({ serviceName? })` | `exporter(service_name=...)` | `OTelExporter`; explicitly flush. |
-| `runtimePolicy(options?)` | `runtime_policy(**options)` | `RuntimePolicyClient`; [policy](/docs/sdk/policy). |
-| `retryLoopBreaker(threshold?)` | `retry_loop_breaker(threshold=3)` | `RetryLoopBreaker`; local consecutive-call guard. |
-| `prompts.internalBrevity(options)` | `prompts.internal_brevity(**options)` | Prompt string; no request or automatic injection. |
-| `cavePlan()` | `cave_plan()` | Connected account-specific JSON; requires service support/access. |
-| `jobs` | `jobs` | Reserved client; all operations fail locally. |
+| `provider.responses.create(body, init?)` | `provider.responses.create(body, *, latency_class=None, tool_session_id=None)` | POST to `{prefix}/responses` |
+| `provider.chat.completions.create(body, init?)` | `provider.chat["completions"].create(body, ...)` | POST to `{prefix}/chat/completions` |
+| `provider.raw(input, init?)` | `provider.raw(path, body)` | TypeScript returns the `Response`; Python returns decoded JSON |
+| `provider.provider` | `provider.prefix` | The provider name, and the route prefix |
 
-Prompt styles are `technical-concise`, `caveman`, and `none`. `none` returns an empty string. Optional `preserveErrorsVerbatim` / `preserve_errors_verbatim` and `preserveCodeVerbatim` / `preserve_code_verbatim` control the generated instruction text. A prompt is not an enforcement mechanism.
+TypeScript's `init.cave` carries `{ latencyClass?, toolSessionId? }`, which become the `x-cave-async` and `x-cave-tool-session` headers. [Provider calls](/docs/sdk/providers) has the examples.
 
-## Provider clients
+## Trace
 
-`openai`, `anthropic`, `gemini`, and `vertex` accept an optional upstream key: `{ upstreamKey }` in TypeScript and `upstream_key=...` in Python.
+TypeScript calls the class `CaveTrace`; Python calls it `Trace` and reaches it through the context manager rather than an export.
 
-| Operation | TypeScript | Python |
+| TypeScript | Python | What it does |
 | --- | --- | --- |
-| Responses JSON | `client.responses.create(body, options?)` | `client.responses.create(body, **options)` |
-| Chat completions JSON | `client.chat.completions.create(body, options?)` | `client.chat["completions"].create(body, **options)` |
-| Native route | `client.raw(prefixedPath, fetchOptions)` | `client.raw(pathSuffix, body)` |
-| Bedrock descriptor | `cave.bedrock({ region, endpoint? })` | `cave.bedrock(region, endpoint="runtime")` |
+| `trace.traceId`, `trace.spanId` | `trace.trace_id`, `trace.span_id` | 32 and 16 lowercase hex characters |
+| `trace.tool(name, options, fn)` | `trace.tool(name, options, fn)` | Run `fn` and report a `tool.call` event |
+| `trace.model.openai.responses.create(body, init?)` | `trace.model["openai"].responses.create(body)` | A provider call carrying this trace's ids |
+| `trace.exporter({ serviceName? })` | `trace.exporter(*, service_name=None)` | An exporter sharing this trace's id, memoized per service name |
+| `trace.artifacts.page(value, options)` | `trace.page_artifact(value, options)` | Store a large value, return a stub |
+| `trace.artifacts.get(id)` | `trace.get_artifact(artifact_id)` | Fetch a stored artifact |
+| `trace.context.checkpoint(messages, options)` | `trace.checkpoint(messages, options)` | Store a conversation snapshot |
+| `trace.context.expand(sourceRef)` | `trace.expand(source_ref)` | Read a checkpoint back |
 
-TypeScript raw calls return a fetch `Response`; Python raw calls return parsed JSON. Convenience methods always parse JSON. Use native provider endpoints with the correct factory; a generic `.responses` property is not evidence that every provider has a Responses API. See [routes and streaming](/docs/sdk/providers).
+Python also exposes `trace.artifacts.page` and `trace.artifacts.get`, which delegate to the two methods above. [Context packing](/docs/sdk/context) covers all four.
 
-## Trace methods
+## OTelExporter
 
-| TypeScript | Python | Behavior |
+| TypeScript | Python | What it does |
 | --- | --- | --- |
-| `trace.traceId` / `.spanId` | `trace.trace_id` / `.span_id` | Correlation IDs. |
-| `trace.tool(name, options, fn)` | `trace.tool(name, options, fn)` | Execute callback, emit best-effort metadata. |
-| `trace.model.openai.responses.create(body)` | `trace.model["openai"].responses.create(body)` | Trace-bound provider request. |
-| `trace.model.openai.chat.completions.create(body)` | `trace.model["openai"].chat["completions"].create(body)` | Trace-bound chat request. |
-| `trace.context.checkpoint(messages, options)` | `trace.checkpoint(messages, options)` | Connected checkpoint JSON. |
-| `trace.context.expand(sourceRef)` | `trace.expand(source_ref)` | Stored messages and checkpoint metadata. |
-| `trace.artifacts.page(value, options)` | `trace.artifacts.page(value, options)` | Original value or artifact marker. |
-| `trace.artifacts.get(id)` | `trace.artifacts.get(id)` | Stored JSON value. |
-| `trace.exporter(options?)` | `trace.exporter(service_name=...)` | Per-service trace-bound exporter buffer. |
+| `recordSpan(name, options?)` | `record_span(name, **options)` | Buffer a span and return it |
+| `export()` | `export()` | POST the buffer to `{baseURL}/v1/traces` and clear it |
+| `flush()` | `flush()` | Alias for `export()` |
+| `buildPayload()` | `build_payload()` | The OTLP/JSON body, without sending |
+| `pending` | `pending` | Spans buffered and in flight |
+| `newTraceId()`, `newSpanId()` | `new_trace_id()`, `new_span_id()` | Fresh ids |
+| `serviceName`, `defaultTraceId` | `service_name`, `default_trace_id` | What this exporter was bound to |
 
-Python also retains `trace.page_artifact()` and `trace.get_artifact()` aliases. Python trace tool/artifact option dictionaries use wire keys such as `readOnly`, `artifactEligible`, `contentType`, and `maxInlineTokens`.
+`SpanOptions` in TypeScript is `{ traceId?, spanId?, parentSpanId?, kind?, provider?, model?, operation?, toolName?, inputTokens?, outputTokens?, cachedTokens?, costUsd?, workflow?, status?, startTimeNs?, endTimeNs?, attributes? }`. Python takes the same set as keyword arguments in snake_case, with `status="ok"` and `kind=3` as defaults. [Tracing](/docs/sdk/tracing) has the attribute mapping.
 
-## Result types
+## RuntimePolicyClient
 
-| Type | Main fields; Python uses snake_case |
-| --- | --- |
-| `CompressResult` | `output`, `contentType`, `tokensBefore`, `tokensAfter`, `ratio`, `basis`, `tokenCountBasis`, optional recovery/method/lossless fields. |
-| `ToolSearchResult` | `tools`, `sessionId`, `sentSchemaTokens`, `fullSchemaTokens`, `deferredCount`, `method`, `tokenBasis`, `basis`, derived `savedTokens` and `reductionPct`. |
-| `ContextPackResult` | `items`, `tokensUsed`, `tokensBefore`, `tokensSaved`, `deferredCount`, `deferredIds`, `basis`. |
-| `AssemblyResult` | `request`, `headers`, `prefixHash`, `breakpoints`, `stableTokens`, `tokenBasis`, `basis`, `volatileBelowBreakpoint`. |
-| `PolicyDecision` | `decision`, `reason`, `signed`, optional workflow/policy/experiment fields and application-owned controls. |
-| `RuntimePolicyRefresh` | `ok`, `signed`, optional `error`. |
-| `RuntimePolicyState` | `hasBundle`, `signed`, `kill`, `killedLocally`, optional `policyVersion` and `sequence`. |
-
-TypeScript search results contain local `CaveTool` descriptors; Python search results contain wire dictionaries. Validate Python results against your local catalog before dispatching.
-
-Python context inputs are `ContextPackItem`, `ContextPackOptions`, `AssemblySlot`, and `AssembleOptions` dataclasses. TypeScript uses typed object literals. Service JSON responses such as checkpoints keep their snake_case wire keys in both languages.
-
-## Exporter and policy lifecycle
-
-An exporter offers `recordSpan` / `record_span`, `buildPayload` / `build_payload`, `pending`, `export`, and `flush`. Recording is local; exporting is connected. The policy client offers `refresh`, `decide`, `state`, `kill`, and `close`. Refresh is connected; decisions are local. Both require explicit application lifecycle management.
-
-`policyUnitFraction(...keys)` in TypeScript and `policy_unit_fraction(*keys)` in Python expose deterministic assignment input. They do not refresh policy or pick an executable workflow by themselves.
-
-## Middleware entrypoints
-
-TypeScript exports `createMiddlewareRuntime`, `MiddlewareRuntime`, `MiddlewareError`, `sha256`, `scopeKey`, and middleware contract types. Python exports `MiddlewareRuntime`, `AsyncMiddlewareRuntime`, `Scope`, `Candidate`, `Adapter`, `CallReport`, `Optimization`, `RecoveryBinding`, `MiddlewareError`, `sha256`, and `scope_key`, plus recovery description/schema constants.
-
-Framework adapters install separately. Follow [framework middleware](/docs/sdk/middleware) for scope, recovery, mode, and shutdown requirements.
-
-## Errors and reserved surfaces
-
-| Condition | TypeScript | Python |
+| TypeScript | Python | What it does |
 | --- | --- | --- |
-| Stable content changed | `AssemblyStabilityError`, `slotId` | `AssemblyStabilityError`, `slot_id` |
-| Identical calls exceed threshold | `RetryLoopError`, `repeats`, `threshold` | `RetryLoopError`, `repeats`, `threshold` |
-| Reserved jobs operation | `AsyncJobsUnavailableError` | `AsyncJobsUnavailableError` |
-| Connected HTTP failure | API-specific error; generic requests can expose `CaveRequestError` with `status`/`path` | Usually urllib `HTTPError`/`URLError` |
-| Compression failure | Original payload report | Original payload report |
-| Packing failure | All original items, zero inferred saving | All original items, zero inferred saving |
+| `refresh()` | `refresh()` | Fetch and verify the bundle; returns a result rather than raising |
+| `decide(taskFamily, options?)` | `decide(task_family, unit_key=None, context=None, trace=None)` | Route one task locally |
+| `kill()` | `kill()` | Latch this client onto baseline |
+| `state()` | `state()` | What the client holds now |
+| `close()` | `close()` | Stop the background refresh |
 
-Jobs methods include `submit`, `status`, `cancel`, `wait`, and `submitAndWait` / `submit_and_wait`. Every method raises or rejects with `cave_async_jobs_unavailable` before any network request. An exported `Job`, `TaskProfile`, or account-specific result type is not proof that a service feature is available.
+TypeScript's `DecideOptions` is `{ unitKey?, context?, trace? }`; Python takes the three as positional or keyword arguments. `policyUnitFraction(...keys)` and `policy_unit_fraction(*keys)` are module-level functions that return the assignment fraction. [Runtime policy](/docs/sdk/policy) covers every decision reason.
 
-The core packages do not export `parseReceipt`, `gatewayConfig`, or `gatewayHeaders`, or their Python snake_case spellings. Provider calls do not accept the previously documented `optimize` option. Use [troubleshooting](/docs/sdk/troubleshooting) to migrate those examples.
+## RetryLoopBreaker
+
+| TypeScript | Python | What it does |
+| --- | --- | --- |
+| `record(name, args)` | `record(name, arguments)` | Count a call, throwing past the threshold |
+| `guard(name, args, fn)` | `guard(name, arguments, fn)` | Record, then run `fn` |
+| `signature(name, args)` | `signature(name, arguments)` | The canonical signature string |
+| `reset()` | `reset()` | Clear the streak |
+| `threshold` | `threshold` | Default 3, fires on the fourth identical call |
+
+## JobsClient
+
+`cave.jobs` is a reserved surface. `submit`, `status`, `cancel`, `wait` and `submitAndWait` all raise `AsyncJobsUnavailableError` locally, before any request.
+
+## Errors
+
+| Class | Package | When |
+| --- | --- | --- |
+| `CaveRequestError` | TypeScript | A non-200 or an unparseable body on an events, artifact, checkpoint or shared-context call. Carries `status` and `path` |
+| `AssemblyStabilityError` | Both | A `stable` or `session` slot changed inside its session |
+| `RetryLoopError` | Both | An identical tool call repeated past the threshold. Carries `signature`, `repeats`, `threshold` |
+| `AsyncJobsUnavailableError` | Both | Any `jobs` method. Carries `code` `cave_async_jobs_unavailable` |
+| `urllib.error.HTTPError` | Python | Any non-200 the Python client does not pass through |
+
+Python raises `ValueError` for bad arguments where TypeScript throws a plain `Error`. [Troubleshooting](/docs/sdk/troubleshooting) lists the messages.
+
+## Exported types
+
+TypeScript exports these type declarations alongside the classes: `CaveOptions`, `TraceOptions`, `ToolOptions`, `CaveTool`, `ToolSearchResult`, `CompressOptions`, `CompressResult`, `ContextPackItem`, `ContextPackOptions`, `ContextPackResult`, `AssemblyStability`, `EmitCacheHints`, `AssemblySlot`, `AssembleOptions`, `AssemblyResult`, `TaskProfile`, `SpanOptions`, `OTelSpan`, `LatencyClass`, `Job`, `RuntimePolicyGuard`, `RuntimePolicyArm`, `RuntimePolicyExperiment`, `RuntimePolicyDoc`, `PolicyDecisionReason`, `PolicyDecision`, `RuntimePolicyOptions`, `RuntimePolicyRefresh`, `RuntimePolicyState`, `PolicySpanRecorder`, `PolicySpanSink`, `DecideOptions`, and the `CavePlan` interfaces.
+
+Python's `__all__` is `AsyncJobsUnavailableError`, `AssembleOptions`, `AssemblyResult`, `AssemblySlot`, `AssemblyStabilityError`, `Cave`, `CaveTool`, `CompressResult`, `ContextPackItem`, `ContextPackOptions`, `ContextPackResult`, `Job`, `JobsClient`, `OTelExporter`, `OTelSpan`, `PolicyDecision`, `RetryLoopBreaker`, `RetryLoopError`, `RuntimePolicyClient`, `RuntimePolicyRefresh`, `RuntimePolicyState`, `TaskProfile`, `ToolSearchResult`, `policy_unit_fraction`.
+
+Python's results are dataclasses, so field access is `report.tokens_before` rather than a dictionary lookup. `ToolSearchResult.saved_tokens` and `reduction_pct` are properties computed from the two schema-token counts.

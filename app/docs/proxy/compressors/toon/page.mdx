@@ -1,0 +1,211 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/toon");
+
+<DocSchema slug="proxy/compressors/toon" />
+
+TOON is a line-oriented encoding of the JSON data model. An array of uniform flat objects becomes one header line
+naming the fields and one line per row, so the field names are written once instead of once per element. Nothing
+is dropped: decoding the TOON gives back the same JSON value, with the same keys and the same numbers.
+
+Looking for the compressor that drops array elements? That is [JSON](/docs/proxy/compressors/json). TOON never
+drops one.
+
+## Before and after
+
+The fixture is a 60 row inventory response, 4,151 bytes of minified JSON.
+
+```json
+{"rows":[{"id":1,"sku":"sku-1001","region":"emea","units":9,"in_stock":false},{"id":2,"sku":"sku-1002","region":"apac","units":8,"in_stock":true},
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/toon/inventory.json
+caveman-engine toon encode < inventory.json
+```
+
+```text
+rows[60]{id,sku,region,units,in_stock}:
+  1,sku-1001,emea,9,false
+  2,sku-1002,apac,8,true
+  3,sku-1003,emea,1,true
+  4,sku-1004,amer,5,true
+```
+
+The first line declares the row count and the field order. Every following line is one object, delimited by
+commas, in that field order. The rest of the 60 rows follow the same shape.
+
+`toon encode` and `toon decode` are stateless: they read stdin, write stdout, and store nothing.
+
+```bash
+caveman-engine toon encode < inventory.json | caveman-engine toon decode > roundtrip.json
+```
+
+```python
+python3 -c "import json; print(json.load(open('inventory.json')) == json.load(open('roundtrip.json')))"
+```
+
+```text
+True
+```
+
+The same two verbs exist on the CLI as `caveman toon encode` and `caveman toon decode`, which shell out to the
+engine binary. `caveman toon decode` fails loudly when the engine binary is missing rather than passing raw TOON
+through as if it were JSON.
+
+### As a compressor
+
+Running it through the compressor path counts the tokens and stores the original.
+
+```bash
+caveman-engine compress --type toon < inventory.json 2> report.json > inventory.toon
+```
+
+```json
+{"content_type":"toon","tokens_before":1489,"tokens_after":898,"ratio":0.3969106…,
+ "basis":"inferred","recovery_handle":"ccr_b1b4…","method":"toon","lossless_to_model":true}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+1,489 tokens to 898 on that fixture, counted by the offline `o200k_base` counter described on
+[Token counting](/docs/proxy/tokens). The handle and the trailing digits of the ratio are trimmed with `…` here.
+`lossless_to_model` is `true`, which no other compressor reports: the model sees a different encoding of the same
+value, not a reduced view of it.
+
+## How it works
+
+The input is decoded with `json.Decoder` in number-preserving mode, so `1.50` stays `1.50`. A duplicate key
+anywhere in the document is rejected outright, because TOON has no way to represent two members with the same
+name.
+
+Encoding walks the value and writes lines. Indentation is two spaces per level.
+
+| Shape | Line |
+| --- | --- |
+| Scalar under a key | `name: value` |
+| Object under a key | `name:` then its fields indented one level |
+| Empty object | `{}` at the root, `name: {}` under a key |
+| Array of scalars | `name[3]: a,b,c` |
+| Array of uniform flat objects | `name[2]{id,sku}:` then one indented line per element |
+| Empty array | `[]` at the root, `name[0]: []` under a key |
+
+Object fields are written in sorted order by name. Array element order is the document's own, unchanged.
+
+An array qualifies for the tabular form when its first element is a non-empty object whose values are all scalars,
+and every later element is an object with the same field names, in the same order, all scalar. One element out of
+order or one nested value and the whole encode reports a parse problem, and the caller forwards the original
+bytes.
+
+Keys have to match `^[A-Za-z_][A-Za-z0-9_.-]*$`. A key with a space, a slash, or a leading digit makes the encode
+decline.
+
+A scalar cell is written bare unless it would be ambiguous, in which case it is written as a JSON string. Quoting
+is triggered by an empty string, leading or trailing whitespace, any of `\n`, `\r`, `\t`, `"`, `:` or the
+delimiter, a first character of `[`, `{`, `"`, `-`, or a digit, the literals `true`, `false`, `null`, and any
+string that would parse as a JSON number.
+
+Decoding is the strict inverse. Every line must have an even number of leading spaces and no line may be blank. A
+tabular header declaring `N` rows must be followed by exactly `N` lines at one deeper indentation, each with
+exactly as many cells as the header has fields, and a count larger than the number of remaining lines is rejected
+before anything is allocated. A repeated key at the same level is rejected.
+
+A round trip returns the same JSON value, not the same bytes: object keys come back sorted, and a document that
+was pretty-printed comes back minified.
+
+## What is always kept
+
+Every key, every value, every array element, and the original text of every number. The encoder is a total
+function on its supported subset and a refusal everywhere else, so there is no shape it silently trims. The
+committed fuzz target `FuzzTOONRoundTrip` encodes, decodes, and compares against the canonical JSON value on every
+input it accepts.
+
+## When it is chosen
+
+Detection never returns `toon`. A JSON payload detects as `json`.
+
+```bash
+caveman-engine detect < inventory.json
+```
+
+```text
+json
+```
+
+There are two ways in. The first is naming it: `caveman-engine compress --type toon`, or `caveman compress --toon`
+on the CLI, which forces the same type.
+
+The second is the best-of selector. With `CAVE_ENGINE_TOON=best-of` in the environment, the engine registers a
+different compressor for content type `json`: it runs the TOON encoder and the JSON elider on the same payload,
+counts the tokens of each result, and emits whichever is smaller. The report says which one ran in `method`, and
+`lossless_to_model` tells you whether it was the lossless path.
+
+A seven element array shows the selection clearly. It is under the JSON elider's eight element floor, so the
+elider has nothing to collapse and the payload passes through:
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/toon/small.json
+caveman-engine compress < small.json
+```
+
+```json
+{"content_type":"json","tokens_before":144,"tokens_after":144,"ratio":0,"basis":"inferred"}
+```
+
+With the selector on, TOON wins because it is the only candidate that got smaller:
+
+```bash
+CAVE_ENGINE_TOON=best-of caveman-engine compress < small.json
+```
+
+```text
+rows[7]{id,sku,region,units}:
+  1,sku-2001,apac,5
+  2,sku-2002,apac,6
+  3,sku-2003,apac,9
+  4,sku-2004,emea,8
+  5,sku-2005,emea,1
+  6,sku-2006,emea,2
+  7,sku-2007,amer,8
+```
+
+```json
+{"content_type":"json","tokens_before":144,"tokens_after":109,"ratio":0.2430555…,
+ "basis":"inferred","recovery_handle":"ccr_aaa1…","method":"toon","lossless_to_model":true}
+```
+
+The elider wins on the 60 row fixture at the top of this page: it reaches 413 tokens against TOON's 898, because
+it is allowed to drop rows and TOON is not. Whichever wins, the original is stored and the handle is in the
+report.
+
+TOON declines, and the bytes go through unchanged, on malformed JSON, on a duplicate key, on a key outside the
+safe pattern, on a ragged or nested array that cannot take the tabular form, when the result counts no fewer
+tokens than the input, and when no recovery store is available.
+
+## Options
+
+The proxy's TOON behaviour is the `think.toon` capability, which is on by default. Inspect it with the CLI:
+
+```bash
+caveman tools config get
+```
+
+Trimmed to the three `think` settings:
+
+```text
+think.mode = compress  (default)
+think.core = true  (default)
+think.toon = true  (default)
+```
+
+The proxy that `caveman wrap` and `caveman start` launch receives `CAVE_ENGINE_TOON=best-of` when the mode is
+`compress` and `think.toon` is true. Record mode and pixel mode both turn it off. Set it with
+`caveman tools config set think.toon false`, or per run with the `CAVEMAN_TOON` environment variable.
+
+Inside the encoder, `EncodeOptions.Delimiter` accepts a comma or a tab and rejects anything else. The registered
+compressor uses a comma.
+
+## Recovery
+
+The original JSON is stored before the TOON view is emitted, and the handle in the report retrieves it byte for
+byte: see [Recovery](/docs/proxy/recoverable).

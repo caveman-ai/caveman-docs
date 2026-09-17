@@ -4,110 +4,171 @@ export const metadata = docMetadata("agent-sdk/deploy");
 
 <DocSchema slug="agent-sdk/deploy" />
 
-`caveman-agent serve` puts one agent directory behind an HTTP endpoint, journals every run, and re-drives whatever a previous instance left unfinished.
+`caveman-agent serve` puts one agent definition behind HTTP. Every run is journaled before it spends anything, so an instance that dies mid-run is picked up by the next one instead of starting over. The same server is available as a library, and as a web-standard `fetch(Request)` handler for runtimes that have no Node HTTP server.
 
 ```bash
-CAVE_SERVE_TOKEN=$(openssl rand -hex 24) caveman-agent serve
+export CAVE_SERVE_TOKEN=$(openssl rand -hex 24)
+caveman-agent serve . --port 8080
 ```
 
-```
-POST /runs          {"runId":"...","input":"..."}   202 accepted, 200 if already settled
-GET  /runs/{runId}                                  the run's journaled status
-GET  /healthz                                       liveness, no credential
-GET  /readyz                                        503 until the recovery sweep finishes
+```console
+cave: support serves with host execution — tools are not isolated
+caveman-agent serve: listening on 0.0.0.0:8080 (journal: local disk)
 ```
 
-`/runs` requires `Authorization: Bearer $CAVE_SERVE_TOKEN`. There is no unauthenticated mode: the endpoint spends money and returns model output. The server refuses to start without a token of at least 16 characters.
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
 
-```bash
-curl -XPOST "$AGENT_URL/runs" \
-  -H "authorization: Bearer $CAVE_SERVE_TOKEN" \
-  -d '{"runId":"ticket-8231","input":"Can I get a refund?"}'
+Those two lines are different streams, merged above: the first is stderr, the second stdout. The first line appears when the definition declares no `sandbox` posture. Declare one to make the posture intentional: [Sandbox and execution](/docs/agent-sdk/sandbox).
+
+## The command
+
+`caveman-agent serve [dir] [--port N] [--host H] [--locked]`. The directory argument comes first. With `instructions.md` present it loads the [agent directory](/docs/agent-sdk/define); otherwise it loads `src/agent.ts` under that directory.
+
+| Setting | Source | Default |
+|---|---|---|
+| Bearer token | `CAVE_SERVE_TOKEN` | required, the command refuses to start without it |
+| Port | `--port`, then `PORT` | `8080` |
+| Host | `--host`, then `HOST` | `0.0.0.0` |
+| Journal | `CAVE_JOURNAL_URL` with `CAVE_JOURNAL_TOKEN` | local disk under `<dir>/.caveman/runs/durable` |
+| Build lock | `--locked` | unlocked, reading `.caveman/agent.lock.json` when set |
+
+Both refusals name themselves. Each was captured in its own shell, not the one the setup block above exported a token into:
+
+```console
+$ caveman-agent serve .
+caveman-agent: caveman-agent serve: set CAVE_SERVE_TOKEN; an unauthenticated agent endpoint spends money for anyone who finds it
+
+$ CAVE_SERVE_TOKEN=… CAVE_JOURNAL_URL=https://journal.example.com caveman-agent serve .
+caveman-agent: caveman-agent serve: CAVE_JOURNAL_URL needs CAVE_JOURNAL_TOKEN
 ```
 
-Submission is asynchronous. The response is `202` with the run id; poll `GET /runs/{runId}` for the result. That endpoint reads the journal, so it answers `pending`, `completed`, or `failed` without driving anything, a completed run carries the full `RunResult`, receipt included, under `result`. Input is text only, multimodal input journals a digest rather than the content, so no unattended resume could reconstruct it, and the server refuses it rather than accepting a run it could not recover.
+The token check runs before the directory is loaded. The journal check runs after, so the second capture needs a directory that loads: `src/agent.ts` or an `instructions.md` beside it, and a provider credential for `auto()`.
 
-## Why a restart does not lose work
+`SIGTERM` and `SIGINT` drain for up to 30 seconds, then exit. Anything still unfinished stays journaled and the next instance resumes it.
 
-Durability is the [journal's](/docs/agent-sdk/durable), not the server's. The server adds the three things a hosting platform needs on top of it.
-
-**An idempotent submit.** `runId` is already the durable idempotency key. Resubmitting a settled run replays its journaled outcome and spends nothing; resubmitting an interrupted one resumes it.
-
-**Recovery.** An instance that dies mid-run leaves a journal with no terminal event. On boot, and every 60 seconds after, the server enumerates the store and re-drives exactly those runs. The periodic pass also discovers due or interrupted work after startup. `/readyz` reports `503` until the first sweep finishes, so a platform does not route traffic to an instance that has not yet reclaimed its own work.
-
-**A drain.** `SIGTERM` stops intake and lets in-flight runs settle. Anything that does not finish is still journaled and picked up by the next instance, so a short grace period costs latency, never correctness.
-
-Two things the sweep will not do quietly. A run whose input was multimodal is reported as skipped rather than resumed, because only a caller still holding the original input can resume it. A store that cannot enumerate its runs reports `listable: false` instead of an empty, falsely reassuring sweep.
-
-## Configuration
-
-| Variable | Meaning |
-|---|---|
-| `CAVE_SERVE_TOKEN` | Required. Bearer token for `/runs`. |
-| `CAVE_JOURNAL_URL` | Optional. HTTP journal instead of local disk. |
-| `CAVE_JOURNAL_TOKEN` | Required with `CAVE_JOURNAL_URL`. |
-| `PORT` / `HOST` | Default `8080` / `0.0.0.0`. |
-
-`caveman-agent serve --locked` runs every request through the frozen build in `.caveman/agent.lock.json` instead of an unlocked definition.
-
-Embedding it in your own process is the same contract:
+## The same server as a library
 
 ```ts
+import { agent, auto } from "@caveman-ai/agent";
 import { createAgentServer } from "@caveman-ai/agent/serve";
-import support from "./agent.js";
+
+const support = agent({ id: "support", instructions: "Answer from policy.", model: auto() });
 
 const server = createAgentServer({
   definition: support,
-  token: process.env.CAVE_SERVE_TOKEN,
-  maxConcurrentRuns: 4,
+  token: process.env.CAVE_SERVE_TOKEN!,
 });
-await server.listen(8080);
+const port = await server.listen(8080);
 ```
 
-## Containers
+`token` must be at least 16 characters; a shorter one throws `cave_serve_token_required` at construction. `listen(port, host = "0.0.0.0")` returns the bound port, which is the real one when you pass `0`. `recover()` runs one recovery pass, `nextWakeAt()` returns the earliest time a sleeping run is due, and `close(graceMs = 30_000)` stops accepting work and waits for active runs.
 
-Use a Node container when your agent requires local shell tools and Node runtime facilities. A separate web-standard handler exists, but its HTTP shape alone does not establish edge-runtime compatibility. The shipped container template is a starting point:
+`runOptions` accepts an object or a factory `({ sessionId, runId, principal }) => RunOptions`, and the server owns `durable`, `controller`, `conversation`, and `signal`. Passing any of those throws rather than being silently ignored.
+
+### On Cloudflare, Deno, and Bun
+
+```ts
+import { createAgentHandler } from "@caveman-ai/agent/serve-handler";
+
+const handler = createAgentHandler({
+  definition: support,
+  token: process.env.CAVE_SERVE_TOKEN!,
+});
+
+export default { fetch: (request: Request) => handler.fetch(request) };
+```
+
+It is the same routing, sessions, journaling, and recovery as `createAgentServer`, minus the Node listener. WebSocket upgrades are host-owned: supply `upgrade(request)` returning `{ response, socket }` (a Cloudflare `WebSocketPair`, for instance), or the `/ws` route answers `501 {"error":"cave_serve_websocket_unavailable"}`.
+
+## Routes
+
+Sessions are on [Sessions](/docs/agent-sdk/sessions). One run at a time, addressed by its own id, is here.
+
+| Route | Body | Answer |
+|---|---|---|
+| `POST /runs` | `{runId, input, context?}` | `202 {"runId":…,"status":"running"}`, or `"resuming"` for a journaled run, or `"sleeping"` with `wakeAt` |
+| `GET /runs/{id}` | | `200` with the journal summary, `404 {"status":"missing"}` |
+| `GET /runs/{id}/events` | | Server-Sent Events while the events are still retained |
+| `DELETE /runs/{id}` | | `202 {"status":"requested",…}`, `409 already_settled`, `404` |
+| `GET /healthz` | | `200 {"status":"ok"}`, no bearer needed |
+| `GET /readyz` | | `200 {"status":"ready","active":1,"queued":0}`, `503` while recovering |
+
+```console
+$ curl -s -X POST localhost:8080/runs -H "authorization: Bearer $CAVE_SERVE_TOKEN" \
+    -H "content-type: application/json" \
+    -d '{"runId":"nightly-2026-09-16","input":"Where is order A-123?"}'
+{"runId":"nightly-2026-09-16","status":"running"}
+
+$ curl -s localhost:8080/runs/nightly-2026-09-16 -H "authorization: Bearer $CAVE_SERVE_TOKEN"
+{"status":"completed","runId":"nightly-2026-09-16","agentId":"support","result":{…},"settledAt":"2026-09-17T03:49:06.041Z"}
+
+$ curl -s -X DELETE localhost:8080/runs/nightly-2026-09-16 -H "authorization: Bearer $CAVE_SERVE_TOKEN"
+{"status":"already_settled","terminal":"completed"}
+```
+
+The `result` object is trimmed above; it is the whole `RunResult`, receipt included. Posting the same `runId` again after it settled returns the journaled summary and spends nothing, which is what makes the id an idempotency key: [Durable runs](/docs/agent-sdk/durable).
+
+Errors name themselves the same way: `cave_serve_run_id_required`, `cave_durable_run_id_invalid`, `cave_serve_input_must_be_text`, `cave_serve_body_too_large` with `413`, `cave_serve_queue_full` with `503` and `retry-after: 5`.
+
+A run id ending in a dot and digits is reserved for session runs, because that is the form the server mints for them. `POST /runs` with one answers `400 {"error":"cave_serve_run_id_reserved"}`:
+
+```console
+$ curl -s -X POST localhost:8080/runs -H "authorization: Bearer $CAVE_SERVE_TOKEN" \
+    -H "content-type: application/json" -d '{"runId":"case-42.1","input":"Where is order A-123?"}'
+{"error":"cave_serve_run_id_reserved"}
+```
+
+`GET /runs/{id}/events` serves an in-memory window per run. The window is held five minutes after the run settles, and at most 256 settled runs are retained at once, oldest dropped first. Past either bound it answers `409 {"error":"cave_serve_events_not_retained"}` and points at `GET /runs/{id}`, which reads the journal and is always authoritative.
+
+Configuring `authenticate` makes `/runs` answer `403 {"error":"cave_serve_runs_require_single_principal"}`, because a raw run id carries no tenant. Use `/sessions` there.
+
+## Unfinished runs at boot
+
+`listen()` claims the store's instance lease, starts the listener, then sweeps the journal store once and every 60 seconds after that. The sweep is also how a run stranded by another instance's death gets picked up.
+
+```json
+{
+  "listable": true,
+  "resumed": ["nightly-2026-09-16"],
+  "skipped": [],
+  "sleeping": []
+}
+```
+
+That is `recover()` on a store whose driving process was killed mid-call. Each pending journal lands in exactly one bucket.
+
+<Steps>
+<div>
+**resumed.** The run had no terminal event, is due now, and its journaled input is the literal input. It goes back on the queue and re-drives from its last checkpoint.
+</div>
+
+<div>
+**sleeping.** A durable sleep is outstanding, so the entry carries `wakeAt` and the instance leaves it alone. Nothing holds a process open for it, which is the point: a run waiting on tomorrow morning costs no container time.
+</div>
+
+<div>
+**skipped.** A cancellation was requested before the sweep saw it, or the journal could not be read, or the input is the multimodal digest form and cannot be replayed unattended (`cave_serve_resume_needs_original_input`). Re-post that run with its original input to continue it.
+</div>
+</Steps>
+
+`listable: false` means the store cannot enumerate its runs, so nothing is swept. The disk, HTTP, SQL, and object stores all implement `list()`.
+
+## Verify and undo
 
 ```bash
-docker build -f node_modules/@caveman-ai/agent/hosting/Dockerfile -t my-agent .
+curl -s localhost:8080/readyz
 ```
 
-Whatever the platform, Cloudflare, Fly, Railway, Render, ECS, Kubernetes, three things decide whether the deployment is actually durable:
-
-1. **The journal must outlive the instance.** Mount a volume at `/app/.caveman`, or set `CAVE_JOURNAL_URL`. A lost journal is a lost resume.
-2. **Point health checks at `/healthz` and readiness at `/readyz`.** They mean different things here.
-3. **Allow at least 30s for `SIGTERM` drain.**
-
-## Cloudflare
-
-Workers has no `node:child_process`, which the runtime needs, so the agent runs in a **Container** with a Worker in front of it. The Worker holds the journal in a Durable Object: a single writer with ordered appends whose response is delivered only once the write is durable, exactly what `DurableStore` asks for, and exactly what a container with scratch disk cannot provide for itself.
-
-```
-request ──▶ Worker ──▶ Container (caveman-agent serve)
-               ▲              │
-               └── journal ◀──┘
+```console
+{"status":"ready","active":1,"queued":0}
 ```
 
-A complete Worker, `wrangler.jsonc`, and `Dockerfile` ship in the package:
+`ready` appears after the first recovery pass finishes. Stop the server with `SIGTERM`; it drains, releases the instance lease, and leaves the journal on disk. Restarting against the same journal directory picks up exactly where it stopped, and deleting that directory throws the history away.
 
-```bash
-npm install @cloudflare/containers
-npm install -D wrangler
+## Limits
 
-cp node_modules/@caveman-ai/agent/hosting/cloudflare/* .
-# set PUBLIC_URL in wrangler.jsonc to your deployed Worker origin
-wrangler secret put CAVE_SERVE_TOKEN
-wrangler secret put CAVE_JOURNAL_TOKEN
-wrangler secret put ANTHROPIC_API_KEY
-wrangler deploy
-```
+One live instance per journal store. Session state lives in the process that created it, so `listen()` refuses to start with `cave_serve_instance_already_active` while another instance holds the lease. Active/standby works because a dead instance's lease expires.
 
-The container reaches the journal over the Worker's public origin with its own bearer token; the journal is a private back channel, not part of the public API. One Durable Object holds every run's journal, which keeps listing runs a local query. Scaling requires a session-ownership and listing strategy; splitting journals alone does not distribute the live session state.
+Defaults: two concurrent runs, 64 queued, 1 MiB request bodies. Raise them with `maxConcurrentRuns`, `maxQueuedRuns`, and `maxBodyBytes`.
 
-## Sessions, streaming, and ownership
-
-The server also provides `GET /runs/{id}/events` for SSE, `DELETE /runs/{id}` for cancellation, and the [session endpoints](/docs/agent-sdk/sessions) for conversations. A run event stream is bounded; `GET /runs/{id}` remains the journaled outcome.
-
-`singleInstance` defaults to `true`: the Node server refuses startup while another live instance owns the same store. Active/standby takeover is supported. Active/active replicas do not share queues, replay buffers, or session deletion state.
-
-For platform-owned HTTP use `createAgentHandler` from `@caveman-ai/agent/serve-handler`. The host owns upgrades, recovery calls, alarms, and runtime compatibility. Do not assume a Fetch handler means arbitrary tools can run in an edge isolate.
+The endpoint spends money on behalf of whoever holds the token. Terminate TLS in front of it, and put authorization in your own route rather than handing the token to a client.

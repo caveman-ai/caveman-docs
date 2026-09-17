@@ -21,15 +21,35 @@ backstop, not permission to stop thinking.
 
 ## Where the facts come from
 
-This repository holds no product code, so it cannot verify its own claims. Facts
-come from the Caveman monorepo, which must be checked out separately.
+This repository holds no product code, so it cannot verify its own claims.
+Three sibling checkouts do:
 
 ```bash
-CAVEMAN_ROOT="${CAVEMAN_REPO:-../Caveman-Cloud}"
+CAVEMAN_PUBLIC="${CAVEMAN_PUBLIC_REPO:-../caveman}"          # JuliusBrussee/caveman: the product
+AGENT_SDK="${CAVEMAN_AGENT_SDK_REPO:-../caveman-agent-sdk}"  # caveman-ai/agent-sdk
+CAVEMAN_ROOT="${CAVEMAN_REPO:-../Caveman-Cloud}"             # the registry, PRODUCTS.yaml
 ```
 
 | What | Where |
 |---|---|
+| What may be documented | `$CAVEMAN_ROOT/PRODUCTS.yaml` |
+| What a command does | `$CAVEMAN_PUBLIC/packages/cli/src/index.ts`, then run it from `~/.caveman/bin` |
+| How a compressor works | `$CAVEMAN_PUBLIC/engine/compressors/*.go` |
+| The published numbers | `$CAVEMAN_PUBLIC/README.md`, "The Numbers" |
+| Licence for a path | `$CAVEMAN_PUBLIC/LICENSING.md` |
+| Agent SDK API | `$AGENT_SDK/packages/agent/src/` and `$AGENT_SDK/examples/` |
+
+`content/external-capabilities.json` records the already-public SDK capabilities
+that moved out of the central registry. The sync script merges these records
+but refuses any capability the central registry now marks private. Never use
+this file to override a private classification. `content/docs-sync-state.json`
+records the public commits and registry versions checked in the last refresh.
+
+The authoring skill lives in the Caveman-Cloud repository at
+`.agents/skills/caveman-docs/SKILL.md`. Its `references/writing-rules.md` is
+the page shape and the voice. Read both before writing a page.
+
+---|---|
 | What is public | `$CAVEMAN_ROOT/PRODUCTS.yaml` |
 | Licence for a path | `$CAVEMAN_ROOT/LICENSING.md` |
 | Why a thing is the way it is | `$CAVEMAN_ROOT/docs/decisions/` |
@@ -126,13 +146,19 @@ the recovery path in a diagram. It is not available for anything else.
 
 ## Writing
 
-No em dashes. Active voice. Sentence case headings. Say what a thing cannot do.
+Every page: what it does in one to three sentences, who should leave, code
+within the first screen, real output under every command, how it works, verify
+and undo, limits. Runnable examples in the product's own idiom. Numbers early,
+with their source in the same sentence. Limits in one section per page and one
+site-wide page, never repeated per paragraph.
 
-Three words with fixed meanings, never blurred: `inferred` is a local per-run
-estimate, `measured` is observed traffic, `verified` is reserved for hosted
-systems that can compare against a bill. Nothing documented here emits
-`verified`. Local figures are never multiplied into a monthly number and never
-converted to money.
+No em dashes. Active voice. Sentence case headings that name a thing.
+
+Three words with fixed meanings: `inferred` is a local offline token estimate,
+`measured` is observed traffic, `verified` is a hosted comparison against a
+bill. Public tools emit `inferred`. Define them once on Numbers and limits and
+link; do not re-explain per page. Local figures are never multiplied into a
+monthly number and never converted to money.
 
 Full rules are in the authoring skill's `references/writing-rules.md`.
 

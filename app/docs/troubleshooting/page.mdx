@@ -1,0 +1,97 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("troubleshooting");
+
+<DocSchema slug="troubleshooting" />
+
+The symptom you are looking at, what produced it, and the command that fixes it. Every quoted string here is text one of the local tools prints. Errors raised by the client libraries in your own application are on [SDK troubleshooting](/docs/sdk/troubleshooting).
+
+Two commands answer most of it:
+
+```bash
+caveman status                      # what is on, and every reason something is off
+~/.caveman/bin/caveman-proxy status # the running proxy: owner, mode, recovery
+```
+
+`caveman status` prints one line for every technical reason compression is degraded, from the CLI's own off-state table. A wrap prints the first of those lines under the `caveman · <mode> · <agent>` banner as it starts.
+
+## The skill
+
+| Symptom | What it means | Fix |
+|---|---|---|
+| `/caveman` is not a recognised command | The slash command comes with the Claude Code plugin and the Gemini CLI extension. An `npx skills add` install writes the skill file and no command. | Say `caveman mode` in the session, which the skill's own description answers to, or install the plugin: `claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman`. |
+| `cat: …/.caveman-active: No such file or directory` | The SessionStart hook has not run. That file is the plugin's last-write-wins mirror of the current mode, and it appears once a session starts with the hooks installed. | Confirm `$CLAUDE_CONFIG_DIR/settings.json` carries hooks naming `caveman-activate.js` and `caveman-mode-tracker.js`, then start a new session: the hook fires at session start only. To see it fail, run `node $CLAUDE_CONFIG_DIR/hooks/caveman-activate.js < /dev/null`, keeping the redirect, because the hook reads its payload from stdin. |
+| One window answers in caveman, another does not | Mode is per session. `$CLAUDE_CONFIG_DIR/.caveman-sessions/` holds one file per window. | Say `/caveman` in the window you want it in. |
+| Answers are short but the agent still writes preambles | The skill is loaded and the level is `lite`. | `/caveman full` or `/caveman ultra`. [Levels](/docs/skill#levels) shows the same answer at each one. |
+
+## The CLI
+
+| Symptom | What it means | Fix |
+|---|---|---|
+| ``unknown command "frobnicate" — did you mean `caveman cloud projects`?`` | The verb is not in the handler table. The suggestion is the nearest match. | `caveman --help` for the top-level verbs, `caveman help tools` for the local ones. |
+| `spawnSync caveman-proxy ENOENT` | The CLI could not resolve the proxy binary. It looks at `CAVEMAN_PROXY_BIN`, then `PATH`, then `$CAVEMAN_HOME/bin`, which defaults to `~/.caveman/bin`. | `caveman setup --install`, or unset a `CAVEMAN_HOME` left over from another run. `caveman setup` with no flag prints every binary and its resolved path. |
+| `Detailed stats require an updated proxy: caveman setup --install` | The installed `caveman-proxy` is older than the `caveman.stats.v1` report, so the CLI prints what that binary produced instead of the accounting report. | `caveman setup --install`. Filtered stats and HTML reports refuse outright on that binary rather than printing something thinner than asked for. |
+| ``no Claude Code or Codex sessions found in the last 30d — the plan needs a block repeated across ≥3 sessions; run `caveman claude` a few times, then `caveman learn` `` | `caveman learn` scanned and found no history in the window. It reads Claude Code, Codex, Gemini CLI and opencode from their own directories. | Widen the window with `--since 90d`, or point at a source it can see. `CAVEMAN_AIDER_ROOT` adds Aider. |
+| `caveman trial cannot measure claude while native routing is enabled.` | Persistent routing pins the base URL inside the agent's config file, which the agent prefers over the environment the trial sets. | `caveman disable claude`, run the trial, then `caveman enable claude`. [Why disable comes first](/docs/trial#why-disable-comes-first) has the whole message. |
+| ``Claude Code integration is degraded; run `caveman doctor claude --fix` before changing it`` | Part of a native install is missing or was edited by something else, so `enable` refuses to write over it. | `caveman doctor claude --fix`. |
+
+## The proxy
+
+| Symptom | What it means | Fix |
+|---|---|---|
+| `Caveman proxy already running` from `caveman start` | Something is listening on `127.0.0.1:8787`. `caveman start` never replaces it. | If it is your own proxy, route an agent through it. If it is not, `lsof -nP -iTCP:8787 -sTCP:LISTEN` names the process. |
+| `something else is listening on 127.0.0.1:8787 — this session is not compressed; caveman will not restart a process it does not own` | A wrap found a listener whose run state it cannot read, so it launched the agent directly rather than hand your provider key to an unknown process. | Stop that process, or move caveman's listener by setting `listen:` in `~/.caveman/caveman.yaml`. |
+| `404 cave_route_not_found`, message `Proxy path is not recognized.` | The request path matched no provider adapter. A base URL missing the segment its protocol needs is the usual cause: Codex on an API key routes through `/w/codex/v1`, Aider through `/w/aider/openai/v1`. | Check the base URL the client is using, then `caveman verify`, which waits for a real request row and prints it. A proxy binary older than the route also 404s, so `caveman setup --install` if it has been a while. |
+| `401 cave_unauthorized`, message `Request rejected by the proxy authenticator.` | The proxy was started with `CAVEMAN_AUTH_TOKEN` set, and the request presented no matching `x-cave-api-key` or `Authorization: Bearer`. | Send the token, or start the proxy without one for a loopback-only session. [Exposing a proxy](/docs/proxy/shared) covers the bind. |
+| `listen address "0.0.0.0:8787" is not loopback; standalone proxy has no inbound authentication; set CAVEMAN_AUTH_TOKEN to expose the proxy beyond loopback` | The proxy refused to start. Nothing authenticates inbound traffic in front of your provider credentials until that token exists. | Bind to loopback, or set `CAVEMAN_AUTH_TOKEN` to at least 16 bytes with no spaces and start again. |
+| `502 cave_upstream_unavailable` | The upstream could not be reached or was refused. The SSRF guard blocks loopback, private and metadata addresses at dial time, so a provider base URL pointing at your own machine fails here. | For a local model server, name it in `CAVE_SSRF_ALLOWLIST` (`localhost` covers `127.0.0.0/8` and `::1`). Otherwise check the provider base URL and the network. |
+| `x-cave-mode: compress` on the response, no `x-caveman-compression-ratio` | The request reached the proxy in compress mode and nothing was eligible. A payload too small to shrink, a content type no compressor claims, or a streaming turn with no recovery path all look like this. | Check recovery first, in the row below. Then compare `requests_eligible_for_compression` against `requests` in `caveman stats`, which is [defined on Numbers and limits](/docs/counting#count-it-yourself). |
+| `MCP recovery missing — streaming turns and Claude Pro/Max sessions pass through uncompressed (non-streaming API-key traffic still compresses)` | The agent has no `caveman_retrieve` tool, so the proxy will not elide bytes from a stream it cannot expand again. | `caveman mcp install <agent>`. [Wrap an agent](/docs/proxy/wrap#recovery-has-to-be-installed) lists which doors register it for you. |
+| `record mode — pass-through by your config, nothing is compressed` | `think.mode` is set to `record`. A bare `caveman start` also resolves to `record`. | `caveman tools config set think.mode compress`, or start the proxy through `caveman wrap <agent>`, which resolves to `compress`. |
+| `caveman-proxy … is older than … — update before compressing`, naming two versions | The binary predates the CLI driving it. The same line appears for `caveman-mcp`, where a stale binary suppresses recovery without any tool being missing. | `caveman setup --install`. |
+
+## The recovery store
+
+| Symptom | What it means | Fix |
+|---|---|---|
+| `cannot open recovery store: resolve sqlite parent "…": no such file or directory`, exit 1 | `CAVEMAN_CCR_DB` points into a directory that does not exist. Nothing is written to stdout, because a lossy result with no store behind it must never be emitted. | Create the directory, or point `CAVEMAN_CCR_DB` somewhere that exists. The default is `~/.caveman/ccr.db`. |
+| `cannot open recovery store: secure sqlite "…": permission denied`, exit 1 | The store path is not writable by you. | Fix the permissions, or set `CAVEMAN_CCR_DB` to a path you own. |
+| `cannot open recovery store: migrate sqlite "…": file is not a database (26)`, exit 1 | The file at that path is not a SQLite database. | Move it aside. The next run creates a fresh store, and handles from the old one stop resolving. |
+| `"error": "cave_ccr_unavailable"` with `"ratio": 0` | The store opened and refused the write. The original bytes went through unchanged, and the report carries the pass-through counts with the error beside them. | Check that the store path is writable, then rerun. The same report shape appears when a payload is simply incompressible, so read the `error` field rather than the ratio. |
+| `"error": "cave_ccr_budget_exceeded"` with `"ratio": 0` | Retained payloads are at the cap. The default is 512 MiB and `CAVEMAN_CCR_MAX_BYTES` sets another, with 65,536 bytes as the floor. Rows are never evicted, because an already-emitted compressed payload may still reference any handle. | Raise `CAVEMAN_CCR_MAX_BYTES`, or move `~/.caveman/ccr.db` aside to start a new store and give up the old handles. |
+
+The budget case reproduces on any machine in three lines:
+
+```bash
+curl -O https://docs.caveman.so/examples/engine/big.json
+CAVEMAN_CCR_DB=/tmp/ccr-demo.db CAVEMAN_CCR_MAX_BYTES=65536 \
+  caveman-engine compress < big.json > out.json 2> report.json
+cmp big.json out.json && echo identical
+```
+
+```text
+identical
+```
+
+```json
+{
+  "content_type": "json",
+  "tokens_before": 22082,
+  "tokens_after": 22082,
+  "ratio": 0,
+  "basis": "inferred",
+  "error": "cave_ccr_budget_exceeded"
+}
+```
+
+Captured from a caveman-engine build dated 2026-08-24 on [`examples/engine/big.json`](/examples/engine/big.json), 62,082 bytes; `caveman setup --install` today pins bin-v1.1.7. The report is trimmed to the fields named above. The original bytes came back byte for byte, which is what `cmp` is checking.
+
+## Undo everything
+
+```bash
+caveman disable --all
+npx -y github:JuliusBrussee/caveman -- --uninstall
+npx skills remove caveman
+```
+
+`disable` replays each integration journal backwards. The uninstaller removes what the installer wrote and needs the CLI still on `PATH`. The skills CLI owns skill installs, so it removes those. [Add the local tools](/docs/quickstart/cli#undo) lists the three things that survive.

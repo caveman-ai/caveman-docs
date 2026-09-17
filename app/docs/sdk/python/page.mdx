@@ -4,105 +4,85 @@ export const metadata = docMetadata("sdk/python");
 
 <DocSchema slug="sdk/python" />
 
-`caveman-sdk` is the MIT-licensed Python client in the main Caveman repository. Import it as `caveman_cloud`. Version `1.1.0` requires Python 3.13 or newer, uses only the standard library at runtime, and includes `py.typed` type information.
+`caveman-sdk` is a Python client for a Caveman service: it makes provider calls through that service and sends payloads to its compression endpoint, then returns the reply as dataclasses. It imports as `caveman_cloud`, uses only the standard library, and needs Python 3.13 or newer. This page documents published version 1.1.0.
+
+Want tool results compressed inside LangChain or another Python framework, with no new code? Use [LangChain and Python](/docs/sdk/middleware/python).
 
 ## Install
 
 ```bash
-mkdir caveman-python-example
-cd caveman-python-example
-python3.13 -m venv .venv
-source .venv/bin/activate
-python -m pip install caveman-sdk==1.1.0
+pip install caveman-sdk
 ```
 
-On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Use `python -m pip` so installation targets the interpreter running your app. The PyPI package named `caveman` is unrelated.
+<Note tone="warning" title="Two names, and the short one is not ours">
+The distribution is `caveman-sdk` and the import is `caveman_cloud`. The bare `caveman` package on PyPI belongs to someone else.
+</Note>
 
-## Configure your service
+## Configure
 
-Set these variables through your shell or secret manager:
+Every call goes to the address in `base_url`. The `/sdk/v1/*` routes that `compress()`, `context` and `runtime_policy` use are served by a Caveman service; the local proxy on 127.0.0.1:8787 serves the provider routes and the middleware runtime, not those.
 
 ```bash
 export CAVE_BASE_URL="https://your-caveman-service.example"
 export CAVE_API_KEY="your-service-key"
-export CAVE_MODEL="your-enabled-model-id"
-# Only when your service requires a provider key:
 export OPENAI_API_KEY="your-provider-key"
 ```
 
-Replace the placeholder address with your configured service. The SDK does not supply a default address, obtain credentials, or start a local runtime. See [configuration](/docs/sdk/configuration).
+`agent` is a label you choose. It travels as `x-cave-agent` so the service can group requests by which application made them.
 
-## Make your first request
-
-Save this as `quickstart.py`:
+## The smallest complete program
 
 ```python
-import json
 import os
-from urllib.error import HTTPError, URLError
 from caveman_cloud import Cave
 
 cave = Cave(
     api_key=os.environ["CAVE_API_KEY"],
     base_url=os.environ["CAVE_BASE_URL"],
     agent="support-agent",
-    default_workflow="answer-question",
 )
 
-try:
-    response = cave.openai(
-        upstream_key=os.environ.get("OPENAI_API_KEY"),
-    ).responses.create({
-        "model": os.environ["CAVE_MODEL"],
-        "input": "Explain what a retry loop is in one sentence.",
-    })
-    print(json.dumps(response, indent=2))
-except HTTPError as error:
-    raise SystemExit(f"Provider request failed: HTTP {error.code}") from error
-except (URLError, TimeoutError) as error:
-    raise SystemExit(f"Service connection failed: {error}") from error
+answer = cave.openai(upstream_key=os.environ["OPENAI_API_KEY"]).responses.create(
+    {"model": "gpt-5.5", "input": "Explain what a retry loop is in one sentence."}
+)
+print(answer)
+
+log = "\n".join(f"2026-09-16T10:00:00Z INFO worker={i} health check passed" for i in range(400))
+report = cave.compress(log, content_type="log")
+
+print(report.content_type, report.tokens_before, report.tokens_after, report.ratio)
+print(report.basis, report.token_count_basis, report.method, report.recovery_handle)
 ```
 
-```bash
-python quickstart.py
+`Cave` is a dataclass, so every field is a keyword argument: `api_key`, `base_url` and `agent` are required, and `default_workflow`, `retention`, `user`, `control_url` and `verify_on_init` have defaults. Provider bodies are plain dicts, passed positionally.
+
+`cave.openai()`, `cave.anthropic()`, `cave.gemini()` and `cave.vertex()` return a `Provider` with `responses.create(...)` and `chat["completions"].create(...)`. `cave.bedrock(region=...)` describes the Bedrock surface and makes no request. [Provider calls](/docs/sdk/providers) covers all five.
+
+## What a missing route prints
+
+Running the second half of that program against a local proxy, which has no `/sdk/v1/compress`, gives the pass-through result:
+
+```console
+log 0 0 0.0
+inferred unavailable None None
 ```
 
-A successful call returns the provider JSON as a Python dictionary. It is not an HTTP response object: it has no `.headers`, `.json()`, or `.output_text` attribute.
+That is a pass-through: `output` is the payload you passed in, byte for byte. [Compression](/docs/sdk/compression) lists every trigger and the two fields that tell a pass-through from a real result.
 
-## Compress a string
+`basis` reads `"inferred"` on every compression report this client returns. [Compression](/docs/sdk/compression) has the rest of the report and what the word means.
 
-After creating `cave`, call a service that supports the compression API:
+## Types
 
-```python
-original = json.dumps({"records": [
-    {"id": 1, "status": "ok"},
-    {"id": 2, "status": "ok"},
-]})
-compressed = cave.compress(original, content_type="json")
-print(compressed.output)
-print(compressed.tokens_before, compressed.tokens_after)
-print(compressed.basis, compressed.recovery_handle)
-```
+| Dataclass | Fields |
+|---|---|
+| `Cave` | `api_key`, `base_url`, `agent`, `default_workflow`, `retention`, `verify_on_init`, `control_url`, `user` |
+| `CompressResult` | `output`, `content_type`, `tokens_before`, `tokens_after`, `ratio`, `basis`, `recovery_handle`, `method`, `lossless_to_model`, `token_count_basis` |
+| `ContextPackItem`, `ContextPackOptions`, `ContextPackResult` | The budgeted context selector. See [Context packing](/docs/sdk/context) |
+| `CaveTool`, `ToolSearchResult` | The deferred tool catalog. See [Deferred tools](/docs/sdk/tools) |
+| `AssembleOptions`, `AssemblySlot`, `AssemblyResult` | Cache-optimal request assembly |
 
-The return value is a `CompressResult` dataclass. Access its fields with dots. The SDK preserves the original string on transport or parse failure; small inputs may also remain unchanged. Read [compression](/docs/sdk/compression) before treating an unchanged result as a working service check.
+Field names match the TypeScript client one for one, in snake case. [API reference](/docs/sdk/reference) puts the two side by side.
 
-## Call from an async application
+## Limits
 
-Core client methods perform blocking I/O. They are not coroutines. Move a call off the event loop when integrating with an async application:
-
-```python
-import asyncio
-
-async def compress_tool_output(text: str):
-    return await asyncio.to_thread(cave.compress, text, content_type="text")
-```
-
-Cancelling the awaiting task does not forcibly stop the underlying thread's HTTP request. Provider calls, compression, and shared-context calls use a 300-second urllib timeout; most other connected SDK operations use 30 seconds. The core `Cave` constructor has no timeout or cancellation option. These socket timeouts are not a whole-workflow deadline.
-
-For native async framework compression, the separate middleware entrypoint exposes `AsyncMiddlewareRuntime`. That does not turn the core provider clients into async clients.
-
-## Python naming and limits
-
-Python uses `base_url`, `default_workflow`, `tool_search`, and `retry_loop_breaker`; TypeScript uses camelCase. Python chat completions use `cave.openai().chat["completions"].create(body)`. Trace providers use `trace.model["openai"]`.
-
-The SDK does not execute tool calls, process provider SSE streams, or install a compression runtime. Follow [provider calls](/docs/sdk/providers), [deferred tools](/docs/sdk/tools), [tracing](/docs/sdk/tracing), and the [API reference](/docs/sdk/reference) for complete workflows.
+`Cave(...)` raises `TypeError` when `api_key`, `base_url` or `agent` is absent, and `ValueError` when `base_url` is not an absolute http or https URL without credentials, query or fragment. `compress()` passes the payload through rather than raising. A provider call raises `urllib.error.HTTPError` when the status is outside 2xx.

@@ -112,10 +112,11 @@ export type DocProduct = {
 export const REFERENCE: DocGroup = {
   title: "Reference",
   items: [
-    { title: "Licensing", slug: "licensing", blurb: "Which surfaces are MIT, which are BSL 1.1, and what that means for you.", license: "MIT" },
-    { title: "Telemetry", slug: "telemetry", blurb: "What the CLI sends, what it never sends, and the three ways to turn it off.", capability: "cli", license: "MIT" },
-    { title: "Eval graders", slug: "evals", blurb: "The grader set used to check that compression did not change an answer.", capability: "evals", license: "MIT" },
-    { title: "Provider catalog", slug: "provider-catalog", blurb: "The model price table every cost figure is read from.", capability: "provider-catalog", license: "MIT" },
+    { title: "Licensing", slug: "licensing", blurb: "Which parts are MIT, Apache 2.0, or BSL 1.1, and what each lets you do.", license: "MIT" },
+    { title: "Telemetry", slug: "telemetry", blurb: "What the CLI sends, what it never sends, and how to turn it off.", capability: "cli", license: "MIT" },
+    { title: "Eval graders", slug: "evals", blurb: "The graders that check a compressed answer still matches the original.", capability: "evals", license: "MIT" },
+    { title: "Provider catalog", slug: "provider-catalog", blurb: "The model price table every token figure is read from.", capability: "provider-catalog", license: "MIT" },
+    { title: "Troubleshooting", slug: "troubleshooting", blurb: "The symptom you see, what it means, and the fix, for the skill, the CLI, and the proxy.", capability: "cli", license: "MIT" },
   ],
 };
 
@@ -126,22 +127,22 @@ export const PRODUCTS: DocProduct[] = [
   {
     id: "start",
     title: "Start",
-    blurb: "Where to begin, how the parts fit, and how every number is counted.",
+    blurb: "What caveman is, what it saves, and the five minute install.",
     home: "",
     groups: [
       {
         title: "Get started",
         items: [
-          { title: "Overview", slug: "", blurb: "Choose your starting point, then explore the parts of Caveman." },
-          { title: "Optimize coding agent", slug: "quickstart", blurb: "Start with Claude Code, Codex, or another coding agent. Install the skill, then inspect your token use.", capability: "skill", license: "MIT" },
-          { title: "Optimize existing app", slug: "integrations", blurb: "Keep your framework. Choose an integration and see whether Caveman applied an optimization.", capability: "sdk-ts", license: "MIT" },
+          { title: "Overview", slug: "", blurb: "Your agent bills by the word. Caveman shrinks what it writes and what it reads, on your machine." },
+          { title: "Quickstart", slug: "quickstart", blurb: "Install the skill and see shorter answers from your coding agent in under five minutes.", capability: "skill", license: "MIT" },
+          { title: "Add the local tools", slug: "quickstart/cli", blurb: "Install the CLI, wrap your agent through the proxy, find your token sinks, and measure a real session.", capability: "cli", license: "MIT" },
         ],
       },
       {
-        title: "Concepts",
+        title: "Understand",
         items: [
-          { title: "Architecture", slug: "architecture", blurb: "The path a request takes through the stack, and where the open-core line falls." },
-          { title: "How numbers are counted", slug: "counting", blurb: "Inferred against verified, per run against per month, and the four rules the code follows." },
+          { title: "How it works", slug: "architecture", blurb: "The path one request takes, where compression happens, and how every removed byte comes back." },
+          { title: "Numbers and limits", slug: "counting", blurb: "Every published number with its source, what inferred means, and what caveman will not do." },
         ],
       },
       REFERENCE,
@@ -149,9 +150,7 @@ export const PRODUCTS: DocProduct[] = [
   },
   /* One install, `npm i -g @caveman-ai/cli`, for the reader who runs Claude
    * Code, Codex or another coding agent. The skill is what the agent says,
-   * the verbs are what it reads, memory is what it never sends twice. The
-   * proxy is the same install too, but it is also a product for a team, so
-   * it has its own tab. */
+   * the local tools are what it reads, memory is what it never sends twice. */
   {
     id: "coding-agents",
     title: "Coding agents",
@@ -162,45 +161,45 @@ export const PRODUCTS: DocProduct[] = [
       {
         title: "Skill",
         items: [
-          { title: "Overview", slug: "skill", blurb: "A set of instructions that changes how your agent spends tokens. No runtime, no proxy.", capability: "skill", license: "MIT", layer: "skill" },
-          { title: "Agent profiles", slug: "skill/profiles", blurb: "The registry of coding agents the skill knows how to configure.", capability: "agent-profiles", license: "MIT", layer: "skill" },
+          { title: "The skill", slug: "skill", blurb: "One rule file that makes your agent answer in fewer tokens. One command, thirty-six agents, no runtime.", capability: "skill", license: "MIT", layer: "skill" },
+          { title: "Commands and subagents", slug: "skill/commands", blurb: "/caveman-commit, /caveman-review, /caveman-compress, the levels, and the cavecrew presets.", capability: "skill", license: "MIT", layer: "skill" },
+          { title: "Supported agents", slug: "skill/profiles", blurb: "Every agent the skill installs into, and how each one is wired.", capability: "agent-profiles", license: "MIT", layer: "skill" },
         ],
       },
       {
-        title: "Commands",
+        title: "Local tools",
         items: [
-          { title: "caveman learn", slug: "skill/learn", blurb: "Profile a local agent session and rank what is actually eating the budget.", capability: "skill-caveman-learn", license: "MIT", layer: "skill" },
+          { title: "caveman learn", slug: "skill/learn", blurb: "Read your agent history and rank what is eating the budget, with a fix behind each line.", capability: "skill-caveman-learn", license: "MIT", layer: "skill" },
+          { title: "caveman trial", slug: "trial", blurb: "Measure one real agent session through its own proxy, then read what it cost.", capability: "cli", license: "MIT" },
           { title: "caveman explore", slug: "skill/explore", blurb: "Read a repository without dragging every file into context.", capability: "skill-caveman-explore", license: "MIT", layer: "skill" },
-          { title: "CLI", slug: "cli", blurb: "The command surface: compress, detect, learn, and agent setup.", capability: "cli", license: "MIT" },
-          { title: "MCP server", slug: "mcp", blurb: "Expose compression and recall as tools any MCP client can call.", capability: "mcp", license: "MIT" },
+          { title: "CLI reference", slug: "cli", blurb: "Every verb: run, wrap, learn, trial, compress, shrink, stats, setup, and the rest.", capability: "cli", license: "MIT" },
+          { title: "MCP server", slug: "mcp", blurb: "Compression, retrieval, and stats as tools any MCP client can call.", capability: "mcp", license: "BSL-1.1" },
         ],
       },
       {
         title: "Memory",
         items: [
-          { title: "Overview", slug: "memory", blurb: "cavemem holds the context you would otherwise paste into every session.", capability: "mem", license: "MIT", layer: "memory" },
-          { title: "Recall and offload", slug: "memory/offload", blurb: "Moving a heavy instruction file out of the prompt and into recall.", capability: "mem", license: "MIT", layer: "memory" },
+          { title: "cavemem", slug: "memory", blurb: "Remember something once, recall only the part a question needs.", capability: "mem", license: "BSL-1.1", layer: "memory" },
+          { title: "Offload a large instruction file", slug: "memory/offload", blurb: "Move a heavy CLAUDE.md out of every prompt and into recall.", capability: "mem", license: "BSL-1.1", layer: "memory" },
         ],
       },
       {
         title: "Standalone tools",
         items: [
-          { title: "caveman-shrink", slug: "shrink", blurb: "Compress tool catalogs with the Go binary, or descriptions with the separate Node MCP wrapper.", capability: "shrink", license: "BSL-1.1" },
-          { title: "caveman-browse", slug: "browse", blurb: "Read web pages as compressed accessibility trees instead of raw HTML.", capability: "browse", license: "BSL-1.1" },
+          { title: "caveman-shrink", slug: "shrink", blurb: "Compress command output and tool catalogs before they reach the model.", capability: "shrink", license: "BSL-1.1" },
+          { title: "caveman-browse", slug: "browse", blurb: "Give the agent a compressed view of a web page instead of a 15,000 token accessibility dump.", capability: "browse", license: "BSL-1.1" },
         ],
       },
     ],
   },
   /* One product, three readers. Run it: a single user turning it on. Connect:
-   * the platform engineer putting it in front of a team, an SDK or LiteLLM.
-   * Compression: anyone asking what it does to their bytes. The engine used
-   * to be a top level route of its own, which asked every reader to know an
-   * internal boundary before they could find out what compression does to a
-   * diff. */
+   * the platform engineer putting it in front of a team or an SDK. Compression
+   * and Compressors: anyone who wants to know exactly what happens to their
+   * bytes, down to the algorithm. */
   {
     id: "proxy",
     title: "Proxy",
-    blurb: "Run an agent through a local or shared proxy that shrinks what leaves and keeps the original bytes.",
+    blurb: "A local proxy that shrinks logs, JSON, diffs, and tool output before the model reads them, and can hand back every byte it removed.",
     home: "proxy",
     section: "caveman",
     layer: "proxy",
@@ -208,146 +207,159 @@ export const PRODUCTS: DocProduct[] = [
       {
         title: "Run it",
         items: [
-          { title: "Overview", slug: "proxy", blurb: "Run locally or as an authenticated shared proxy; preserve provider routes and shrink eligible context.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
-          { title: "Wrap an agent", slug: "proxy/wrap", blurb: "Launch Claude Code, Codex, Gemini CLI, and seven other agents through the local listener.", license: "BSL-1.1", layer: "proxy" },
-          { title: "Modes", slug: "proxy/modes", blurb: "Record, compress, and pixel, plus the evaluation modes the runtime accepts.", license: "BSL-1.1", layer: "proxy" },
-          { title: "Configure", slug: "proxy/configure", blurb: "Feature flags, caveman.yaml, local storage, and how mode is chosen.", license: "BSL-1.1", layer: "proxy" },
+          { title: "The proxy", slug: "proxy", blurb: "Point an agent at 127.0.0.1:8787. Eligible context gets smaller on the way out; originals stay on disk.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Wrap an agent", slug: "proxy/wrap", blurb: "caveman claude, caveman codex, and the other agents the CLI can launch through the proxy.", capability: "cli", license: "MIT", layer: "proxy" },
+          { title: "Modes", slug: "proxy/modes", blurb: "record, compress, pixel, and how to tell which one ran.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Configure", slug: "proxy/configure", blurb: "caveman.yaml, environment variables, and what lives under ~/.caveman.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
         ],
       },
       {
         title: "Connect",
         items: [
-          { title: "Providers", slug: "proxy/providers", blurb: "The HTTP routes, credentials, and compatibility mounts the proxy forwards.", license: "BSL-1.1", layer: "proxy" },
-          { title: "LiteLLM", slug: "proxy/litellm", blurb: "Per call, fleet-wide behind LiteLLM, in front of it as a compat mount, and the caveman-router callback.", capability: "integration-recipes", license: "MIT", layer: "proxy" },
-          { title: "Shared proxy", slug: "proxy/shared", blurb: "Run the public proxy inside your private network with token authentication.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
-          { title: "Security", slug: "proxy/security", blurb: "Loopback and authenticated shared listeners, BYOK, SSRF checks, and local state.", license: "BSL-1.1", layer: "proxy" },
+          { title: "Providers and base URLs", slug: "proxy/providers", blurb: "The routes for Anthropic, OpenAI, Gemini, Bedrock, and Vertex, and the base URL swap for each SDK.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "LiteLLM", slug: "proxy/litellm", blurb: "In front of LiteLLM, behind it, or as a callback.", capability: "integration-recipes", license: "MIT", layer: "proxy" },
+          { title: "Shared proxy", slug: "proxy/shared", blurb: "One proxy for a team on a private network, with a token and server-side keys.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Security", slug: "proxy/security", blurb: "Loopback only by default, keys never logged, and what is on disk.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
         ],
       },
       {
-        title: "Compression",
+        title: "How compression works",
         items: [
-          { title: "The engine", slug: "proxy/engine", blurb: "The compressor the proxy calls, and the standalone binary behind it.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
-          { title: "Compressors", slug: "proxy/compressors", blurb: "One router per content shape: JSON, logs, code, diffs, search results, prose.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
-          { title: "Recoverable compression", slug: "proxy/recoverable", blurb: "Why lossy stays honest: every removed byte can be fetched back.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
-          { title: "Caching and rewriting", slug: "proxy/caching", blurb: "Stable provider prefixes and recoverable history rewrites have different costs and evidence.", capability: "rewriter", license: "BSL-1.1", layer: "proxy" },
-          { title: "Token counting", slug: "proxy/tokens", blurb: "The offline counter behind every ratio the engine reports.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "The engine", slug: "proxy/engine", blurb: "Detect the content type, pick a compressor, store the original, emit the smaller view and a handle.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Recovery", slug: "proxy/recoverable", blurb: "Every removed byte is stored under a handle first. How retrieval works and when compression refuses to run.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Token counting", slug: "proxy/tokens", blurb: "The offline o200k_base counter behind every ratio, and why the ratio is inferred.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Prompt caching", slug: "proxy/caching", blurb: "Keeping the provider's cached prefix stable while compressing what comes after it.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Pixel mode", slug: "proxy/pixel", blurb: "Render text as an image the model reads for fewer tokens. Which models, and how to check it paid off.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+        ],
+      },
+      {
+        title: "Compressors: text and output",
+        items: [
+          { title: "All compressors", slug: "proxy/compressors", blurb: "How the engine decides what a payload is, and the compressor for each content type.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Logs", slug: "proxy/compressors/logs", blurb: "Keep every error and the lines around it, fold the thousand identical INFO lines.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Terminal output", slug: "proxy/compressors/terminal", blurb: "Progress bars, ANSI, and repeated status lines from build and test runs.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Search results", slug: "proxy/compressors/search-results", blurb: "Grep and ripgrep output cut to the first and last hits, every diagnostic line, and one of each distinct kind.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Diffs", slug: "proxy/compressors/diff", blurb: "Hunks and changed lines stay, unchanged context folds.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Code", slug: "proxy/compressors/code", blurb: "Signatures and structure stay, bodies fold, per language.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Text and HTML", slug: "proxy/compressors/text-and-html", blurb: "Prose keeps its structure; HTML loses its markup and keeps its content.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Repetition", slug: "proxy/compressors/repetition", blurb: "Runs of identical lines collapse to one line plus a count.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+        ],
+      },
+      {
+        title: "Compressors: structured data",
+        items: [
+          { title: "JSON", slug: "proxy/compressors/json", blurb: "Long arrays collapse to the elements that carry signal plus a marker saying what the dropped ones had in common. Objects keep every key.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Tables", slug: "proxy/compressors/tables", blurb: "CSV and Markdown tables to a header plus sampled rows.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Config files", slug: "proxy/compressors/config", blurb: "YAML, TOML, and INI with defaults and comments folded.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Tool schemas", slug: "proxy/compressors/tool-schemas", blurb: "Shorter tool definitions on every request without changing what the model can call.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "TOON", slug: "proxy/compressors/toon", blurb: "A token-oriented encoding of JSON that decodes back to the same value.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
+          { title: "Accessibility trees", slug: "proxy/compressors/accessibility-trees", blurb: "Browser accessibility trees down to the nodes an agent can act on.", capability: "engine", license: "BSL-1.1", layer: "proxy" },
         ],
       },
     ],
   },
   /* The reader here owns an application already. Their questions, in order:
-   * which language, does my framework work, what is the diff, did it apply,
-   * how do I deploy it, then the client API and the reference. */
+   * what is the smallest change, which language, does my framework work, did
+   * it apply, how do I deploy it, then the client API and the reference. */
   {
     id: "sdk",
     title: "SDK",
-    blurb: "Add compression, recovery, and provider calls to an application you already run, in TypeScript or Python.",
+    blurb: "Add compression and recovery to an application you already run, in TypeScript or Python.",
     home: "sdk",
     section: "caveman",
     groups: [
       {
         title: "Get started",
         items: [
-          { title: "Python and TypeScript SDKs", slug: "sdk", blurb: "Choose a language, connect a service, and find the right SDK workflow.", capability: "sdk-ts", license: "MIT" },
-          { title: "TypeScript quickstart", slug: "sdk/typescript", blurb: "Install the ESM package and make your first provider and compression calls.", capability: "sdk-ts", license: "MIT" },
-          { title: "Python quickstart", slug: "sdk/python", blurb: "Install the typed Python package and make your first synchronous calls.", capability: "sdk-python", license: "MIT" },
+          { title: "SDKs and middleware", slug: "sdk", blurb: "Three ways in: swap a base URL, wrap your framework, or call the client library.", capability: "sdk-ts", license: "MIT" },
         ],
       },
       {
         title: "Framework middleware",
         items: [
-          { title: "Framework middleware", slug: "sdk/middleware", blurb: "Native framework compression with local recovery and honest diagnostics.", capability: "sdk-ts", license: "MIT" },
-          { title: "Add to Vercel AI SDK", slug: "sdk/middleware/vercel-ai-sdk", blurb: "Add middleware to an existing streaming application and verify the native tool loop.", capability: "sdk-ts", license: "MIT" },
-          { title: "TypeScript validation", slug: "sdk/middleware/typescript", blurb: "Run AI SDK with the real local runtime, no paid provider required.", capability: "sdk-ts", license: "MIT" },
-          { title: "Python quickstart", slug: "sdk/middleware/python", blurb: "Run LangChain with deterministic compression and exact recovery.", capability: "sdk-ts", license: "MIT" },
-          { title: "TypeScript frameworks", slug: "sdk/middleware/typescript-frameworks", blurb: "Eight native adapter families, transport seams, and limitations.", capability: "sdk-ts", license: "MIT" },
-          { title: "Python frameworks", slug: "sdk/middleware/python-frameworks", blurb: "Thirteen native adapter families and sync/async boundaries.", capability: "sdk-ts", license: "MIT" },
-          { title: "Compatibility", slug: "sdk/middleware/compatibility", blurb: "Resolver constraints, accepted ranges, and exact validation evidence.", capability: "sdk-ts", license: "MIT" },
-          { title: "Deploy middleware", slug: "sdk/middleware/deployment", blurb: "Processes, containers, remote authentication, persistence, and rollback.", capability: "sdk-ts", license: "MIT" },
-          { title: "Recovery and scope", slug: "sdk/middleware/recovery", blurb: "Own session identity, retain originals, and retrieve exact pages.", capability: "sdk-ts", license: "MIT" },
-          { title: "Measure results", slug: "sdk/middleware/measurement", blurb: "Evaluate success, latency, cache effects, retries, and usage.", capability: "sdk-ts", license: "MIT" },
-          { title: "Releases and support", slug: "sdk/middleware/releases", blurb: "Published versions, alpha limits, licences, and upgrade policy.", capability: "sdk-ts", license: "MIT" },
+          { title: "Middleware", slug: "sdk/middleware", blurb: "One wrapper around your existing call compresses tool results and lets the model fetch the original.", capability: "sdk-ts", license: "MIT" },
+          { title: "Vercel AI SDK", slug: "sdk/middleware/vercel-ai-sdk", blurb: "The one line diff for streamText, and how to see that it applied.", capability: "sdk-ts", license: "MIT" },
+          { title: "LangChain and Python", slug: "sdk/middleware/python", blurb: "The Python runtime with LangChain, and the same pattern for the other Python frameworks.", capability: "sdk-python", license: "MIT" },
+          { title: "Supported frameworks", slug: "sdk/middleware/frameworks", blurb: "Every TypeScript and Python adapter, the entrypoint for each, and the versions it accepts.", capability: "sdk-ts", license: "MIT" },
+          { title: "Deploy", slug: "sdk/middleware/deployment", blurb: "Running the runtime beside your app, keeping recovery working across restarts, and measuring the result.", capability: "sdk-ts", license: "MIT" },
         ],
       },
       {
         title: "Client library",
         items: [
-          { title: "Configuration", slug: "sdk/configuration", blurb: "Credentials, service URLs, workflow labels, retention, and timeouts.", capability: "sdk-ts", license: "MIT" },
-          { title: "Provider calls", slug: "sdk/providers", blurb: "JSON responses, native routes, streaming, and language differences.", capability: "sdk-ts", license: "MIT" },
-          { title: "Compression", slug: "sdk/compression", blurb: "Read compression reports, preserve originals, and handle pass-through.", capability: "sdk-ts", license: "MIT" },
-          { title: "Deferred tools", slug: "sdk/tools", blurb: "Select a tool catalog, retain local handlers, and stop repeated calls.", capability: "sdk-ts", license: "MIT" },
+          { title: "TypeScript", slug: "sdk/typescript", blurb: "Install @caveman-ai/sdk and make a provider call and a compression call.", capability: "sdk-ts", license: "MIT" },
+          { title: "Python", slug: "sdk/python", blurb: "Install caveman-sdk and make a provider call and a compression call.", capability: "sdk-python", license: "MIT" },
+          { title: "Provider calls", slug: "sdk/providers", blurb: "OpenAI, Anthropic, Gemini, Bedrock, and Vertex through one client, with streaming.", capability: "sdk-ts", license: "MIT" },
+          { title: "Compression", slug: "sdk/compression", blurb: "compress() and the report it returns.", capability: "sdk-ts", license: "MIT" },
+          { title: "Deferred tools", slug: "sdk/tools", blurb: "Send a small tool catalog and let the model search for the rest.", capability: "sdk-ts", license: "MIT" },
+          { title: "Context packing", slug: "sdk/context", blurb: "Pack a query's context into a token budget, assemble a stable prefix, and restore checkpoints.", capability: "sdk-ts", license: "MIT" },
+          { title: "Tracing", slug: "sdk/tracing", blurb: "Correlate provider calls and tool calls, then export OTLP spans.", capability: "sdk-ts", license: "MIT" },
+          { title: "Runtime policy", slug: "sdk/policy", blurb: "Refresh a published policy and decide locally, with a baseline when the fetch fails.", capability: "sdk-ts", license: "MIT" },
         ],
       },
       {
-        title: "SDK reference",
+        title: "Reference",
         items: [
-          { title: "API reference", slug: "sdk/reference", blurb: "Public methods, result fields, package exports, and Python equivalents.", capability: "sdk-ts", license: "MIT" },
-          { title: "Context and recovery", slug: "sdk/context", blurb: "Assemble stable prefixes, select context, and restore checkpoints or artifacts.", capability: "sdk-ts", license: "MIT" },
-          { title: "Tracing", slug: "sdk/tracing", blurb: "Correlate provider calls and tools, buffer spans, and flush OTLP explicitly.", capability: "sdk-ts", license: "MIT" },
-          { title: "Runtime policy", slug: "sdk/policy", blurb: "Refresh published policies and make local decisions with a baseline fallback.", capability: "sdk-ts", license: "MIT" },
-          { title: "Troubleshooting", slug: "sdk/troubleshooting", blurb: "Resolve install, routing, streaming, recovery, and migration problems.", capability: "sdk-ts", license: "MIT" },
+          { title: "API reference", slug: "sdk/reference", blurb: "Every public method and type, TypeScript and Python side by side.", capability: "sdk-ts", license: "MIT" },
+          { title: "Troubleshooting", slug: "sdk/troubleshooting", blurb: "The error you got, what it means, and the fix.", capability: "sdk-ts", license: "MIT" },
         ],
       },
     ],
   },
   /* A different repository and a different job: the products above make an
-   * existing agent cheaper, this one is how you write a new agent. It is not
-   * a layer of the stack and does not carry a rank. */
+   * existing agent cheaper, this one is how you write a new agent. */
   {
     id: "agent-sdk",
     title: "Agent SDK",
-    blurb: "Write a new agent whose context, tools, and budget are declared up front, then host it and bring your framework.",
+    blurb: "Write an agent whose tools, context, and budget are declared up front, then run it durably behind HTTP.",
     home: "agent-sdk",
     section: "agent-sdk",
     groups: [
       {
         title: "Build an agent",
         items: [
-          { title: "Agent SDK", slug: "agent-sdk", blurb: "Define, run, and serve durable agents with explicit tools and budgets.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Install", slug: "agent-sdk/install", blurb: "Build 0.2 from source, run doctor, and the gap with the npm 0.1 package.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Create an agent", slug: "agent-sdk/create", blurb: "The initializer that writes a typechecking project with a starter eval graph.", capability: "create-agent", license: "Apache-2.0" },
-          { title: "Define an agent", slug: "agent-sdk/define", blurb: "agent(), context, output, filesystem, and subagents as one frozen definition.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Tools", slug: "agent-sdk/tools", blurb: "Input schemas, effect classes, timeouts, and what happens to a tool result.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Run a turn", slug: "agent-sdk/run", blurb: "run, stream, receipts, budgets, and durable resume.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Memory", slug: "agent-sdk/memory", blurb: "Local, opt-in, one-turn-behind recall. Never verified, never in the frozen prefix.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Compaction", slug: "agent-sdk/compaction", blurb: "A fail-closed ladder: recover, summarise, clamp, then stop. Only inside a declared budget.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Evals and builds", slug: "agent-sdk/build", blurb: "Profile, search, freeze, holdout. Failed evals never produce a lock.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Agent SDK", slug: "agent-sdk", blurb: "An agent in nine lines, what a run returns, and where to go next.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Install", slug: "agent-sdk/install", blurb: "npm install, or create a project with the initializer, and run doctor.", capability: "create-agent", license: "Apache-2.0" },
+          { title: "Define an agent", slug: "agent-sdk/define", blurb: "agent(): instructions, model, context, output schema, and subagents.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Tools", slug: "agent-sdk/tools", blurb: "tool(): input and output schemas, effects, timeouts, and what the model sees of a result.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Run", slug: "agent-sdk/run", blurb: "run() and stream(), budgets, and the receipt every run returns.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Memory", slug: "agent-sdk/memory", blurb: "Opt-in recall from earlier turns, kept out of the cached prefix.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Compaction", slug: "agent-sdk/compaction", blurb: "What happens when a conversation outgrows its budget: evict, summarise, clamp, stop.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Evals and builds", slug: "agent-sdk/build", blurb: "Write evals, run them, and freeze a build lock that a failed eval can never produce.", capability: "agent-sdk", license: "Apache-2.0" },
         ],
       },
       {
         title: "Run in production",
         items: [
           { title: "Sessions", slug: "agent-sdk/sessions", blurb: "Keep a conversation across runs, queue messages, and reconnect clients.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Deploy", slug: "agent-sdk/deploy", blurb: "caveman-agent serve: one agent behind HTTP, every run journaled, unfinished work re-driven on boot.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Durable runs", slug: "agent-sdk/durable", blurb: "A journaled run resumes where it stopped. runId is the idempotency key; the ceiling is at-least-once, and it is on the receipt.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "React clients", slug: "agent-sdk/react", blurb: "Stream a run or a session through your authenticated app backend.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Sandbox", slug: "agent-sdk/sandbox", blurb: "required, fixture, and host: where tool closures run, and what lock eligibility requires.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Execution backends", slug: "agent-sdk/execution", blurb: "Move workspace tools to a remote service with explicit cancellation and containment.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Deploy", slug: "agent-sdk/deploy", blurb: "caveman-agent serve: one agent behind HTTP with every run journaled.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Durable runs", slug: "agent-sdk/durable", blurb: "A journaled run resumes where it stopped. runId is the idempotency key.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "React clients", slug: "agent-sdk/react", blurb: "Stream a run or a session into a React app through your backend.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Sandbox and execution", slug: "agent-sdk/sandbox", blurb: "Where tool code runs: required, fixture, host, or a remote execution backend.", capability: "agent-sdk", license: "Apache-2.0" },
         ],
       },
       {
         title: "Bring your framework",
         items: [
-          { title: "Migrate", slug: "agent-sdk/migrate", blurb: "Three depths from another SDK: one line at the fetch seam, an adapter, or a full port. Each is useful alone.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Adapters", slug: "agent-sdk/adapters", blurb: "Keep your framework, get honest per-call usage and one hook before the provider call. Nine exact-pinned lanes.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Wire transport", slug: "agent-sdk/wire", blurb: "A spend ceiling, exact accounting and gated cache metadata on your provider fetch. No adapter needed.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Connect", slug: "agent-sdk/connect", blurb: "Paginated provider data through one stable tool. Fail closed. The daemon is not in this package.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Migrate", slug: "agent-sdk/migrate", blurb: "From another SDK in three depths: one line at fetch, an adapter, or a port.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Adapters", slug: "agent-sdk/adapters", blurb: "Keep your framework and get per-call usage and one hook before the provider call.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Wire transport", slug: "agent-sdk/wire", blurb: "A spend ceiling and exact accounting on your provider fetch, no adapter needed.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Connect", slug: "agent-sdk/connect", blurb: "Paginated provider data through one stable tool.", capability: "agent-sdk", license: "Apache-2.0" },
           { title: "Plugins and skills", slug: "agent-sdk/plugins", blurb: "Load declarative skills and commands without executing plugin code.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Coding agents and shell tools", slug: "agent-sdk/coding", blurb: "Build a workspace agent with bounded shell output and host-owned tool policy.", capability: "agent-sdk", license: "Apache-2.0" },
-          { title: "Programmatic tools", slug: "agent-sdk/code", blurb: "One caveman_code cell instead of a large JSON tool catalog. Nested calls still go through the runtime.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Coding agents and shell tools", slug: "agent-sdk/coding", blurb: "A workspace agent with bounded shell output and host-owned tool policy.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "Programmatic tools", slug: "agent-sdk/code", blurb: "One caveman_code cell instead of a large JSON tool catalog.", capability: "agent-sdk", license: "Apache-2.0" },
         ],
       },
       {
-        title: "API reference",
+        title: "Reference",
         items: [
-          { title: "API and package reference", slug: "agent-sdk/reference", blurb: "Every exported entrypoint, package, command, and source reference.", capability: "agent-sdk", license: "Apache-2.0" },
+          { title: "API reference", slug: "agent-sdk/reference", blurb: "Every exported entrypoint, package, and command.", capability: "agent-sdk", license: "Apache-2.0" },
         ],
       },
     ],
   },
   /* Named so the tab bar is honest about the whole product line. Pebble has
-   * no page, path, or capability id here: the name is all this repository
-   * knows and all a public site needs to say. */
+   * no page, path, or capability id here. */
   { id: "pebble", title: "Pebble", section: "agent-sdk", soon: true, groups: [] },
   {
     id: "cloud",
@@ -360,8 +372,8 @@ export const PRODUCTS: DocProduct[] = [
       {
         title: "Cloud",
         items: [
-          { title: "What Cloud adds", slug: "cloud", blurb: "The managed plane: fleet visibility, spend attribution, and verified numbers.", license: "Commercial", layer: "cloud" },
-          { title: "Model router", slug: "router", blurb: "One model id: classify the task, apply a cost tier, route to measured evidence, fall back to your baseline.", license: "Commercial", layer: "cloud" },
+          { title: "What Cloud adds", slug: "cloud", blurb: "Fleet visibility, spend attribution, and verified numbers for what the local tools measure.", license: "Commercial", layer: "cloud" },
+          { title: "Model router", slug: "router", blurb: "One model id that classifies the task, applies a cost tier, and falls back to your baseline.", license: "Commercial", layer: "cloud" },
         ],
       },
     ],

@@ -4,94 +4,214 @@ export const metadata = docMetadata("memory");
 
 <DocSchema slug="memory" />
 
-cavemem is a local store for the context you keep re-explaining. You write something once, and later ask
-a question. It returns only the parts that answer the question, compressed through the engine on the way
-out.
+`cavemem` stores a fact once and hands back only the part a later question needs. Memories live in a local SQLite file, recall ranks them lexically behind a conservative threshold, and every hit reports the tokens it added to your context.
 
-<Facts rows={[
-  ["Licence", "Go core BSL 1.1. The JavaScript and Python clients are MIT."],
-  ["Storage", <code key="s">~/.caveman/mem</code>],
-  ["Ranking", "BM25 behind a conservative threshold."],
-  ["Basis", <>Always <code>inferred</code>.</>],
-  ["Binary", <code key="b">cavemem</code>],
-]} />
+Moving a heavy `CLAUDE.md` section out of every prompt is the common case, and it has its own page: [Offload a large instruction file](/docs/memory/offload).
 
-## Build it
+## Install
 
 ```bash
-go build -o cavemem ./public/mem/cmd/cavemem
+npm install -g @caveman-ai/cli
+caveman setup --install
 ```
 
-## Use it
+That downloads the signed binaries into `~/.caveman/bin`, `cavemem` among them. Confirm it:
 
 ```bash
-cavemem remember "the deploy key lives in vault under ops/deploy"
-cavemem recall "where is the deploy key"
-cavemem recall "full migration context" 5 0
-cavemem supersede mem_xxxxxxxx "deploy key moved to vault ops/deploy-v2"
-cavemem history mem_yyyyyyyy
-cavemem forget mem_xxxxxxxx
-cavemem recover ccr_xxxxxxxx > original.txt
+caveman setup
 ```
 
-`recall` returns JSON with the hits and a `basis` field. The two trailing numbers on the second recall are
-the result limit and the token budget. A budget of `0` means unlimited, and you have to write it out,
-because unbounded recall should be a decision rather than a default.
+```text
+✓ cavemem         …/bin/cavemem
+    powers: remember · recall · learn offload
+```
 
-Run `cavemem` with no subcommand and it speaks MCP over stdio:
+One line of a real run, with the path shortened.
+
+## Remember and recall
+
+```bash
+cavemem remember "the zarblat rotation key lives in vault under ops/zarblat-rotate and rotates every 90 days"
+```
+
+```json
+{
+  "basis": "inferred",
+  "created_at": "2026-09-16T23:33:23.947191Z",
+  "id": "mem_2c784d186f9a8ba7"
+}
+```
+
+```bash
+cavemem recall "where does the zarblat rotation key live"
+```
+
+```json
+{
+  "basis": "inferred",
+  "hits": [
+    {
+      "id": "mem_2c784d186f9a8ba7",
+      "text": "the zarblat rotation key lives in vault under ops/zarblat-rotate and rotates every 90 days",
+      "score": …,
+      "tokens_added": 23,
+      "basis": "inferred"
+    }
+  ]
+}
+```
+
+Both captured from one real run against a throwaway memory, which was deleted afterwards. `score` is replaced with `…` because BM25 is corpus-relative: the same query scores differently against a different store. `tokens_added` is what putting that hit into your prompt costs, counted offline.
+
+Ask something the store has no match for and `hits` comes back empty, rather than carrying the nearest thing it has:
+
+```bash
+cavemem recall "how do I bake sourdough"
+```
+
+```json
+{
+  "basis": "inferred",
+  "hits": []
+}
+```
+
+## Correct a fact without losing the old one
+
+```bash
+cavemem supersede mem_2c784d186f9a8ba7 "the zarblat rotation key moved to vault ops/zarblat-rotate-v2"
+```
+
+```json
+{
+  "basis": "inferred",
+  "created_at": "2026-09-16T23:33:28.061925Z",
+  "id": "mem_2dbe6211c481da3a",
+  "supersedes": "mem_2c784d186f9a8ba7"
+}
+```
+
+The correction is a new memory that points back at the old one. Either id reads the whole chain:
+
+```bash
+cavemem history mem_2c784d186f9a8ba7
+```
+
+```json
+{
+  "basis": "inferred",
+  "history": [
+    {
+      "id": "mem_2c784d186f9a8ba7",
+      "text": "the zarblat rotation key lives in vault under ops/zarblat-rotate and rotates every 90 days",
+      "created_at": "2026-09-16T23:33:23.947191Z",
+      "valid_from": "2026-09-16T23:33:23.947191Z",
+      "valid_until": "2026-09-16T23:33:28.061925Z",
+      "superseded_by": "mem_2dbe6211c481da3a"
+    },
+    {
+      "id": "mem_2dbe6211c481da3a",
+      "text": "the zarblat rotation key moved to vault ops/zarblat-rotate-v2",
+      "created_at": "2026-09-16T23:33:28.061925Z",
+      "valid_from": "2026-09-16T23:33:28.061925Z",
+      "supersedes": "mem_2c784d186f9a8ba7"
+    }
+  ]
+}
+```
+
+`history` runs oldest to current and stays local. Recall returns only the current fact, so a superseded one stops reaching the model while the old wording stays auditable on disk.
+
+## Delete one
+
+```bash
+cavemem forget mem_2dbe6211c481da3a
+```
+
+```json
+{
+  "forgotten": true
+}
+```
+
+## The five guarantees
+
+**Raw text is written first.** The exact bytes land in the store before anything else happens to them, so a memory is never lost to a failure further down.
+
+**A query below the threshold recalls nothing.** Recall ranks with BM25 and drops anything under a conservative cut, so the answer is an empty `hits` array rather than the closest available guess. It is a threshold, so a weak lexical overlap with a long memory can still clear it; read the `score` on a hit before you trust it.
+
+**Recall is capped at 2,000 inferred tokens by default.** A recall that would exceed the budget packs up to it rather than dumping everything. Pass `token_budget: 0` explicitly for an unlimited recall; leaving it out never removes the cap.
+
+**Recall returns the current fact only.** A superseded fact stops reaching the model, and the whole chain stays on disk where `cavemem history` can read it.
+
+**Every compressed hit carries a recovery handle.** A hit that the engine compressed on the way out keeps a handle to the original bytes, and `cavemem recover <handle>` returns them.
+
+## Through the CLI
+
+The same operations, without a second binary on `PATH`:
+
+```text
+caveman mem — durable agent memory (cavemem)
+  caveman mem remember <text>              store a memory
+  caveman mem recall <query> [--limit N]   recall memories (lexical, conservative threshold)
+  caveman mem supersede <id> <text>        replace a current fact; preserve history
+  caveman mem history <id>                 show oldest-to-newest versions
+  caveman mem recover <handle>             byte-exact original behind a recall hit
+  caveman mem forget <id>                  delete a memory
+  caveman mem hook install [agent]         opt in to auto-recall on each prompt (off by default)
+  caveman mem hook uninstall [agent]       remove the auto-recall hook
+```
+
+Use `--` before text that opens with something flag-shaped, such as a Markdown rule:
+
+```bash
+caveman mem remember -- "--- the block starts with a rule"
+```
+
+## As an MCP server
+
+Run with no arguments, `cavemem` serves its operations over stdio:
 
 ```json
 { "mcpServers": { "cavemem": { "command": "cavemem" } } }
 ```
 
-## Four guarantees
+## From code
 
-**Byte safe on write.** Raw text is stored first. Compression happens on the way out, never on the way in,
-so a compressor bug can never cost you the original.
+Both clients shell text to the binary over stdin, which is what keeps a long memory clear of the operating system's argument-size limit. Set `CAVEMEM_BIN` when the binary is not on `PATH`. A `remember` that exceeds the binary's byte cap exits with code 65, and both clients export `MEMORY_TOO_LARGE_EXIT_CODE` so a caller can branch on it without parsing stderr.
 
-**Fails toward nothing.** An off-topic query recalls nothing rather than returning the closest thing it
-found. A memory system that always answers is worse than one that admits it has nothing.
+<Note tone="warning" title="A package called cavemem on npm is a different project">
+`cavemem` on npm is the same author's separate project, [github.com/JuliusBrussee/cavemem](https://github.com/JuliusBrussee/cavemem), published at 0.2.1. The TypeScript client on this page is the file in the caveman repository. Copy the file rather than installing a package by that name.
+</Note>
 
-**Bounded by default.** Recall packs at most 2,000 inferred tokens unless you explicitly opt out.
+### TypeScript
 
-**Reversible.** Every compressed hit carries a recovery handle, and `cavemem recover` returns the original
-bytes exactly.
-
-## Superseding rather than editing
-
-`supersede` writes a new version and links it to the old one. `recall` returns only current entries.
-`history` shows the chain from oldest to current.
-
-Facts about a codebase go stale, and a store that silently overwrites gives you no way to notice when the
-thing you remembered stopped being true.
-
-## Clients
-
-Both clients shell text over stdin rather than passing it as an argument, so a large block does not hit
-an operating system argv limit.
+The client is one file, `mem/js/index.mjs` in the [caveman repository](https://github.com/JuliusBrussee/caveman). Copy it into your project and import it by path.
 
 ```js
-import { remember, recall } from "cavemem";
-await remember("the deploy key lives in vault under ops/deploy");
-await recall("where is the deploy key", 5, 2000);
+import { remember, recall } from "./lib/cavemem/index.mjs";
+
+const { id } = await remember("the deploy key lives in vault under ops/deploy");
+const { hits } = await recall("where is the deploy key", 5, 2000);
 ```
+
+It is MIT and exports `remember`, `recall`, `supersede`, `history`, `forget` and `MEMORY_TOO_LARGE_EXIT_CODE`.
+
+### Python
+
+The client is one file, `mem/py/cavemem.py` in the same repository. Put it on your import path.
 
 ```python
 import cavemem
-cavemem.remember("the deploy key lives in vault under ops/deploy")
-cavemem.recall("where is the deploy key", limit=5, token_budget=2000)
+
+stored = cavemem.remember("the deploy key lives in vault under ops/deploy")
+hits = cavemem.recall("where is the deploy key", limit=5, token_budget=2000)
 ```
 
-Set `CAVEMEM_BIN` if the binary is not on `PATH`. An oversized `remember` exits with code 65.
+It is MIT, uses the standard library only, and mirrors the TypeScript surface.
 
-<Note tone="warning" title="Registry status">
-The npm client `cavemem` is published but currently behind the source in this repository, and its
-registry description describes older behaviour. There is no PyPI package yet. Until both catch up, build
-the core from source and use the Python client from the repository.
-</Note>
+## Limits
 
-## One thing to know about handles
+Recall is lexical, so it finds a memory by the words in it. A question phrased entirely in synonyms can miss it. Read the `score` on any hit you are about to act on.
 
-cavemem keeps its own recovery store at `~/.caveman/mem/ccr.db`, separate from the engine's store at
-`~/.caveman/ccr.db`. Handles are not interchangeable between the two. A handle from a cavemem recall is
-recovered with `cavemem recover`, not with the engine.
+Every number `cavemem` prints is `inferred`, a local estimate from an offline counter. [Numbers and limits](/docs/counting#inferred) defines the word. The Go core is BSL 1.1 and the two clients are MIT; [Licensing](/docs/licensing) has the boundary.

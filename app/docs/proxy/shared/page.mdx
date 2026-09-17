@@ -4,130 +4,131 @@ export const metadata = docMetadata("proxy/shared");
 
 <DocSchema slug="proxy/shared" />
 
-The public `caveman-proxy` binary can serve a team inside a private network. You operate the process and its state. This is the same source-available runtime used locally, with an inbound token protecting access to configured provider credentials.
+The same binary that runs on your laptop runs as one service for a team: bind it to an address the team can
+reach, gate it with a shared token, and keep the provider keys on the server so nobody has to hold one. It
+stays a single-operator proxy with a single set of credentials, which is the whole design.
 
-## Start with a private listener
+Running it for yourself? [The proxy](/docs/proxy) is the loopback path and needs none of this.
 
-By default the proxy listens on `127.0.0.1:8787`. A non-loopback bind requires `CAVEMAN_AUTH_TOKEN`: at least 16 characters, with no whitespace or control characters. Supply it through the environment or your secret manager. A non-empty `auth_token:` in YAML is refused.
-
-Build the image from the public repository if you want to inspect exactly what runs:
+The inbound token gate, the `cave_proxy_unauthorized_total` counter, and auth-before-routing ship from
+binary release bin-v1.1.7. Run `caveman setup --install`, then check that `~/.caveman/bin/.bin-manifest.json`
+reads `"release": "bin-v1.1.7"` or later before exposing a listener. `caveman version` reports the release the
+CLI pins, not the one on disk. On an older binary a non-loopback bind is still refused, but a token on a
+loopback listener is not enforced.
 
 ```bash
-git clone https://github.com/JuliusBrussee/caveman.git
-cd caveman
-git checkout 4df4b03ba538751131d24415c59a1fad0d8c2c18
-docker build -t caveman-proxy .
+export CAVEMAN_AUTH_TOKEN="$(openssl rand -hex 32)"
+export CAVEMAN_LISTEN=0.0.0.0:8787
+export ANTHROPIC_API_KEY=…
+~/.caveman/bin/caveman-proxy serve
 ```
 
-With `CAVEMAN_AUTH_TOKEN` and a provider key already set in your shell:
+Clients then send that token on every request, in `x-cave-api-key` or as `Authorization: Bearer`:
 
 ```bash
-docker run --name caveman-proxy \
-  -p 127.0.0.1:8787:8787 \
-  -v caveman-data:/data \
-  -e CAVEMAN_AUTH_TOKEN -e ANTHROPIC_API_KEY \
-  caveman-proxy
-```
-
-This publishes the container only on host loopback for a first check. For team access, place a TLS-terminating private-network endpoint in front of it. The proxy itself speaks HTTP. The image runs as uid 65532, uses `/data` for state, and listens on port 8787. A bind-mounted directory must be writable by that uid.
-
-## Authenticate requests
-
-Send the shared token in `x-cave-api-key` or `Authorization: Bearer`. The proxy consumes its inbound authentication header before resolving provider credentials. Never put the token in a URL query string.
-
-```bash
-curl "$PROXY_URL/v1/messages" \
+curl http://proxy.internal:8787/v1/messages \
   -H "x-cave-api-key: $CAVEMAN_AUTH_TOKEN" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  -d '{"model":"claude-sonnet-4-5","max_tokens":64,"messages":[{"role":"user","content":"Say hello"}]}'
+  -d '{"model":"claude-sonnet-4-5","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Provider keys can come from the server environment. A valid explicit provider credential on an incoming request takes precedence. Bedrock can use its AWS credential chain instead of static keys.
+## The token is what allows the bind
 
-<figure className="my-6 rounded-md border p-4 text-sm">
-  <div>Team client → private TLS endpoint → authenticated proxy → provider</div>
-  <div className="mt-2 text-muted-foreground">Proxy → one durable volume for local records and recovery</div>
-  <figcaption className="mt-3 text-xs">The shared token grants access to one operator's service. It does not create per-user isolation.</figcaption>
-</figure>
+A listen address that is not loopback is refused while `CAVEMAN_AUTH_TOKEN` is empty. The proxy exits at
+config load with an error naming the address, because binding wider with no inbound authentication would put
+every configured provider credential on the network.
 
-## State and health
+The token must be at least 16 bytes and carry no spaces or control characters, since it has to survive one
+HTTP header value. It is compared in constant time. A request that presents the wrong token and a request
+that presents none both get the same `401 cave_unauthorized`, so the port cannot be used to probe for the
+value one byte at a time. The proxy logs the path and the remote host on each rejection and counts them in
+`cave_proxy_unauthorized_total` on `/metrics`.
 
-Run one writer per volume. Do not put multiple replicas over the same SQLite state. Separate instances need separate volumes and consistent client routing so recovery handles reach the instance that owns them.
+The token is yours, not the provider's, so the proxy deletes the header that carried it before the credential
+resolver reads the request. It is never forwarded upstream.
 
-`/health/live`, `/health/ready`, `/metrics`, and the compatibility keepalive endpoint are unauthenticated. Keep them inside the private network. The instance header used by local CLI ownership checks appears only on loopback listeners; it is not inbound authentication.
+<Note title="A token on a loopback listener gates local clients too">
+Set `CAVEMAN_AUTH_TOKEN` and leave `listen` on `127.0.0.1`, and `caveman wrap` sessions start failing with
+401 while `/health/live` stays green: the local wrap path sends no token. The proxy logs a warning at startup
+when it sees that combination.
+</Note>
 
-Default `CAVEMAN_MODE=record` forwards original bytes. Select `compress` only after checking supported routes and recovery. Monitor rejected-auth and in-flight-request metrics when operating the service.
+## Keys on the server
 
-## Recovery and authentication limits
+Each provider reads its key from the environment of the proxy process, so a client sends no provider
+credential at all.
 
-Shared-token wrapping does not support subscription/OAuth login paths. Managed Gemini CLI routing also cannot supply the needed separate credentials. Use supported API-key or Bedrock-role paths.
+| Provider | Variable |
+|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Gemini | `GEMINI_API_KEY` |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` |
+| Generic compatible mount | `OPENAI_COMPAT_API_KEY` |
+| Named compatible mount | the variable named in `compat.<name>.api_key_env` |
+| Bedrock | `AWS_BEARER_TOKEN_BEDROCK`, or `AWS_ACCESS_KEY_ID` with `AWS_SECRET_ACCESS_KEY` |
 
-A locally installed MCP recovery tool reads a local store; it cannot retrieve originals from a remote instance. For the shared proxy's supported API-key, non-streaming routes, leave `CAVEMAN_RECOVERY` unset so proxy-side retrieval can handle recovery. Other paths stay unchanged when a safe recovery route is unavailable.
+A credential that does arrive on the request still wins, which is what keeps a Claude Pro or Max login
+working through a shared proxy. On Bedrock the environment is consulted after the inbound credential and
+before the AWS default chain, so a task role, pod identity or instance profile works with no key in the
+environment at all.
 
-This provides shared-secret access, not tenant isolation or per-user authorization. Local reduction figures remain `inferred`. Read the [public deployment guide](https://github.com/JuliusBrussee/caveman/blob/4df4b03ba538751131d24415c59a1fad0d8c2c18/docs/technical/deploy.md) for platform templates and [Licensing](/docs/licensing) for first-party and service-provider use.
+Per-provider upstreams are set the same way as on a laptop:
 
-## Connect an agent or application
+```yaml
+# caveman.yaml
+mode: record
+providers:
+  bedrock:
+    region: eu-central-1
+compat:
+  house-router:
+    base_url: https://router.internal/v1
+    api_key_env: HOUSE_ROUTER_KEY
+```
 
-Set the endpoint and the shared token on the client:
+## The container
+
+The Dockerfile is at the repository root; the compose file, the ECS task definition and the Kubernetes
+manifest are in its deployment directory. Images are published to `ghcr.io/juliusbrussee/caveman-proxy`. The
+image is distroless and runs as uid 65532, with `CAVEMAN_HOME` set to `/data` and `CAVEMAN_LISTEN` set to
+`0.0.0.0:8787`.
 
 ```bash
-export CAVE_GATEWAY_URL=https://caveman.example.com
-export CAVE_API_KEY="$TEAM_PROXY_TOKEN"
-caveman wrap claude
+docker run -d -p 8787:8787 -v caveman-data:/data \
+  -e CAVEMAN_AUTH_TOKEN="$(openssl rand -hex 32)" -e ANTHROPIC_API_KEY=… \
+  ghcr.io/juliusbrussee/caveman-proxy:bin-v1.1.7
 ```
 
-Use your private TLS endpoint in place of `caveman.example.com`. An off-loopback endpoint selects managed wrapping and starts no local proxy. This CLI mode also applies to your own shared service; it does not imply a Caveman Cloud account. Check the selected profile's limitations before using another agent.
+```yaml
+services:
+  caveman-proxy:
+    image: ghcr.io/juliusbrussee/caveman-proxy:bin-v1.1.7
+    ports:
+      - "8787:8787"
+    environment:
+      CAVEMAN_AUTH_TOKEN: ${CAVEMAN_AUTH_TOKEN:?required}
+    volumes:
+      - caveman-data:/data
+    restart: unless-stopped
 
-For a provider SDK, keep its native request shape and add a separate inbound header:
-
-```ts
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({
-  baseURL: process.env.TEAM_PROXY_URL!,
-  apiKey: "no-key-required",
-  defaultHeaders: { "x-cave-api-key": process.env.TEAM_PROXY_TOKEN! },
-});
+volumes:
+  caveman-data:
 ```
 
-The placeholder asks this proxy to use the server's configured provider credential. A real incoming provider key takes precedence. The shared token must remain in the separate inbound header, unless the client is intentionally using the bearer-only shared-token path.
+Trimmed from the compose file in
+[JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman). `/data` holds the usage store, the
+recovery store, the run state and `proxy.log`, so it wants a volume. A named volume inherits the image's
+ownership; a bind mount does not, so chown the host directory to 65532 first.
 
-## Provider adapters and framework adapters
+The image has no shell, which is why it declares no `HEALTHCHECK`. Probe `GET /health/ready` on 8787 from the
+orchestrator instead. It answers the JSON under [Start it](/docs/proxy#start-it), with `adapters` counting
+the routes that listener mounted. Health and metrics sit outside the token gate, so an orchestrator can probe
+them with no credential.
 
-| Layer | What it owns | What to configure |
-| --- | --- | --- |
-| Proxy provider adapter | Native HTTP routes, credentials, streaming and usage parsing | [Provider route and endpoint](/docs/proxy/providers) |
-| Native agent profile | How an installed agent points at the proxy | [Wrap profile](/docs/proxy/wrap) and its recovery path |
-| Framework middleware | Eligible outbound tool text inside the application's loop | [Middleware](/docs/sdk/middleware), version gate, and scope |
-| Agent SDK observation adapter | Lifecycle and per-call usage for an existing framework | [SDK adapter](/docs/agent-sdk/adapters) and exact upstream pin |
-| SDK wire transport | Provider-fetch budget and accounting boundary | [Wire transport](/docs/agent-sdk/wire) |
+## One tenant
 
-Installing one layer does not enable the others. In particular, a proxy route does not install a recovery tool in a remote client.
-
-## Platform choices
-
-| Platform | Required operating decisions |
-| --- | --- |
-| Docker or Compose | Private published endpoint, secret environment, persistent `/data`, uid 65532. |
-| Kubernetes | One replica and `Recreate` for a shared volume; Secret for credentials; writable PVC; private Service or ingress; health and readiness probes. |
-| ECS Fargate | Private subnets, secret-store references, durable EFS mount with matching uid, and a task role for Bedrock when used. |
-| Cloud Run | Internal ingress; decide platform IAM separately from proxy-token auth; one writer; mount durable storage if history must survive revisions. |
-| Fly.io | Private connectivity, configured secrets, and a volume mounted at `/data`. |
-
-Templates and their full setup steps are in the pinned [public deployment guide](https://github.com/JuliusBrussee/caveman/blob/4df4b03ba538751131d24415c59a1fad0d8c2c18/docs/technical/deploy.md). They require your account, network, secret, and storage configuration. Source templates are not evidence of a deployed or certified environment.
-
-## Private upstreams and corporate networks
-
-`CAVE_SSRF_ALLOWLIST` permits exact private upstream hostnames or `host:port` values. Add only the endpoint you operate; link-local and metadata destinations remain blocked even when listed. Bedrock private DNS can need an explicit regional hostname entry.
-
-`CAVE_UPSTREAM_PROXY` controls the proxy used for outbound provider traffic. Its default `env` honours `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY`; `off` bypasses those proxies. `CAVE_CA_BUNDLE` adds trusted roots for corporate TLS inspection. These settings do not replace inbound TLS or the shared-token gate.
-
-## Diagnose a shared connection
-
-1. Check private network reachability and `/health/ready` from the intended client network.
-2. A 401 points to inbound shared-token authentication. Check header placement without printing the token.
-3. A 404 points to the provider mount or unsupported route. No unknown route is forwarded.
-4. An upstream authentication error concerns the provider credential after the inbound token was consumed.
-5. A successful request with zero compression can be correct: record mode, streaming recovery limits, protected input, or a failed transform gate all preserve the original bytes.
-6. A missing recovery handle can mean the client reached another replica, the volume was lost, or retention expired. Do not infer a complete transcript from a marker alone.
+There is one token, one set of provider keys and one usage store, so every client that holds the token spends
+the same credentials and writes rows to the same file. Splitting spend by caller is what the `/w/<slug>`
+attribution path is for, and it is a label rather than a boundary.

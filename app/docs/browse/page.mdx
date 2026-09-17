@@ -4,138 +4,109 @@ export const metadata = docMetadata("browse");
 
 <DocSchema slug="browse" />
 
-`caveman-browse` is a local Chrome driver for agents. It reads Chrome's accessibility tree, turns it into compact
-UID-addressed text, and stores raw tree bytes behind a recovery handle.
+`caveman-browse` is a local MCP server that drives Chrome and gives the agent a compressed view of the page instead of the raw accessibility tree. On a 200-row operations table, a focused snapshot came to 121 tokens against 15,704 for the Playwright ARIA snapshot of the same page.
 
-<Facts rows={[
-  ["Transport", "MCP over stdio, with a direct CLI helper."],
-  ["Browser path", "Chrome DevTools Protocol."],
-  ["Snapshots", "Compressed accessibility text, not raw HTML."],
-  ["Basis", <code key="b">inferred</code>],
-  ["Licence", "BSL 1.1."],
-]} />
-
-## Build from source
-
-`caveman-browse` is not published on npm today.
+## Register it
 
 ```bash
-git clone https://github.com/JuliusBrussee/caveman
-go build -o ./bin/caveman-browse ./public/browse/cmd/caveman-browse
+caveman mcp install claude --server caveman-browse
 ```
 
-Run with no arguments to serve MCP over stdio:
+That writes the registration into the agent's config and a marker recording that caveman owns it. With no agent named it installs for every known agent on `PATH`. `caveman mcp uninstall --server caveman-browse` removes both again.
+
+The binary arrives with the rest:
 
 ```bash
-./bin/caveman-browse
+caveman setup --install
 ```
 
-## MCP tools
+```text
+✓ caveman-browse  …/.caveman/bin/caveman-browse
+    powers: browse + agent-side compressed browsing MCP tools — wrap auto-registers once present
+```
 
-| Tool | Purpose |
-| --- | --- |
-| `browser_snapshot` | Navigate when a URL is supplied, wait, then return a compact accessibility view. |
-| `browser_act` | Click, type, select, scroll, or wait using a UID from the latest snapshot. |
-| `browser_eval` | Evaluate a JavaScript expression in the page. |
-| `browser_recover` | Return raw accessibility bytes, or a query-selected view of them. |
+One line of a real `caveman setup` run, path shortened. A default `caveman wrap` registers it on its own once the binary is present and Chrome resolves.
 
-Configure an MCP host with the absolute binary path:
+To register it by hand, the server is the binary with no arguments. `caveman mcp install` writes the absolute path it resolved, so do the same:
 
 ```json
 {
   "mcpServers": {
-    "caveman-browse": {
-      "command": "/absolute/path/to/bin/caveman-browse",
-      "args": []
-    }
+    "caveman-browse": { "command": "/Users/you/.caveman/bin/caveman-browse" }
   }
 }
 ```
 
-## Take a useful snapshot
+## The four tools
 
-Large pages should include the task as a query:
+| Tool | Input | What it does |
+|---|---|---|
+| `browser_snapshot` | `url`, `wait`, `query` | Navigates if `url` is given and returns a compact accessibility tree. `query` keeps the nodes that match the task and their ancestors |
+| `browser_act` | `action`, `uid`, `text`, `option` | Runs `click`, `type`, `select`, `scroll` or `wait` against a UID from the latest snapshot |
+| `browser_eval` | `expression` | Runs JavaScript in the current page |
+| `browser_recover` | `recovery_handle`, `query` | Returns the exact raw accessibility bytes behind a snapshot handle |
 
-```text
-browser_snapshot({
-  url: "https://example.com/settings",
-  query: "save notification settings"
-})
-```
+`action` is the only required field on `browser_act`; `recovery_handle` and `expression` are required on their tools. `wait` is milliseconds, capped at 30,000. `url` accepts `http`, `https`, `about:blank` and a bounded `data:text/html`, and rejects local files and privileged schemes.
 
-The query keeps matching accessible nodes and their ancestors. CCR retains full raw tree. This usually costs less
-than taking a full snapshot and recovering later.
+A snapshot payload carries `uids`, `recovery_handle`, `tokens_before`, `view_tokens`, `tokens_after`, `ratio` and `basis`. `tokens_after` counts the exact result the agent sees; `view_tokens` isolates what the compact tree alone costs.
 
-`interactive: true` keeps UID-bearing nodes and their ancestors only. It is useful for dense control surfaces but
-hides most page text. Query focus remains the better default when the agent must read.
+## The compact view
 
-Snapshot output is text:
+The compact tree is one line per node, `[uid] role "name"`. A UID is spent only on a node the agent can act on, or on a custom role the compressor does not recognise, so a page of static text does not pay for identifiers nobody will use.
 
-```text
-[a1] button "Save"
-[a2] checkbox "Email alerts"
-caveman before=... view=... after=... ratio=... basis=inferred handle=ccr_...
-```
+An action reports `settled:false` until a later focused snapshot proves the new state. Acting and then believing the action worked is the failure that convention exists to prevent.
 
-Only actionable or unknown custom roles receive UID tokens. The trailing line counts the exact result delivered to
-the agent. `view` isolates compact tree cost; `after` includes the accounting line.
+## The numbers
 
-## Act, then resnapshot
+Measured 2026-08-10 with Chrome 151.0.7922.108, `@playwright/test` pinned at 1.56.1, and the offline `o200k_base` counter. Five independent Chrome runs, median with the range in brackets. The corpus is `browse/testdata/order_dashboard.html`, a 200-row operations table with one order to act on.
 
-```text
-browser_act({ action: "click", uid: "a1" })
-browser_act({ action: "type", uid: "a3", text: "alerts@example.com" })
-browser_act({ action: "select", uid: "a4", option: "Daily" })
-browser_act({ action: "scroll", uid: "a5" })
-browser_act({ action: "wait" })
-```
+| Representation | Tokens | Against raw | Against Playwright |
+|---|---:|---:|---:|
+| Raw `Accessibility.getFullAXTree` JSON | 398,494 [398,493 to 398,497] | | |
+| Playwright `ariaSnapshot()` | 15,704 | 96.06% less | |
+| Caveman full result | 13,368 [13,367 to 13,368] | 96.65% less | 14.88% less |
+| Caveman focused result, query `ORD-0173` | 121 [121 to 122] | 99.97% less | 99.23% less, 129.8 times smaller |
 
-UIDs belong to the latest successful snapshot. Unknown or stale UIDs fail explicitly.
+The Playwright baseline is its ARIA text alone: no MCP envelope, no action references, no recovery handle, no accounting. That asymmetry favours Playwright, and the numbers are quoted with it in place.
 
-Click, type, select, and scroll report that dispatch succeeded, but they do not prove application state settled.
-Take another focused snapshot to verify the result. `wait` is a fixed short delay, not a condition-based page
-assertion.
+The same measurement on `browse/testdata/agent_checkout.html`, a small checkout form, goes the other way:
 
-## Direct CLI
+| Representation | Tokens | Against raw | Against Playwright |
+|---|---:|---:|---:|
+| Raw `Accessibility.getFullAXTree` JSON | 4,186 [4,183 to 4,188] | | |
+| Playwright `ariaSnapshot()` | 67 | 98.40% less | |
+| Caveman full result | 157 [156 to 159] | 96.25% less | 2.34 times larger |
+| Caveman focused result, query `Email Plan Save order` | 111 [110 to 113] | 97.35% less | 1.66 times larger |
 
-```bash
-caveman-browse snapshot https://example.com "save settings"
-caveman-browse snapshot -i https://example.com
-caveman-browse act <uid> click
-caveman-browse eval "document.title"
-caveman-browse recover <handle>
-caveman-browse close
-```
-
-Direct commands share one detached, isolated Chrome until `close`.
-
-## Navigation and limits
-
-Navigation accepts HTTP, HTTPS, `about:blank`, and bounded `data:text/html` URLs. Local files and privileged browser
-schemes fail with `cave_browser_url_denied`.
-
-Snapshot wait is limited to 30 seconds. Query text is limited to 4 KiB, and a data URL to 1 MiB. A snapshot that
-cannot produce a smaller recovery-backed UID view fails and keeps the previous UID map rather than dumping raw AX
-JSON into model context.
-
-## Browser selection
-
-Environment variables select runtime behaviour:
-
-```text
-CAVEMAN_BROWSE_CHROME          explicit Chrome executable
-CAVEMAN_BROWSE_CDP             attach to an existing CDP endpoint
-CAVEMAN_BROWSE_USER_DATA_DIR   profile directory
-CAVEMAN_BROWSE_HEADFUL=1       show the browser window
-CAVEMAN_BROWSE_EPHEMERAL=1     use in-memory recovery
-```
-
-Default mode is headless. The recovery store otherwise uses the shared CCR path.
-
-<Note tone="honest" title="Accessibility is not vision">
-This tool exposes accessibility structure and page JavaScript. It does not prove visual layout, screenshot
-appearance, animation, or pointer geometry. Use a visual browser tool when those properties matter.
+<Note tone="honest" title="The small-page row is a loss and it stays published">
+On a tiny page the recovery handle, the exact counters, the basis field and the action UIDs cost more than bare ARIA text. Caveman is 2.34 times larger than Playwright there. It still cuts 97.35 percent against the raw tree and carries enough state to type, select, click, verify and recover the bytes, but no universal snapshot-only win is claimed. Both tables are `inferred` token counts for one snapshot, never provider usage or billing. [Numbers and limits](/docs/counting#inferred) defines the word.
 </Note>
 
-`browser_eval` runs caller-supplied JavaScript in the active page. Treat it as code execution in that browser
-session and use it only on pages you intend to control.
+The full method, the corpus, the provenance hashes and the reproduction commands are in `browse/BENCHMARK.md` in the repository. The four-tool MCP catalog itself is separately locked at 287 tokens.
+
+## Drive it from the shell
+
+The same binary has a direct CLI, which is useful for checking a page without an agent in the loop.
+
+```text
+usage: caveman browse <url> [query]
+       caveman browse act <uid> click|type|select|scroll [text]
+       caveman browse recover <handle> [query]
+       caveman browse eval <expression>
+       caveman browse close
+```
+
+```bash
+caveman browse http://127.0.0.1:3000 "save settings"
+caveman browse close
+```
+
+Direct commands share one detached, isolated Chrome until `close`. The first use creates the profile and recovery directories. `CAVEMAN_BROWSE_CHROME` points at a specific Chrome, and `CAVEMAN_BROWSE_BIN` at a specific `caveman-browse`.
+
+## Limits
+
+Phase 1 covers same-origin pages with predictable controls. Out-of-process iframes, dialogs, downloads and actionability on an arbitrary site are deferred, so treat the benchmark as applying to this corpus and this toolchain.
+
+Query-focused disclosure is the default on a large page, and a full snapshot is available when the task intent is unknown. Recovery is backed by the same store as the rest of caveman, so `browser_recover` returns the byte-exact original accessibility payload for any snapshot handle.
+
+The binary is BSL 1.1. [Licensing](/docs/licensing) has the boundary.

@@ -1,0 +1,142 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("skill/commands");
+
+<DocSchema slug="skill/commands" />
+
+The skill ships a set of slash commands and three subagent presets. Each one fixes an output format, so the reply is short and the shape is predictable enough to paste straight into a commit, a review comment or a file.
+
+The slash commands arrive with [the skill](/docs/skill). The three subagent presets need the plugin or the full installer.
+
+## Set the level
+
+```text
+/caveman
+/caveman lite
+/caveman ultra
+/caveman wenyan-lite
+/caveman wenyan-full
+/caveman wenyan-ultra
+/caveman off
+```
+
+Bare `/caveman` means `full`. The level holds until you change it or the session ends. [The skill](/docs/skill#levels) shows the same answer at each level.
+
+## /caveman-commit
+
+Writes a Conventional Commits message for the staged changes and stops. Staging, committing and amending stay yours.
+
+Format, from `skills/caveman-commit/SKILL.md`: `<type>(<scope>): <imperative summary>`. The scope is optional. Types are `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `build`, `ci`, `style` and `revert`. The subject is imperative, 50 characters where possible, 72 hard, and carries no trailing period.
+
+```text
+feat(api): add GET /users/:id/profile
+
+Mobile client needs profile data without the full user payload
+to reduce LTE bandwidth on cold-launch screens.
+
+Closes #128
+```
+
+A body appears only when the subject leaves the *why* unanswered. Breaking changes, security fixes, data migrations and reverts always get one, because the person reading `git log` in six months needs it.
+
+```text
+feat(api)!: rename /v1/orders to /v1/checkout
+
+BREAKING CHANGE: clients on /v1/orders must migrate to /v1/checkout
+before 2026-06-01. Old route returns 410 after that date.
+```
+
+## /caveman-review
+
+Reviews the current diff. One line per finding: location, problem, fix. It writes the comments and leaves the verdict to you: approving, requesting changes and running a linter are all outside it.
+
+```text
+L42: user can be null after .find(). Add guard before .email.
+L88-140: 50-line fn does 4 things. Extract validate/normalize/persist.
+L23: no retry on 429. Wrap in withBackoff(3).
+```
+
+Across several files the location becomes `<file>:L<line>`. When findings are mixed, each gets a severity tag: `🔴 bug` for broken behaviour, `🟡 risk` for something fragile, `🔵 nit` for style the author may ignore, and `❓ q` for a real question.
+
+```text
+L42: 🔴 bug: user can be null after .find(). Add guard before .email.
+```
+
+Security findings and architectural disagreements drop out of terse mode and get a full paragraph, then the terse format resumes.
+
+## /caveman-compress
+
+Takes a file path. It rewrites a Markdown memory file such as `CLAUDE.md` into the compressed style and keeps a readable backup.
+
+```text
+/caveman-compress CLAUDE.md
+```
+
+Headings keep their exact text. Bullet nesting, numbered lists, table structure and YAML front matter keep their shape. Fenced code, inline code, URLs, file paths, commands, environment variables, version numbers and proper nouns are copied byte for byte. The prose between them is what shrinks.
+
+The compressed version overwrites the file you named. The readable copy is written outside the tree, where a skill auto-loader will skip it: `${XDG_DATA_HOME:-$HOME/.local/share}/caveman-compress/backups/<parent-dir-name>/<name>.original.md`, or `%LOCALAPPDATA%\caveman-compress\backups\<parent-dir-name>\` on Windows. Restore it by copying it back:
+
+```bash
+cp "${XDG_DATA_HOME:-$HOME/.local/share}/caveman-compress/backups/$(basename "$PWD")/CLAUDE.original.md" CLAUDE.md
+```
+
+The command validates its own output, retries a targeted fix up to twice, and leaves the original file in place if it still fails.
+
+Across five real `CLAUDE.md`-shaped fixtures the repository measured 46 percent smaller on average, with headings, code, paths and URLs verified intact.
+
+For the same job without an agent in the loop, see [Offload a large instruction file](/docs/memory/offload).
+
+## /caveman-stats
+
+Reports recorded token usage for the current session.
+
+In Claude Code the mode tracker hook runs the stats reader and hands the report back as additional context with an instruction to print it verbatim in a fenced block, so the agent copies numbers rather than computing them. It shows recorded output and cache-read tokens, response counts and mode attribution. `--all` and `--since 7d` aggregate the latest recorded output count per session.
+
+In Gemini CLI it points you at the host's own `/stats model` and `/stats session`, because a custom command is a prompt and cannot read the host's live metrics. In other hosts it uses the native usage report if there is one.
+
+<Note tone="honest" title="Usage is recorded, savings are not">
+A transcript holds what the session used. It holds no run of the same session without caveman, so there is nothing to subtract. `/caveman-stats` reports usage and says savings are unknown. It does not derive saved tokens, percentages or currency from a usage count, and neither should a reader. [Numbers and limits](/docs/counting) has the rules.
+</Note>
+
+## /caveman-init
+
+Writes the always-on caveman activation rule into the current repo for every IDE agent that reads one: Cursor, Windsurf, Cline, Copilot and `AGENTS.md`. It takes `[--dry-run|--force] [--only <agent>]`, and runs `--dry-run` first unless you passed `--force`, so an existing rule file is reported before it is replaced.
+
+```text
+/caveman-init --dry-run
+```
+
+## /caveman-help
+
+Prints a one-screen card: every mode with its trigger, then `/caveman-commit`, `/caveman-review`, `/caveman-compress` and itself, how to set the default mode, and how to deactivate. It is one-shot: it reads, prints and exits.
+
+## Cavecrew subagents
+
+Three subagent presets that do the same jobs as the host's built-in agents and return compressed results. A subagent's result is injected into the main thread verbatim, so the size of that result is what the delegation costs.
+
+| Preset | Use it for | Returns |
+|---|---|---|
+| `cavecrew-investigator` | "Where is X defined", "what calls Y", "list uses of Z", "map this directory" | one `path:line` per hit with the symbol in backticks and a short note, then a totals line, or `No match.` |
+| `cavecrew-builder` | A bounded edit of one or two files: a typo, a single function, a mechanical rename | `<path:line-range> — <change in 10 words or fewer>` and a `verified:` line |
+| `cavecrew-reviewer` | Reviewing a diff, a branch or a file | `path:line: <severity>: <problem>. <fix>.` sorted by file then line, then a totals line, or `No issues.` |
+
+The investigator refuses to suggest fixes, and the builder stops at a scope of three files or more. A builder refusal is one line that leads with the reason and names it: `too-big. split: <n one-line tasks>.`, `needs-confirm. op: <command>.`, `ambiguous. ask: <one question>.` or `regressed. revert path:line. cause: <fragment>.`. When you want prose, architecture commentary or a review with alternatives, the host's own agents are the better call.
+
+`cavecrew-investigator` and `cavecrew-reviewer` both declare `model: haiku`. The full installer registers all three wherever the host supports native subagents.
+
+## Work patterns
+
+Six more skills that shape *how* the agent works rather than how it talks. The agent picks one up on its own when a task matches its description.
+
+| Skill | Triggers on | What it enforces |
+|---|---|---|
+| `investigate-first` | An ambiguous failure, intermittent behaviour, a performance regression | Gather evidence, rank hypotheses, edit nothing until one mechanism explains the evidence |
+| `lean-build` | New behaviour, a product slice, an integration | Derive acceptance and non-goals first, reuse the existing seam, omit config and extensibility the acceptance does not need |
+| `surgical-patch` | A bug or a small behaviour change | Change the narrowest layer that owns the wrong behaviour, add only the regression proof the task needs |
+| `safe-refactor` | Extraction, consolidation, an ownership move | Establish verification before structural edits, move one boundary at a time, keep every intermediate state buildable |
+| `migration` | Schema, data, API, protocol, config or dependency transitions | Define the rollback path with the forward path, keep mixed-version operation safe, stop before the destructive contraction |
+| `verify-and-stop` | A validation-only task, a completion check, last-mile proof | Run the smallest sufficient proof, distinguish pass from fail from unavailable from blocked, stop when acceptance passes |
+
+## Engine and proxy commands
+
+Seven more commands drive the local tools rather than the talking style: `/caveman-setup`, `/caveman-discover`, `/caveman-learn`, `/caveman-manage`, `/caveman-optimize`, `/caveman-explore` and `/caveman-evidence-review`. They are covered on [caveman learn](/docs/skill/learn) and [caveman explore](/docs/skill/explore); the full inventory is in [the CLI reference](/docs/cli).

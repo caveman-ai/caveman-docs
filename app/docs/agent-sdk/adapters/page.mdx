@@ -4,299 +4,150 @@ export const metadata = docMetadata("agent-sdk/adapters");
 
 <DocSchema slug="agent-sdk/adapters" />
 
-You already have an agent running on Vercel AI SDK, Mastra, LangGraph, OpenAI Agents, Strands or
-Cloudflare Agents, and you are not going to rewrite it onto a different SDK to find out what it costs. An
-adapter is the answer to that. It is a small package that attaches to a seam your framework already
-exposes, and it gives you the two things this SDK is built around without changing how your agent runs.
+An adapter reads a framework's own agent loop and gives you two things from it: a normalised usage record per provider call, and one hook that runs immediately before the framework's provider call, on the request the framework built. The framework keeps its loop, its retries, its tools, its streams, its aborts and its error types.
 
-Nine adapters exist, each pinned to one exact upstream version. Build only the lane you run from the source workspace. The checked Vercel adapter returned npm 404 on 15 September 2026; package version fields are not publication proof. See [Install](/docs/agent-sdk/install).
-
-<Facts rows={[
-  ["What it attaches to", "A native seam: a middleware, a processor, a callback handler, a model provider, a plugin."],
-  ["What it adds", "Normalised per-call usage, and one hook that can transform a request before provider I/O."],
-  ["What it costs you", "No network hop, no second agent loop, no replacement runner."],
-  ["Version", "0.1.0 for every adapter. Upstream pins are exact."],
-  ["Reports", <>Always <code>inferred</code>. An adapter cannot emit <code>verified</code>.</>],
-]} />
-
-## Why you would want one
-
-### One usage record per provider call, with the gaps left visible
-
-Every framework reports token usage in its own shape, and most of them fill missing counters with zero.
-A zero that means "the provider did not tell us" is indistinguishable from a zero that means "no cached
-tokens were read", and the difference decides whether a cost number is worth anything.
-
-An adapter maps native usage into one record and refuses that shortcut:
-
-```ts
-{
-  schemaVersion: 1,
-  provider: "anthropic",
-  model: "claude-sonnet-4-5",
-  inputTokens: 4210,        // excludes cache read and cache write
-  outputTokens: 512,
-  cacheReadTokens: 18400,
-  cacheWriteTokens: null,   // the provider did not report it
-  reasoningTokens: null,    // a subset of output when it is known
-  totalTokens: null,
-  cost: { status: "unknown" },
-}
-```
-
-The counts are disjoint, so adding them is meaningful. `null` means unknown and is never coerced to zero.
-`reasoningTokens` is a subset of `outputTokens` rather than a peer of it. `cost` is one of three states:
-`estimated` with a `public_catalog` basis and a USD figure, `unpriced` when the counts are complete but
-the model is not in the price table, or `unknown` when the counts are not complete. A run's accounting
-status is `complete_priced`, `complete_unpriced`, or `incomplete`, and the last one does not quietly
-become a number.
-
-This is the whole argument for the adapter layer. You can read provider usage yourself from any of these
-frameworks. What you cannot easily do yourself is get a record that tells you which parts of it are
-missing.
-
-### One place to change the request, inside your own loop
-
-The second thing is the model boundary: a list of middleware that runs immediately before your framework
-makes its provider call, on the request your framework built, in the process your framework is running.
-
-```ts
-import { createModelBoundary } from "@caveman-ai/agent/model-boundary";
-
-const boundary = createModelBoundary([
-  {
-    id: "drop-stale-tool-results",
-    prepare({ request, context }) {
-      if (context.role === "compaction") return undefined;
-      return { ...request, prompt: trimToolResults(request.prompt) };
-    },
-    settled({ response, context }) {
-      metrics.record(context.identity.modelCallId, response);
-    },
-  },
-]);
-```
-
-`prepare` returns a new request or `undefined` to leave it alone. `settled` and `failed` observe one
-terminal outcome. A boundary holds at most 64 middleware, and `context` carries the run, step and model
-call identity, the provider and model, the abort signal, and whether this call is working context or
-compaction.
-
-That is where you put context compression, prompt trimming, a redaction pass, or an audit hook. Nothing
-in the SDK ships a middleware for you: the boundary is the seam, and what goes in it is yours.
-
-<Note title="A budget does not live here">
-The model boundary is the right seam for anything that has to stay in step with your framework's own copy
-of the conversation, which means compaction and routing. A spend ceiling and exact accounting do not need
-the framework at all, so they attach one layer lower, on your provider client's `fetch`. See the
-[wire transport](/docs/agent-sdk/wire). It works even on the two adapters below that cannot intercept.
-</Note>
-
-## What an adapter is not
-
-Middleware in the model boundary receives no `next` callback and no provider function. It cannot call the
-model. It can only hand a request back and be told what happened.
-
-That is a deliberate structural limit, not a convention. It means an adapter cannot grow into a proxy,
-cannot retry on your behalf, cannot swap your model, and cannot become the thing that actually talks to
-the provider. Your framework keeps its runner, retries, tools, aborts, streams and error types. Streaming
-stays pull-driven: the adapter never prefetches, and cancellation forwards to the native stream.
-
-Observation is best effort and contained. If an observer throws, you still get the native result, or the
-exact native error. An adapter that fails is an adapter that stops recording, not an agent that stops
-working.
-
-<Note title="This is not the proxy">
-The [local proxy](/docs/proxy) does a different job in a different place: it sits on the network path and
-compresses payloads for an agent you did not write. An adapter sits inside your process, adds no hop, and
-is how you instrument an agent you did write. Neither needs the other.
-</Note>
-
-## Two kinds of adapter
-
-**Native adapters** attach to a framework that owns the loop. You keep writing your agent the framework's
-way and add one object to a config array. Six of these exist.
-
-**Runner lanes** go the other direction: you write a Caveman [agent definition](/docs/agent-sdk/define)
-and the lane executes it on that runtime. Three of these exist, for Pi, the Claude Agent SDK, and Eve.
-
-The two use different manifest schemas, so a lane cannot be mistaken for the other kind by anything
-reading the registry.
-
-## Pick a native adapter
-
-`intercept` means the model boundary runs and can transform the request. `observe` means you get events
-and, where marked, usage, but the request leaves untouched.
-
-| Package | Upstream pin | Model boundary | Usage | Run and tool events |
-|---|---|---|---|---|
-| `@caveman-ai/adapter-vercel-ai-sdk` | `ai@7.0.84` | intercept | Yes | Yes |
-| `@caveman-ai/adapter-mastra` | `@mastra/core@1.63.2` | intercept | Yes | Yes |
-| `@caveman-ai/adapter-strands-agents` | `@strands-agents/sdk@1.15.0` | intercept | Yes | Yes, `run.error` unsupported |
-| `@caveman-ai/adapter-openai-agents` | `@openai/agents@0.17.0` | intercept | Yes | No |
-| `@caveman-ai/adapter-langgraph` | `@langchain/langgraph@1.4.13` | No | Yes | Yes |
-| `@caveman-ai/adapter-cloudflare-agents` | `agents@0.22.0` | No | No | Yes, lifecycle only |
-
-Every capability above is `experimental` in its manifest. None is certified, and `tracing`, `replay
-awareness`, `durable observation` and `compilation` are `unsupported` across all six.
-
-Node 22.19 or newer for every native adapter. The Cloudflare adapter is the one package that does not
-peer-depend on `@caveman-ai/agent`, because pure lifecycle observation needs nothing from it.
-
-## Attach one
-
-An intercepting lane, Vercel AI SDK:
+Only want the spend ceiling and exact accounting? That attaches lower down, at the provider client: [Wire transport](/docs/agent-sdk/wire).
 
 ```bash
-npm install ai@7.0.84
-# Link the built @caveman-ai/agent and adapter-vercel-ai-sdk workspace packages.
+npm install <checkout>/packages/agent <checkout>/packages/adapters/vercel-ai-sdk ai@7.0.84
 ```
 
-```ts
-import { ToolLoopAgent, wrapLanguageModel } from "ai";
-import { createModelBoundary } from "@caveman-ai/agent/model-boundary";
-import { createVercelAISDKAdapter } from "@caveman-ai/adapter-vercel-ai-sdk";
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install), then install both packages from it; `<checkout>` is the path you cloned into.
 
-const caveman = createVercelAISDKAdapter({
-  modelBoundary: createModelBoundary([]),
+`model` and `prompt` below are your own, built the way the framework already builds them:
+
+```ts
+import { createVercelAISDKAdapter } from "@caveman-ai/adapter-vercel-ai-sdk";
+import { createModelBoundary } from "@caveman-ai/agent/model-boundary";
+import { ToolLoopAgent, wrapLanguageModel } from "ai";
+
+const lifecycle = [];
+const usage = [];
+
+const adapter = createVercelAISDKAdapter({
+  modelBoundary: createModelBoundary([{
+    id: "deterministic-request",
+    prepare: ({ request }) => ({ ...request, temperature: 0 }),
+  }]),
   onLifecycleEvent: (event) => lifecycle.push(event),
-  onModelUsage: ({ usage, identity }) => usageLog.push({ usage, identity }),
+  onModelUsage: (record) => usage.push(record),
 });
 
 const agent = new ToolLoopAgent({
-  model: wrapLanguageModel({ model, middleware: caveman.middleware }),
-  ...caveman.composeAgentCallbacks(existingCallbacks),
+  model: wrapLanguageModel({ model, middleware: adapter.middleware }),
+  instructions: "Return one evidence-backed recommendation as JSON.",
+  ...adapter.composeAgentCallbacks(),
 });
+
+const response = await agent.generate({ prompt });
 ```
 
-An observing lane, LangGraph, where the graph is untouched and only the config gains handlers:
+`adapter.middleware` is a native `LanguageModelMiddleware` and `composeAgentCallbacks()` returns native callbacks, composed over any you already pass. The runnable version of this, a procurement review with its own tests, is `examples/adapters/vercel-ai-sdk` in the repository.
+
+## What a usage record carries
+
+`onModelUsage` fires once per completed provider call with one call's disjoint counts, in the same eleven-field record the wire transport emits: [Wire transport](/docs/agent-sdk/wire#the-accounting) prints one and explains every field, including when `cost.status` reads `estimated`, `unpriced` or `unknown`. Raw provider payloads stay out of it on purpose.
+
+`onLifecycleEvent` receives immutable normalised events carrying stable run, step, model and tool identity, the attempt, the replay source, and the upstream native ids. A stateful validator in `@caveman-ai/adapter-kit` rejects broken ordering before an event can reach accounting.
+
+## The hook before the provider call
+
+`modelBoundary` middleware has `prepare`, `settled` and `failed`. `prepare` returns the request the framework will send; `settled` and `failed` observe one terminal outcome each and always hand back the native response or throw the exact native failure.
+
+Middleware receives the request and returns the request, so the framework stays the one thing that calls the model and the one thing that retries. A middleware id has to be unique and at most 64 characters, and 64 middleware is the ceiling.
+
+## The lanes that ship
+
+Each adapter pins one exact upstream version, and the pin is in its manifest as well as its peer dependency, so a mismatch is visible rather than assumed.
+
+| Adapter | Upstream pin | Shape |
+|---|---|---|
+| `@caveman-ai/adapter-vercel-ai-sdk` | `ai@7.0.84` | Native seam |
+| `@caveman-ai/adapter-mastra` | `@mastra/core@1.63.2` | Native seam |
+| `@caveman-ai/adapter-openai-agents` | `@openai/agents@0.17.0` | Native seam |
+| `@caveman-ai/adapter-strands-agents` | `@strands-agents/sdk@1.15.0` | Native seam |
+| `@caveman-ai/adapter-langgraph` | `@langchain/langgraph@1.4.13` | Native seam |
+| `@caveman-ai/adapter-cloudflare-agents` | `agents@0.22.0` | Native seam |
+| `@caveman-ai/adapter-pi` | `@earendil-works/pi-agent-core@0.83.0` | Runner |
+| `@caveman-ai/adapter-claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk@0.3.220` | Runner |
+| `@caveman-ai/adapter-eve` | `eve@0.29.2` | Runner |
+
+A native-seam lane attaches to a callback surface the framework already exposes. A runner lane takes a Caveman definition and executes it on that runtime instead, which is why it is the answer for Pi and the Claude Agent SDK rather than a port.
+
+What each lane can do is in its manifest under a fixed capability vocabulary: `runLifecycle`, `modelInterception`, `contextTransformation`, `toolObservation`, `usageAccounting`, `streaming`, `abort`, `replayAwareness`, `durableObservation`, `tracing`, `compilation`.
+
+| Lane | Declares support for |
+|---|---|
+| Vercel AI SDK, Mastra, Strands | lifecycle, model interception, context transformation, tool observation, usage, streaming, abort |
+| OpenAI Agents | model interception, context transformation, usage, streaming, abort |
+| LangGraph | lifecycle, tool observation, usage, streaming |
+| Cloudflare Agents | lifecycle |
+
+Everything absent from a row is declared `unsupported` rather than left open. Read it at runtime instead of from this page:
 
 ```ts
-import { createLangGraphAdapter } from "@caveman-ai/adapter-langgraph";
+import { createAdapterRegistry } from "@caveman-ai/adapter-kit";
+import vercel from "@caveman-ai/adapter-vercel-ai-sdk";
 
-const cave = createLangGraphAdapter({
-  model: { provider: "openai", model: "gpt-5-mini" },
-  onUsage: ({ usage, identity }) => usageLog.push({ usage, identity }),
-  onLifecycle: (event) => lifecycle.push(event),
-});
-
-const graph = builder.compile({ checkpointer, transformers: cave.transformers });
-const result = await graph.invoke(input, cave.composeConfig({
-  callbacks: existingCallbacks,
-  configurable: { thread_id: "thread-1" },
-}));
+const adapters = createAdapterRegistry();
+adapters.register(vercel);
+console.log(adapters.get("vercel-ai-sdk")?.manifest.capabilities);
 ```
 
-Every adapter that composes with something you already have uses a `compose` function for it:
-`composeAgentCallbacks`, `composeConfig`, `composeCallbacks`, `composeTransformers`. They append. They do
-not discard your existing callbacks, and they preserve your callbacks' return values and thrown errors.
+The registry validates and returns metadata. It decides discovery, and admission stays with your own code.
 
-Where identity matters the adapters fail closed rather than guessing. Strands requires a resolvable
-provider and model whenever a boundary or usage sink is configured, and refuses before provider I/O if it
-cannot resolve one. The Cloudflare adapter treats only stable native `requestId` and `fiberId` values as
-run identity and emits a diagnostic skip for anything else.
+The three runner lanes carry an older manifest vocabulary (`run`, `stream`, `tools`, `usage`, `abort`, `durable`, `compile`). Pi is the only one that declares `compile`, and it is the only lane the compiler lowers a baseline plan for, for a tool-free agent.
 
-## Read the manifest before you rely on a capability
+## Running the conformance suite
 
-Every adapter ships a capability manifest, and the registry is discovery, not a promise. A capability is
-`unsupported`, `experimental`, or certified by a report in `certifications`. Today every `certifications`
-map is empty.
+`@caveman-ai/adapter-conformance` owns every case id, capability assignment, benchmark clock, warmup count, sample count, percentile and threshold. You supply executors for the complete required set; a missing, extra, reassigned or caller-measured entry fails before anything runs.
 
-```js
-import { adapterManifest } from "@caveman-ai/adapter-vercel-ai-sdk";
-
-adapterManifest.upstream;                      // { package: "ai", version: "7.0.84" }
-adapterManifest.capabilities.usageAccounting;  // "experimental"
-adapterManifest.lifecycle["run.error"];        // "unsupported"
+```bash
+node packages/adapter-conformance/candidates/run-candidates.mjs --print vercel-ai-sdk
 ```
 
-The reason a phase reads `unsupported` is almost always that the upstream seam cannot prove it. Vercel's
-`run.error` is unsupported because that native seam does not carry the failure. Strands exposes no public
-run-error pair covering errors, hook cancellation, resume, abort and consumer break, so its `run.error` is
-unsupported too. Mastra 1.63.2 gives no complete processor callback for retryable model failures, so those
-phases stay unsupported there. In each case the honest manifest entry is the one that matches what the
-framework actually hands over.
-
-`@caveman-ai/adapter-conformance` runs a deterministic candidate-evidence vector against a packed adapter
-and upstream tarball. A passing candidate report is evidence. It is not compiler support and not live
-provider certification.
-
-## Runner lanes
-
-Use one of these when you have written a Caveman agent definition and want it executed on that runtime.
-
-| Package | Upstream pin | Node | Compilation |
-|---|---|---|---|
-| `@caveman-ai/adapter-pi` | `@earendil-works/pi-agent-core@0.83.0` | 22.19+ | `experimental`, tool-free agents only |
-| `@caveman-ai/adapter-claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk@0.3.220` | 22.19+ | `unsupported`, the lane is always unlocked |
-| `@caveman-ai/adapter-eve` | `eve@0.29.2` | 24+ | `unsupported`, refuses reasoning plans |
-
-Pi is the only lane that can lower a baseline plan into a cheaper one, and only for an agent with no
-tools. `compileProfiledNativePi` refuses an agent with tools with
-`cave_compiler_tool_effect_coverage_unavailable`, because tool effect coverage is what would make the
-lowering safe and it does not exist yet. It also refuses a context IR that is not content blind, and
-refuses if sandbox conformance does not verify. The compiler owns the candidate shape: callers cannot
-inject an alternate behavioural plan.
-
-Eve requires Node 24 and refuses reasoning plans, because upstream usage carries no reasoning-token
-evidence and a plan that assumes one would be guessing.
-
-### The Claude lane
-
-```ts
-import { runClaudeAgent } from "@caveman-ai/adapter-claude-agent-sdk";
-import { fileURLToPath } from "node:url";
-import support from "./agent.js";
-
-const result = await runClaudeAgent(support, "Can I get a refund?", {
-  entryPath: fileURLToPath(new URL("./agent.js", import.meta.url)),
-  maxTurns: 8,
-  maxBudgetUsd: 0.50,
-});
+```json
+{
+  "schema": "caveman.adapter-conformance.report.v4",
+  "adapter": { "id": "vercel-ai-sdk", "packageName": "@caveman-ai/adapter-vercel-ai-sdk", "version": "0.1.0" },
+  "upstream": { "packageName": "ai", "version": "7.0.84" },
+  "environment": { "runtime": { "name": "node", "version": "22.22.2" }, "execution": "uncontained-host" },
+  "packages": [
+    { "role": "adapter", "name": "@caveman-ai/adapter-vercel-ai-sdk", "version": "0.1.0", "sha256": "1b3c8442…" },
+    { "role": "upstream", "name": "ai", "version": "7.0.84", "sha256": "389b525d…" }
+  ],
+  "testVector": { "id": "adapter-capabilities-v4", "version": "4.0.0", "sha256": "8dec2730…" }
+}
 ```
 
-The public lane is always unlocked, `claimBasis` is `"inferred"`, and verified savings are `$0`. It
-disables Claude's built-in tools and settings, maps declared read-and-inline Caveman tools into one
-in-process MCP server, reuses the same immutable source snapshot and sandbox executor as Pi, and enforces
-the declared model, reasoning and output schema. The default is 16 turns.
+Trimmed above: the digests are cut to eight characters, and `environment.platform` and `testVector.executedSetSHA256` are dropped, all four present in the file. The committed report's `totals`:
 
-Write, idempotent and external tools, along with `auto`, page, compress and recovery-handle results,
-reject before SDK or tool execution, so a side effect cannot land without recovery. Memory and framework
-subagents fail closed here until equivalent semantics exist. The caller cannot inject a Cave Plan or Cave
-Build identity.
+```json
+{
+  "capabilities": { "passed": 3, "blocked": 4, "total": 7 },
+  "cases": { "passed": 15, "failed": 0, "skipped": 1, "total": 16 },
+  "performance": { "passed": 3, "failed": 0, "skipped": 3, "total": 6 }
+}
+```
 
-The pinned Agent SDK reports aggregate output tokens with no authoritative thinking-token split, so
-`reasoningUsageBasis` is `"unavailable"` and `reasoningTokens: 0` is a non-evidence placeholder. Do not
-read that zero as a measured zero.
+Four of seven capabilities are blocked, each by a skip. `runLifecycle` is blocked by a skipped case, `run-lifecycle.failure` with code `fixture_unavailable`. `modelInterception`, `contextTransformation` and `streaming` are blocked by a skipped benchmark of the same code, because the candidate fixture supplies a synchronous benchmark for the other three and leaves theirs out. A skip blocks qualification rather than being rounded up, which is the intended reading for a partial native seam.
 
-Anthropic's SDK is not open source. Current SDK source is Apache-2.0, and using the Claude lane still means reviewing
-Anthropic's terms.
+```bash
+npm run test:conformance-candidates
+```
 
-## Why the pins are exact
+That repacks the installed adapter and upstream sources, reruns the cases and the suite-owned benchmarks, validates each report's self-digest, and compares artifact digests, so a committed report stays tied to the code it describes. Benchmark callbacks must return `undefined`, which makes them synchronous; the runner warms them 250 times and measures 2,000 samples, 1,000 and 10,000 for the streaming benchmark, on a monotonic clock captured at module load, and takes the p99. The suite owns every number, sample count, clock and threshold.
 
-An adapter attaches to a seam the framework does not consider public API. A minor release can change what
-a callback receives or when it fires, and the failure that produces is a usage number that is quietly
-wrong rather than an exception you notice. Each adapter owns and tests one version, states it in its
-manifest, and declares it as a peer dependency, so a mismatch is an install-time complaint instead of a
-silent accounting drift.
+## Verify and undo
 
-`@caveman-ai/agent/adapters` and `@caveman-ai/agent/claude` remain compatibility exports. Vercel and
-Mastra host integration is not duplicated there.
+The adapter is on when `onModelUsage` fires once per provider call and the counts match what the framework's own response reports. Compare the two for one generation before trusting either.
 
-## What it will not do
+To roll back, delete the adapter object from the framework config: drop `adapter.middleware` from `wrapLanguageModel` and the spread of `composeAgentCallbacks()`. The framework keeps its native result, its native error types, and any callbacks you already passed.
 
-An adapter will not lower a baseline plan into a cheaper one unless its capability manifest proves that
-behaviour, and today only exact native Pi does, for tool-free agents. Mixing a Pi lock into the Claude
-lane or a third-party runner is refused.
+## Limits
 
-It will not perform model I/O, own retries, replace your runner, or add a network hop.
+Every capability in every shipped lane is `experimental`. `certified` requires exact conformance suite and report digest fields, and no lane has them. A report is candidate evidence that results are reproducible, not a statement about runtime safety, and running the suite locally does not mint certification.
 
-It will not turn adapter presence into a grant of execution. A package existing in the registry says a
-lane was written, not that it is certified.
+An adapter adds no model call and no proxy hop, and it makes no efficiency claim. Compaction and model routing stay off this boundary for the reason [Wire transport](/docs/agent-sdk/wire#limits) gives.
 
-It will not report a number it did not receive. Missing counts stay `null`, incomplete counts leave cost
-`unknown`, and no normalised framework zero is treated as provider evidence. Local adapter results stay
-`inferred`.
-
-It will not enforce a budget. An adapter observes a call and can transform it, but nothing in the adapter
-layer reserves spend or refuses a call that does not fit. That is the [wire transport](/docs/agent-sdk/wire).
+Adapter presence says nothing about compiler support. A generic lane stays baseline-equivalent unless its capability manifest proves otherwise.

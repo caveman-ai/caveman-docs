@@ -1,0 +1,209 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/tables");
+
+<DocSchema slug="proxy/compressors/tables" />
+
+The tabular compressor reads CSV, TSV, and Markdown tables and keeps the header, the edge rows, every row that
+carries a failure word, the row holding the smallest and the largest value of each numeric column, and one row of
+every distinct shape. Runs of dropped rows become a single marker row that states how many rows it replaced and
+the facts that held across all of them, so the result is still a table with the same column count.
+
+## Before and after
+
+The fixture is a 301 line CSV export: a header and 300 order rows, three of which are not `fulfilled`.
+
+```text
+order_id,region,status,items,total_eur
+ord-1000,amer,fulfilled,5,897
+ord-1001,amer,fulfilled,4,540
+ord-1002,apac,fulfilled,2,209
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/tables/orders300.csv
+caveman-engine compress < orders300.csv 2> report.json
+```
+
+Stdout is the whole compressed table, 20 lines. This is all of it.
+
+```text
+order_id,region,status,items,total_eur
+ord-1000,amer,fulfilled,5,897
+ord-1001,amer,fulfilled,4,540
+ord-1002,apac,fulfilled,2,209
+… 5 rows elided (caveman): all status=fulfilled; order_id: ord-1003..ord-1007 all 5 present …,,,,
+ord-1008,amer,fulfilled,6,776
+ord-1009,apac,fulfilled,6,181
+ord-1010,apac,fulfilled,1,871
+… 29 rows elided (caveman): all status=fulfilled; order_id: ord-1011..ord-1039 all 29 present; region: emea×16 apac×7 amer×6; range items=1..6 total_eur=35..887 …,,,,
+ord-1040,amer,fulfilled,2,20
+… 26 rows elided (caveman): all status=fulfilled; order_id: ord-1041..ord-1066 all 26 present; region: emea×14 apac×9 amer×3; range items=1..6 total_eur=59..870 …,,,,
+ord-1067,emea,shipped,2,253
+… 96 rows elided (caveman): all status=fulfilled; order_id: ord-1068..ord-1163 all 96 present; region: emea×60 apac×20 amer×16; range items=1..6 total_eur=38..889 …,,,,
+ord-1164,apac,shipped,6,188
+… 46 rows elided (caveman): all status=fulfilled; order_id: ord-1165..ord-1210 all 46 present; region: emea×24 apac×14 amer×8; range items=1..6 total_eur=32..892 …,,,,
+ord-1211,apac,processing,6,796
+… 86 rows elided (caveman): order_id: ord-1212..ord-1297 all 86 present; region: emea×54 apac×16 amer×16; status: fulfilled×85 shipped×1; range items=1..6 total_eur=34..886 …,,,,
+ord-1298,emea,fulfilled,2,274
+ord-1299,apac,fulfilled,6,220
+"… caveman: elided rows resemble shown rows and match the stated invariants — answer from this view; if you truly cannot, one broad caveman_retrieve …",,,,
+```
+
+The report on stderr carries the counts. The handle varies per run and per machine, so it is trimmed with `…`
+here.
+
+```json
+{"content_type":"tabular","tokens_before":4160,"tokens_after":569,"ratio":0.8632211538461538,
+ "basis":"inferred","recovery_handle":"ccr_2d67…","method":"tabular","lossless_to_model":false}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+4,160 tokens to 569, counted by the offline `o200k_base` counter described on
+[Token counting](/docs/proxy/tokens).
+
+Four of the surviving rows are there because of the numeric rule rather than their position. `ord-1010` is the
+first row holding the file's lowest `items` value and `ord-1008` the first holding its highest; `ord-1040` holds
+the file's lowest `total_eur` and `ord-1000` its highest. The two `shipped` rows and the one `processing` row
+survive because nothing already kept resembled them.
+
+### Markdown tables
+
+A Markdown table takes the same path and comes back as a Markdown table. This is a 42 line test report with one
+failure and one skip, compressed whole:
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/tables/results.md
+caveman-engine compress < results.md
+```
+
+```text
+| suite | case | status | ms |
+| --- | --- | --- | --- |
+| orders | case_001 | pass | 41 |
+| orders | case_002 | pass | 42 |
+| orders | case_003 | pass | 43 |
+| … 13 rows elided (caveman): all suite=orders status=pass; case: case_004..case_016 all 13 present; range ms=44..56 … |  |  |  |
+| orders | case_017 | fail | 57 |
+| … 11 rows elided (caveman): all suite=orders status=pass; case: case_018..case_028 all 11 present; range ms=58..68 … |  |  |  |
+| orders | case_029 | skip | 69 |
+| … 9 rows elided (caveman): all suite=orders status=pass; case: case_030..case_038 all 9 present; range ms=70..78 … |  |  |  |
+| orders | case_039 | pass | 79 |
+| orders | case_040 | pass | 80 |
+```
+
+498 tokens to 246. The separator row survives, the marker occupies the first cell and leaves the rest empty, and
+the `fail` and `skip` rows are pulled out of the middle.
+
+## How it works
+
+Parsing is tried as Markdown first, then as delimiter-separated text.
+
+A Markdown table has to be every line starting and ending with `|`, at least three lines, at least two columns, a
+second line whose every cell matches `^:?-{3,}:?$`, and the same cell count on every row. Anything else falls
+through.
+
+For CSV and TSV, the first line decides the delimiter: a tab wins when the line has at least one tab and more tabs
+than commas, otherwise the delimiter is a comma, and a first line with no delimiter at all is rejected. The whole
+payload is then read with Go's `encoding/csv` reader. The table needs at least two rows, between 2 and 128
+columns, and the same column count on every row.
+
+A parsed table is compressed when it has at least 12 rows and more than `headerRows + 6` rows, where `headerRows`
+is 2 for Markdown and 1 otherwise. Below that it passes through.
+
+Each row is then rendered to a single space-joined string and marked to keep:
+
+<Steps>
+<div>
+The header rows, the first 3 data rows, and the last 2 rows.
+</div>
+
+<div>
+Any row whose joined text matches `ERROR|FAIL|FAILED|FATAL|PANIC|EXCEPTION|WARNING|SECURITY|DENIED|REJECTED`,
+case insensitive, on a word boundary.
+</div>
+
+<div>
+Numeric extrema. For each column, every data cell is parsed with `ParseFloat`. When at least 70 percent of the
+data cells in that column parse, the rows holding the minimum and the maximum are kept. A column that misses the
+70 percent bar contributes nothing.
+</div>
+
+<div>
+Query relevance, when a query is supplied. Deterministic BM25 scores the joined rows, anything at or above 0.30 of
+the best score becomes a candidate, and candidates fill up to 24 extra rows in score order.
+</div>
+
+<div>
+One representative of every distinct kind of row, added by the shared redundancy guard, so a dropped row always
+resembles a row still visible.
+</div>
+</Steps>
+
+Kept rows are written out in their original order. Each run of dropped rows becomes one marker row whose first
+cell holds `… N rows elided (caveman): <summary> …` and whose remaining cells are empty, so the column count never
+changes. The summary is computed by `invariants.go` from the exact rows the marker replaces, with each cell named
+by its header column. A run of fewer than 3 rows is only collapsed when it has a summary and the marker text costs
+at most half the bytes it replaces; otherwise those rows are written out and nothing is claimed for them.
+
+When a payload dropped at least 4,096 bytes, one more row is appended carrying the contract line you can see at
+the foot of the output above.
+
+Markdown output is rebuilt as `| a | b |` lines. CSV and TSV output is rebuilt through `encoding/csv` with the
+original delimiter. Whether the input ended in a newline, and whether the majority of its line endings were CRLF,
+are both carried over.
+
+### What a marker may claim
+
+The summary is capped at 160 bytes, further capped at a quarter of the bytes it replaces, with a floor of 96
+bytes. An entry is dropped whole rather than truncated when the budget binds.
+
+| Fact | Form | Condition |
+| --- | --- | --- |
+| Constant | `all status=fulfilled` | The column is byte-identical in every elided row. |
+| Enumeration | `region: emea×60 apac×20 amer×16` | At most 5 distinct values including an `absent` bucket, each at most 24 bytes and free of spaces. Counts sum to the elided count. |
+| Range | `range items=1..6` | The column is filled in every elided row and every value parses as a number. The bounds are the original cell strings. |
+| Coverage | `order_id: ord-1068..ord-1163 all 96 present` | The values look like identifiers rather than states. At most 2 coverage entries per summary. |
+
+A cell longer than 40 bytes, a column name longer than 32 bytes, and any column whose name matches
+`secret|passw|token|api[_-]?key|authoriz|credential|cookie|session` are left out of the summary.
+
+## What is always kept
+
+The header. The first three and last two data rows. Every row carrying a failure word. The rows holding the
+minimum and maximum of each mostly-numeric column. One row of each distinct shape. The column count, on every
+row including the markers, so a parser still reads a table.
+
+## When it is chosen
+
+`LooksTabular` runs the same strict parser and returns true when it parses and the table has at least 8 rows.
+See [how detection decides](/docs/proxy/compressors#how-detection-decides) for where this test sits among
+the others.
+
+```bash
+caveman-engine detect < orders300.csv
+```
+
+```text
+tabular
+```
+
+The two floors differ. A 9 line slice of the same file still detects as `tabular` and then passes through,
+because 9 rows clears detection's 8 and misses the compressor's own 12 row floor. The report shows
+`"tokens_before":120,"tokens_after":120` with no `method` and no handle.
+
+The compressor declines, and the engine forwards the original bytes, when the payload already contains a
+`rows elided (caveman)` marker, when the parse fails, when the row count is too low, when the marked-to-keep set
+covers every row, when the re-encoded bytes are no shorter than the input, and when no recovery store is
+available.
+
+## Options
+
+None. `NewTabular` fixes the floor at 12 rows, 3 leading rows, 2 trailing rows, a query fill of 24 rows, and a
+relevance threshold of 0.30. A query arrives from the caller, not from configuration.
+
+## Recovery
+
+The original table is stored before the compressed view is emitted, and the handle in the report retrieves it byte
+for byte: see [Recovery](/docs/proxy/recoverable).

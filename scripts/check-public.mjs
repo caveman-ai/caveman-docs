@@ -38,7 +38,9 @@ const deniedIds = manifest.privateIds.filter((id) => !AMBIGUOUS.has(id));
 
 /* Directories that exist only in the private repository. A docs page has no
  * legitimate reason to point a reader at one. */
-const PRIVATE_PATHS = [/\bcloud\/[a-z]/, /\bdb\/(schema|migrations)/, /\bdeploy\//, /\bcaveman-cloud-spec\//, /\bcloud\/web\b/];
+/* `cloud/` preceded by a hyphen is the public CLI config directory,
+ * `~/.caveman-cloud/`, not the private tree. */
+const PRIVATE_PATHS = [/(?<![\w-])cloud\/[a-z]/, /\bdb\/(schema|migrations)/, /\bdeploy\//, /\bcaveman-cloud-spec\//, /(?<![\w-])cloud\/web\b/];
 
 const errors = [];
 
@@ -119,7 +121,9 @@ for (const file of scanned) {
       if (re.test(line)) errors.push(`${rel}:${i + 1} names a private path: ${line.trim().slice(0, 100)}`);
     }
     for (const id of deniedIds) {
-      if (new RegExp(`\\b${id.replace(/[-]/g, "[-]")}\\b`).test(line)) {
+      /* A hyphen on either side means the id is inside a longer public name,
+       * such as the `x-cave-agent` request header or `create-caveman-agent`. */
+      if (new RegExp(`(?<![\\w-])${id.replace(/[-]/g, "[-]")}(?![\\w-])`).test(line)) {
         errors.push(`${rel}:${i + 1} names the private capability "${id}": ${line.trim().slice(0, 100)}`);
       }
     }

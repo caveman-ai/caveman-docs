@@ -4,118 +4,105 @@ export const metadata = docMetadata("sdk/typescript");
 
 <DocSchema slug="sdk/typescript" />
 
-`@caveman-ai/sdk` is the MIT-licensed TypeScript client in the main Caveman repository. It ships ESM and TypeScript declarations with no runtime dependencies. This quickstart uses published version `1.1.0` on Node.js 22.13 or newer.
+`@caveman-ai/sdk` is a TypeScript client for a Caveman service: it makes provider calls through that service and sends payloads to its compression endpoint, then maps the reply into typed results. It is ESM only, has no runtime dependencies, and needs Node.js 22.13 or newer. This page documents published version 1.1.0.
+
+Want tool results compressed inside a framework you already call, with no new code? Use [Middleware](/docs/sdk/middleware).
 
 ## Install
 
 ```bash
-mkdir caveman-ts-example
-cd caveman-ts-example
-npm init -y
-npm install @caveman-ai/sdk@1.1.0
+npm install @caveman-ai/sdk
 ```
 
-Use an `.mjs` file for the first run. In a TypeScript project, use ESM and NodeNext module resolution. The package does not publish a CommonJS `require` entrypoint.
+## Configure
 
-## Configure your service
-
-Set these variables in your shell or secret manager. Replace the values with your deployment's service address, accepted key, and enabled model:
+Every call goes to the address in `baseURL`. The `/sdk/v1/*` routes that `compress()`, `context`, `tools` and `runtimePolicy` use are served by a Caveman service; the local proxy on 127.0.0.1:8787 serves the provider routes and the middleware runtime, not those.
 
 ```bash
 export CAVE_BASE_URL="https://your-caveman-service.example"
 export CAVE_API_KEY="your-service-key"
-export CAVE_MODEL="your-enabled-model-id"
-# Only when your service requires a provider key:
 export OPENAI_API_KEY="your-provider-key"
 ```
 
-The example address is a placeholder. Installing this package does not launch a service. The Caveman key authenticates to your configured service; the provider key supplies upstream access. Keep both on your application server.
+`agent` is a label you choose. It travels as `x-cave-agent` so the service can group requests by which application made them.
 
-## Make your first request
-
-Save this as `quickstart.mjs`:
+## The smallest complete program
 
 ```js
 import { Cave } from "@caveman-ai/sdk";
 
-function required(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`Set ${name} before running this example`);
-  return value;
-}
-
 const cave = new Cave({
-  apiKey: required("CAVE_API_KEY"),
-  baseURL: required("CAVE_BASE_URL"),
+  apiKey: process.env.CAVE_API_KEY,
+  baseURL: process.env.CAVE_BASE_URL,
   agent: "support-agent",
-  defaultWorkflow: "answer-question",
-  timeoutMs: 30_000,
 });
 
-try {
-  const response = await cave.openai({
-    upstreamKey: process.env.OPENAI_API_KEY,
-  }).responses.create({
-    model: required("CAVE_MODEL"),
-    input: "Explain what a retry loop is in one sentence.",
-  });
-  console.log(JSON.stringify(response, null, 2));
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+const answer = await cave.openai({ upstreamKey: process.env.OPENAI_API_KEY }).responses.create({
+  model: "gpt-5.5",
+  input: "Explain what a retry loop is in one sentence.",
+});
+console.log(JSON.stringify(answer));
+
+const log = Array.from({ length: 400 }, (_, i) => `2026-09-16T10:00:00Z INFO worker=${i} health check passed`).join("\n");
+const report = await cave.compress(log, { contentType: "log" });
+
+console.log({
+  contentType: report.contentType,
+  tokensBefore: report.tokensBefore,
+  tokensAfter: report.tokensAfter,
+  ratio: report.ratio,
+  basis: report.basis,
+  tokenCountBasis: report.tokenCountBasis,
+  method: report.method,
+  recoveryHandle: report.recoveryHandle,
+});
+```
+
+`cave.openai()`, `cave.anthropic()`, `cave.gemini()`, `cave.bedrock()` and `cave.vertex()` each return a client shaped like that provider's own. [Provider calls](/docs/sdk/providers) covers the five and streaming.
+
+## What a missing route prints
+
+Running the second half of that program against a local proxy, which has no `/sdk/v1/compress`, gives the pass-through result:
+
+```console
+{
+  contentType: 'log',
+  tokensBefore: 0,
+  tokensAfter: 0,
+  ratio: 0,
+  basis: 'inferred',
+  tokenCountBasis: 'unavailable',
+  method: undefined,
+  recoveryHandle: undefined
 }
 ```
 
-```bash
-node quickstart.mjs
-```
+That is a pass-through: `output` is the payload you passed in, byte for byte. [Compression](/docs/sdk/compression) lists every trigger and the two fields that tell a pass-through from a real result.
 
-A successful call prints the provider's parsed JSON response, including its native output and usage fields when present. The client does not add the official OpenAI SDK's convenience properties. Read the provider response shape your application requested.
+`basis` reads `"inferred"` on every compression report this client returns. [Compression](/docs/sdk/compression) has the rest of the report and what the word means.
 
-## Compress a string
+## Types
 
-In the same program, after creating `cave`, you can call a service that supports the compression API:
+Every option and result is exported, so you can hold one without widening it.
 
-```ts
-const original = JSON.stringify({ records: [
-  { id: 1, status: "ok" },
-  { id: 2, status: "ok" },
-] });
-const compressed = await cave.compress(original, { contentType: "json" });
-console.log({
-  output: compressed.output,
-  before: compressed.tokensBefore,
-  after: compressed.tokensAfter,
-  basis: compressed.basis,
-  recoveryHandle: compressed.recoveryHandle,
-});
-```
-
-Small payloads may remain unchanged. Network or malformed-response failures also return the original string with zero reported reduction. Use the [compression report](/docs/sdk/compression) to distinguish a useful transformation from pass-through; successful JavaScript execution alone proves neither compression nor savings.
-
-## Use TypeScript
-
-Import public result and option types from the same entrypoint:
+| Type | What it carries |
+|---|---|
+| `CaveOptions` | `apiKey`, `baseURL`, `agent`, plus `defaultWorkflow`, `retention`, `verifyOnInit`, `user`, `timeoutMs`, `signal`, `controlURL` |
+| `CompressOptions` | `contentType`, a hint for the detector: `json`, `toon`, `log`, `code`, `diff`, `search-result`, `text`, `toolschema` |
+| `CompressResult` | `output`, `contentType`, `tokensBefore`, `tokensAfter`, `ratio`, `basis`, `tokenCountBasis`, and optional `recoveryHandle`, `method`, `losslessToModel` |
+| `ContextPackItem`, `ContextPackOptions`, `ContextPackResult` | The budgeted context selector. See [Context packing](/docs/sdk/context) |
+| `CaveTool`, `ToolSearchResult` | The deferred tool catalog. See [Deferred tools](/docs/sdk/tools) |
+| `CaveRequestError` | `status`, `path`, `message`, from the artifact and checkpoint calls |
 
 ```ts
-import type { CaveOptions, CompressResult } from "@caveman-ai/sdk";
+import { Cave, type CompressResult, type CaveOptions } from "@caveman-ai/sdk";
 
-const options: CaveOptions = {
-  apiKey: process.env.CAVE_API_KEY!,
-  baseURL: process.env.CAVE_BASE_URL!,
-  agent: "support-agent",
-};
-const report: CompressResult = await cave.compress("tool output");
-console.log(report.tokenCountBasis);
+const options: CaveOptions = { apiKey: "…", baseURL: "https://your-caveman-service.example", agent: "support-agent", timeoutMs: 30_000 };
+const report: CompressResult = await new Cave(options).compress("{}", { contentType: "json" });
 ```
 
-The non-null assertions above are type annotations, not environment validation. Keep the quickstart's `required()` checks at your application boundary.
+`timeoutMs` defaults to 30 seconds and applies to every request the client makes. `signal` cancels them all.
 
-## Next steps
+## Limits
 
-- [Configure credentials, labels, timeouts, and cancellation](/docs/sdk/configuration).
-- [Use Anthropic, Gemini, Vertex, raw responses, or streaming](/docs/sdk/providers).
-- [Select tools](/docs/sdk/tools), [manage context](/docs/sdk/context), or [trace a workflow](/docs/sdk/tracing).
-- [Add local framework middleware](/docs/sdk/middleware) when you want to keep an existing framework integration.
-
-The SDK does not install the engine, run an agent loop, or guarantee that your configured service supports every exported method.
+`new Cave(...)` throws when `apiKey`, `baseURL` or `agent` is missing, and when `baseURL` carries credentials, a query string or a fragment. `compress()` passes the payload through rather than throwing. A provider call throws an `Error` carrying the service's response body when the status is outside 2xx.

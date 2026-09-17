@@ -4,83 +4,137 @@ export const metadata = docMetadata("agent-sdk/code");
 
 <DocSchema slug="agent-sdk/code" />
 
-Programmatic mode replaces a large JSON tool catalog with one provider-visible tool named `caveman_code`. The model writes a bounded JavaScript cell. Nested tools are called through typed proxies. Every nested call still passes through the runtime's schema, effect policy, budget, breaker, timeout, abort, and receipt path. The cell does not bypass those checks.
-
-<figure className="my-6">
-  <div className="flex flex-col gap-0 text-[13px]">
-    <div className="rounded-md border px-3 py-2">
-      <span className="font-mono">caveman_code</span>
-      <span className="text-muted-foreground"> The only tool the provider sees.</span>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓ cell source, possibly still streaming</div>
-    <div className="rounded-md border px-3 py-2">
-      <strong>Nested dispatch.</strong>
-      <span className="text-muted-foreground"> Same kernel as a normal tool call. Receipt records the cell and each nested call.</span>
-    </div>
-    <div className="pl-4 text-ember">↓ early reads only</div>
-    <div className="rounded-md border border-ember/40 px-3 py-2">
-      <strong>Speculative reads.</strong>
-      <span className="text-muted-foreground"> Literal <span className="font-mono">effect: "read"</span> calls may start while the cell is still streaming. Writes, idempotent calls, external calls, and variable-dependent arguments never speculate.</span>
-    </div>
-  </div>
-  <figcaption className="mt-2 text-xs text-muted-foreground">
-    Ember marks the only early path. Anything that can change the world waits for a complete cell.
-  </figcaption>
-</figure>
-
-## Coding session
-
-New applications import `@caveman-ai/coding-agent`. `@caveman-ai/agent/code` remains a compatibility export while that package is extracted.
+Programmatic mode replaces an agent's tool catalog with one provider-visible tool named `caveman_code`. The model writes a bounded async JavaScript cell, calls your tools inside it as ordinary functions, filters the results locally, and prints only the evidence it needs. Every nested call still goes through the runtime's own dispatcher.
 
 ```ts
-import {
-  createCodingAgent,
-  runCodingTurn,
-  startCodingSession,
-} from "@caveman-ai/agent/code";
+import { agent, auto, createProgrammaticToolRuntime, run, schema, tool } from "@caveman-ai/agent";
 
-const codingAgent = createCodingAgent({
-  workspace: process.cwd(),
-  toolMode: "programmatic",
+const orders = { "A-123": { status: "shipped", carrier: "DHL" }, "A-124": { status: "packing" } };
+
+const lookupOrder = tool({
+  name: "lookup_order",
+  description: "Read one order.",
+  input: schema.object({ id: schema.string() }),
+  effect: "read",
+  result: "inline",
+  async execute({ id }) { return JSON.stringify(orders[id] ?? null); },
 });
 
-const session = await startCodingSession(codingAgent);
-await runCodingTurn(session, "Find failing tests and fix root cause.");
+const support = agent({
+  id: "support",
+  instructions: "Answer from order data.",
+  model: auto(),
+  sandbox: "host",
+  tools: [lookupOrder],
+});
+
+const programmatic = createProgrammaticToolRuntime(support);
+console.log("provider-visible tools:", programmatic.definition.tools.map((t) => t.name));
+
+const result = await run(programmatic.definition, "which orders shipped?", {
+  toolPolicy: ({ name, effect, parentToolCallId }) => {
+    console.log("policy:", JSON.stringify({ name, effect, nested: parentToolCallId !== undefined }));
+  },
+});
+
+console.log("text:", JSON.stringify(result.text));
+console.log("receipt.tools:", JSON.stringify(result.receipt.tools));
 ```
 
-`toolMode: "direct"` exposes ordinary JSON tools instead. `speculativeToolCalls: false` keeps programmatic mode without early reads.
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
 
-Programmatic mode supports host agents only. The code-cell worker is not an isolation boundary. Use a normal `sandbox: "required"` agent when containment matters.
+The cell the model writes against that definition, and what that script prints when a scripted model from `@caveman-ai/agent/testing` sends the cell:
 
-Declaring `effect: "read"` in this mode means the work is safe to start and abandon: it may run even if the generated cell is later discarded. Unknown stream provenance executes fresh work rather than reusing stale speculation.
+```js
+const ids = ["A-123", "A-124"];
+const found = await Promise.all(ids.map((id) => lookup_order({ id })));
+console.log(JSON.stringify(found.filter((row) => JSON.parse(row).status === "shipped")));
+```
 
-## Generic embedders
+```console
+provider-visible tools: [ 'caveman_code' ]
+policy: {"name":"caveman_code","effect":"idempotent","nested":false}
+policy: {"name":"lookup_order","effect":"read","nested":true}
+policy: {"name":"lookup_order","effect":"read","nested":true}
+text: "A-123 shipped with DHL."
+receipt.tools: [{"name":"caveman_code","calls":1,"errors":0},{"name":"lookup_order","calls":2,"errors":0}]
+```
+
+One tool schema reached the provider. Two `lookup_order` calls ran, both admitted by the host's [tool policy](/docs/agent-sdk/coding#deciding-which-calls-run), both counted on the receipt, and their intermediate results stayed out of model context.
+
+## What the model is told
+
+The composite tool's description is generated from your tools as typed declarations:
+
+```text
+Bounded async JS cell. Tools are direct functions and under tools.
+// Read one order.
+declare function lookup_order(args: { id: string }): Promise<string>;
+```
+
+The instructions gain a fixed preamble ahead of your own. `programmatic.definition.instructions` on the run above:
+
+```text
+Use caveman_code for ordinary tool work. One async code cell can call several typed tools,
+run independent calls with Promise.all, inspect or filter their results locally, and print or return only
+the evidence needed for the next model step. Intermediate tool results stay outside model context.
+Call each tool with one object argument. Prefer JSON-compatible object literals with double-quoted keys;
+Runtime can launch complete literal read calls while the code cell is still streaming.
+Writes and external tools are never speculated. Runtime validates every nested call and fails closed.
+Concurrent coding agents need separate worktrees; a shared mutable workspace can stale any early read.
+
+Older turns and tool results may contain <cave-compressed> markers. Use cave_retrieve with their
+recovery_handle before guessing. cave_retrieve remains a framework tool when recovery is active.
+
+Answer from order data.
+```
+
+The second paragraph is the recovery guidance, and the third is the agent's own `instructions`.
+
+Rename the provider-visible tool with `{ toolName }` when a product wants its own brand on it; the instructions and the description follow the new name.
+
+## What a cell cannot skip
+
+A nested call is dispatched by the same code path a direct tool call uses. Input schemas are validated, effect policy applies, the host's `toolPolicy` sees every call with `parentToolCallId` set, call limits and timeouts and abort signals all hold, and the receipt records the composite cell and each nested call separately.
+
+| Bound | Value |
+|---|---|
+| Cell source | 64 KiB, else `cave_program_source_limit` |
+| Cell output | 24 KiB, head and tail kept |
+| Tool calls per cell | 8, else `cave_program_tool_call_budget_exceeded` |
+| Repeats of one identical call | 3, unless the tool declares `allowRepeat` |
+| Cell wall clock | 120 seconds, else `cave_program_timeout` |
+
+## Speculation
+
+While the model is still streaming a cell, a call the source names with complete literal arguments and `effect: "read"` may start early, so the result is ready when the cell runs. Writes, idempotent and external calls, variable-dependent arguments, and reads that could follow a write never speculate.
 
 ```ts
-import {
-  createProgrammaticToolRuntime,
-  PROGRAMMATIC_TOOL_NAME,
-} from "@caveman-ai/agent/programmatic-tools";
+createProgrammaticToolRuntime(support, { speculate: false });
 ```
 
-That kernel does not require the coding-agent helpers. Nested tools still cannot skip the dispatcher.
+`programmatic.stats()` returns `{ launched, claimed, missed, abandoned }`, so the guess rate is measurable rather than assumed. A speculative call that the finished cell does not make is aborted with `cave_program_speculation_abandoned` and never reaches the receipt as a claimed result.
 
-## Interactive coding agent
+## Choosing it
 
-`@caveman-ai/coding-agent` is the interactive coding agent on this runtime, with host-sandbox `read_file`, `grep`, `bash`, `write_file`, and `edit_file` over one workspace. `read_tool_output` pages or literal-searches large captured results without repeating the original command. The CLI binary is `caveman-code`.
+Programmatic mode pays when a wall of JSON schemas would otherwise enter every request, when a task fans out over many items that can be batched with `Promise.all`, or when the useful answer is a filter over large tool results rather than the results themselves. A handful of tools called once each is cheaper as ordinary tools, which is why `toolMode: "direct"` remains the default for the coding agent.
 
-With the local engine present, a session starts the local runtime and applies a default efficiency plan: one recoverable route per live-zone segment kind (`tool_result` through `caveman.engine.terminal.v1`, `history` through `caveman.engine.text.v1`), with `cave_retrieve` registered so the model can pull original bytes back. Only CCR-recoverable transforms are eligible. Two routes matching one runtime segment collapse into `dynamic_route_ambiguous` and that segment passes through untouched.
+The [coding agent](/docs/agent-sdk/coding) takes the same switch, and wraps its transport for you:
 
-When the runtime cannot be reached, the session degrades to observe-only and says so: a banner, `session.notices`, the prompt, and every turn's bill. A turn that already carries a plan refuses to degrade on its own (`cave_gateway_required_for_locked_plan`). The runtime is probed once per session, not once per turn.
+```ts
+import { createCodingAgent, runCodingTurn, startCodingSession } from "@caveman-ai/agent/code";
 
-After every turn the session prints context tokens before and after transforms, tokens saved labelled `inferred (local estimate)`, provider usage with `usageBasis`, and spend in USD with `priceBasis`. Savings are never printed as currency. `/prove-recovery` round-trips a recorded tool output through the same compress/retrieve pair and compares SHA-256.
+const codingAgent = createCodingAgent({ workspace: process.cwd(), toolMode: "programmatic" });
+const session = await startCodingSession(codingAgent);
+await runCodingTurn(session, "Find failing tests and fix the root cause.");
+```
 
-Tool output is capped before compression (24 KB for `read_file` and `bash`, 16 KB for `grep`). Captured results are bounded to 8 MiB each and 16 MiB total in memory. Handles expire with the process. Live coding sessions are never lock-eligible.
+Generic embedders use `createProgrammaticToolRuntime` from `@caveman-ai/agent/programmatic-tools` without adopting the coding-agent helpers.
 
-## Long-running commands
+## Limits
 
-`@caveman-ai/agent/command-session` is the kernel behind hosted command tools. You pass an explicit `env`. Ambient `process.env` is never inherited. Session state is `running`, `exited`, `timed_out`, `killed`, or `unknown_after_restart`. Reads are cursor-based and can wait for bytes or a literal match. This is a credential boundary, not a sandbox: a `bash` session on a host agent is uncontained.
+Host agents only. `createProgrammaticToolRuntime` throws `cave_programmatic_tools_require_host_sandbox` on any other posture, and an agent with no tools throws `cave_programmatic_tools_required`. A tool carrying a non-subagent runtime is refused with `cave_programmatic_tool_runtime_unsupported`.
 
-## What it will not do
+The cell's Worker and the host tool execution behind it are an organisation boundary, not a containment one. When containment is the requirement, use a `sandbox: "required"` agent with ordinary tools: [Sandbox and execution](/docs/agent-sdk/sandbox).
 
-A code cell is not a sandbox. Host execution can run `bash`. Programmatic mode will not speculate a write. The coding session will not silently drop into observe-only on a planned turn, and it will not call a local token reduction a dollar saving.
+Fewer tool schemas in the prompt is a local token estimate, `inferred` in the sense [Numbers and limits](/docs/counting) defines. A cell that needs two attempts costs a model call the direct path would not have spent.

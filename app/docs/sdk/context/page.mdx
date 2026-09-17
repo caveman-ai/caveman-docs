@@ -4,126 +4,195 @@ export const metadata = docMetadata("sdk/context");
 
 <DocSchema slug="sdk/context" />
 
-For framework-local recovery scopes, exact paging, and expiry, see [middleware recovery](/docs/sdk/middleware/recovery). Those handles are separate from the connected context APIs below.
+`cave.context.pack()` decides which of your context fragments fit a token budget for one query, and names the ones it left out so you can put them back later. `cave.assemble()` decides where the chosen content sits in the request: stable content first, volatile content last, so a provider's cached prefix survives the next turn. Packing calls your configured service; assembly runs entirely in your process.
 
-Context APIs solve different problems: assembly orders your fragments locally, packing selects fragments through a service, and checkpoints/artifacts store content for later retrieval. Keep original context under your application's ownership. Examples assume your quickstart's `cave` client.
-
-## Assemble a stable prefix
+### TypeScript
 
 ```ts
-const assembled = cave.assemble({
-  provider: "openai",
-  model: process.env.CAVE_MODEL!,
-  sessionId: "conversation-1",
-  slots: [
-    { id: "system", stability: "stable", content: "Answer from supplied evidence." },
-    { id: "account", stability: "session", content: "Account tier: standard." },
-    { id: "turn", stability: "volatile", content: "Explain my current usage." },
+import { Cave } from "@caveman-ai/sdk";
+
+const { CAVE_API_KEY = "", CAVE_BASE_URL = "" } = process.env;
+const cave = new Cave({ apiKey: CAVE_API_KEY, baseURL: CAVE_BASE_URL, agent: "support-agent" });
+
+const packed = await cave.context.pack(
+  "refund window",
+  [
+    { id: "turn-1", text: "Customer asked about a refund.", timestamp: "2026-09-16T09:00:00Z" },
+    { id: "turn-2", text: "Order 4182 shipped on 3 March.", pin: true },
   ],
-  emitCacheHints: "gateway",
+  { maxTokens: 800, reserveTokens: 200 },
+);
+
+console.log(packed.items.map((i) => i.id), packed.tokensUsed, packed.deferredIds);
+```
+
+### Python
+
+```python
+import os
+from caveman_cloud import Cave, ContextPackItem, ContextPackOptions
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], base_url=os.environ["CAVE_BASE_URL"], agent="support-agent")
+
+packed = cave.context.pack(
+    "refund window",
+    [
+        ContextPackItem(id="turn-1", text="Customer asked about a refund.", timestamp="2026-09-16T09:00:00Z"),
+        ContextPackItem(id="turn-2", text="Order 4182 shipped on 3 March.", pin=True),
+    ],
+    ContextPackOptions(max_tokens=800, reserve_tokens=200),
+)
+
+print([i.id for i in packed.items], packed.tokens_used, packed.deferred_ids)
+```
+
+## An item and a budget
+
+| Item field | Meaning |
+| --- | --- |
+| `id` | Your own stable id, used to report omissions exactly |
+| `text` | The model-visible bytes |
+| `tokens` | A count you already have; the service counts when this is absent or zero |
+| `timestamp` | RFC 3339, read by the recency signal |
+| `priority` | Your own relevance boost |
+| `pin` | Required context. A pinned item that cannot fit makes the whole call return everything with zero savings |
+
+`maxTokens` is the only required option and must be a positive integer. `reserveTokens` holds room back for the reply or the next tool call. `now`, `recencyHalfLifeMs`, `recencyWeight` and `errorBoost` tune the scoring; `now` exists so a test can pin the clock.
+
+## What packing returns
+
+`items` are your own item objects, in the order you supplied them, filtered down to the selection. `deferredIds` is the exact set difference, in request order, so re-supplying a dropped fragment is a lookup rather than a diff.
+
+The client verifies the reply before it trusts it: every selected id must be one of yours and appear once, `deferredIds` must match the ids that were dropped exactly, and `tokensUsed + tokensSaved` must equal `tokensBefore`. Anything else, including a transport failure, returns all your items untouched:
+
+```json
+{
+  "items": [
+    { "id": "turn-1", "text": "Customer asked about a refund.", "timestamp": "2026-09-16T09:00:00Z" },
+    { "id": "turn-2", "text": "Order 4182 shipped on 3 March.", "pin": true }
+  ],
+  "tokensUsed": 0,
+  "tokensBefore": 0,
+  "tokensSaved": 0,
+  "deferredCount": 0,
+  "deferredIds": [],
+  "basis": "inferred"
+}
+```
+
+That was captured with the client pointed at a closed port. The items come back as the objects you passed in, `timestamp` and `pin` included. Zero `tokensBefore` with your full list back is the signal that packing was a pass-through.
+
+## Assembling a request
+
+`assemble()` takes slots you label `stable`, `session` or `volatile` and builds the provider request body with the stable and session slots above every volatile one. The whole thing runs in your process.
+
+```ts
+const assembly = cave.assemble({
+  provider: "anthropic",
+  model: "claude-sonnet-4-5",
+  sessionId: "session-42",
+  slots: [
+    { id: "policy", stability: "stable", content: "Answer from the handbook only." },
+    { id: "question", stability: "volatile", content: "What is the refund window?" },
+  ],
 });
-console.log(assembled.prefixHash, assembled.request, assembled.basis);
+
+console.log(assembly.request, assembly.headers, assembly.stableTokens);
 ```
 
 ```python
 from caveman_cloud import AssembleOptions, AssemblySlot
 
-assembled = cave.assemble(AssembleOptions(
-    provider="openai",
-    model=os.environ["CAVE_MODEL"],
-    session_id="conversation-1",
+assembly = cave.assemble(AssembleOptions(
+    provider="anthropic",
+    model="claude-sonnet-4-5",
+    session_id="session-42",
     slots=[
-        AssemblySlot("system", "stable", "Answer from supplied evidence."),
-        AssemblySlot("account", "session", "Account tier: standard."),
-        AssemblySlot("turn", "volatile", "Explain my current usage."),
+        AssemblySlot("policy", "stable", "Answer from the handbook only."),
+        AssemblySlot("question", "volatile", "What is the refund window?"),
     ],
-    emit_cache_hints="gateway",
 ))
-print(assembled.prefix_hash, assembled.request, assembled.basis)
+
+print(assembly.request, assembly.headers, assembly.stable_tokens)
 ```
 
-Assembly performs no HTTP request. `stable` slots come before `session` slots; both come before `volatile` slots. The current client checks both non-volatile categories by session ID and slot ID. Their content must stay fixed within that pair; volatile content can change. A changed stable/session slot raises `AssemblyStabilityError`. The ledger is in process: your application must preserve the same contract across restarts and concurrent instances.
+Both languages produce the same request and the same hash:
 
-`gateway` is the default cache-hint mode and emits no provider cache hint. `self` emits supported provider hints for direct use; `none` omits hints. The output includes the request, assembly header, prefix hash, breakpoints, and an inferred stable-token estimate. A stable hash proves repeatable prefix construction, not a provider cache hit.
-
-Use the assembled request with the matching provider endpoint. OpenAI assembly produces a chat-style `messages` request; Anthropic assembly produces native message fields. The object carries assembly metadata for Cave's JSON provider helpers. If you clone/serialize it or send it with another client, explicitly forward `assembled.headers` and preserve required provider fields such as Anthropic's `max_tokens`.
-
-## Select context for a token budget
-
-```ts
-const packed = await cave.context.pack("current incident", [
-  { id: "instructions", text: "Preserve exact error messages.", pin: true },
-  { id: "recent", text: "The current incident is a connection timeout." },
-  { id: "older", text: "Last week's incident was resolved." },
-], { maxTokens: 4096, reserveTokens: 512 });
-console.log(packed.items, packed.deferredIds, packed.tokensUsed);
+```json
+{
+  "model": "claude-sonnet-4-5",
+  "system": [{ "type": "text", "text": "Answer from the handbook only." }],
+  "messages": [{ "role": "user", "content": [{ "type": "text", "text": "What is the refund window?" }] }]
+}
 ```
 
-```python
-from caveman_cloud import ContextPackItem, ContextPackOptions
-
-packed = cave.context.pack("current incident", [
-    ContextPackItem("instructions", "Preserve exact error messages.", pin=True),
-    ContextPackItem("recent", "The current incident is a connection timeout."),
-    ContextPackItem("older", "Last week's incident was resolved."),
-], ContextPackOptions(max_tokens=4096, reserve_tokens=512))
-print(packed.items, packed.deferred_ids, packed.tokens_used)
+```console
+x-cave-assembly: v1;slots=2;prefix=76f29e54b826;vbb=1
+prefixHash: 76f29e54b8260d88a9236254049a621a934062e9702bef143c39d32441de5782
+stableTokens: 24  tokenBasis: estimated_bytes_div_4  basis: inferred
 ```
 
-Packing sends item text to the service and intentionally omits some items. Unique stable IDs make those omissions explicit through `deferredIds` / `deferred_ids`. Optional item fields include pre-counted `tokens`, RFC 3339 `timestamp`, `priority`, and `pin`. Options also control the scoring clock, recency half-life/weight, and error boost.
+`provider` shapes the body. `"anthropic"` builds `system` blocks plus one user message, `"openai"` builds a system message followed by user messages, and any other value returns the slots as a labelled list for you to map yourself. A slot with the id `tools` whose content is an array becomes the request's `tools` field.
 
-On transport or malformed-report failure, packing returns all original items with zero inferred savings. That fallback can exceed the requested budget. Check the result before invoking the model; packing is not an unconditional window-size guarantee. Keep every deferred original locally so your app can reintroduce it.
+`stableTokens` counts the prefix bytes divided by four, which is what `tokenBasis: "estimated_bytes_div_4"` says. It is a size estimate for the part you are trying to keep cacheable, not a provider figure. [Token counting](/docs/proxy/tokens) covers the counter behind the engine's own numbers.
 
-## Checkpoint and expand messages
+### Cache hints
 
-```ts
-await cave.trace({ workflow: "support" }, async trace => {
-  const saved = await trace.context.checkpoint([
-    { role: "user", content: "Remember incident INC-42." },
-  ], {});
-  if (typeof saved.source_ref !== "string") throw new Error("Missing source_ref");
-  const restored = await trace.context.expand(saved.source_ref);
-  console.log(restored.messages);
-});
+`emitCacheHints` defaults to `"gateway"`, which leaves the cache decision to the service in front of the provider. `"self"` is for calling a provider directly: it marks a breakpoint in the request and names it in `breakpoints`. For OpenAI that is a `prompt_cache_key` derived from the prefix hash; for Anthropic it is `cache_control` on the last tool or system block. `"none"` places nothing.
+
+```json
+{
+  "model": "gpt-5",
+  "messages": [
+    { "role": "system", "content": "Answer from the handbook only." },
+    { "role": "user", "content": "What is the refund window?" }
+  ],
+  "prompt_cache_key": "40921c76756dba9da7e5f3cce95295d4"
+}
 ```
 
-```python
-with cave.trace(workflow="support") as trace:
-    saved = trace.checkpoint([
-        {"role": "user", "content": "Remember incident INC-42."},
-    ], {})
-    restored = trace.expand(saved["source_ref"])
-    print(restored["messages"])
+### When a stable slot changes
+
+Each `Cave` keeps an in-process hash ledger keyed by `sessionId` and slot id. Re-declaring a `stable` or `session` slot with different content inside the same session raises:
+
+```console
+AssemblyStabilityError: assembly slot "policy" changed after being declared stable
 ```
 
-The service must support checkpoint storage. Save the returned `source_ref`; use `expand()` to request the stored messages. Options are service-defined, so these examples pass an empty object rather than inventing retention or summarization settings. Storage errors propagate. Your app decides when to substitute a checkpoint and how long to keep its original history.
+Python raises the same class with single quotes around the id. The ledger lives in one process, so keeping slot content deterministic across processes is your side of the contract.
 
-## Page and retrieve artifacts
+## Checkpoints, artifacts and handoff
 
-```ts
-await cave.trace({ workflow: "support" }, async trace => {
-  const visible = await trace.artifacts.page({ incident: "INC-42", status: "open" }, {
-    source: "incident-lookup", strategy: "json-index", contentType: "application/json",
-  });
-  console.log(visible);
-});
+Three more context surfaces hang off a trace or the client. Each one is a call to your configured service.
+
+| What | TypeScript | Python |
+| --- | --- | --- |
+| Store a conversation snapshot | `trace.context.checkpoint(messages, options)` | `trace.checkpoint(messages, options)` |
+| Read it back | `trace.context.expand(sourceRef)` | `trace.expand(source_ref)` |
+| Store a large value, get a stub | `trace.artifacts.page(value, options)` | `trace.page_artifact(value, options)` or `trace.artifacts.page(...)` |
+| Fetch the stored value | `trace.artifacts.get(artifactId)` | `trace.get_artifact(artifact_id)` or `trace.artifacts.get(...)` |
+| Hand context to another agent | `cave.sharedContext.put(key, content)` | `cave.shared_context.put(key, content)` |
+| Read it in that agent | `cave.sharedContext.get(key)` | `cave.shared_context.get(key)` |
+
+`expand()` is the other half of `checkpoint()`: it returns the stored `source_ref`, `version`, `messages` and `checkpoint`, and the TypeScript client throws `cave checkpoint response missing source_ref or messages` if either is absent.
+
+`page()` takes a `source`, a `strategy` of `verbatim`, `json-index`, `text-chunks`, `table-index` or `llm-summary`, and an optional `contentType` and `maxInlineTokens`. `strategy: "verbatim"` returns your value unchanged without storing it. Any other strategy stores the value and returns a stub the model can read:
+
+```text
+[cave-artifact id=… source=order-export type=application/json]
+summary: artifact stored.
+retrieve: authenticated GET /sdk/v1/artifacts/… or trace.artifacts.get("…").
+[/cave-artifact]
 ```
 
-```python
-with cave.trace(workflow="support") as trace:
-    visible = trace.artifacts.page({"incident": "INC-42", "status": "open"}, {
-        "source": "incident-lookup", "strategy": "json-index",
-        "contentType": "application/json",
-    })
-    print(visible)
-```
+The id in that stub is generated per call, shown here as `…`.
 
-Artifact option dictionaries retain their wire spelling in Python, including `contentType` and `maxInlineTokens`. Strategy `verbatim` returns the input without a request. Other accepted strategy names are `json-index`, `text-chunks`, `table-index`, and `llm-summary`; service support determines behavior.
+`sharedContext` is keyed by a session key your agents agree on, and the project namespaces the key, so only a peer in the same project can read it.
 
-A stored response becomes an artifact marker. If storage is declined, the original value returns. Retrieve a known ID with `trace.artifacts.get(artifactId)` in TypeScript or `trace.artifacts.get(artifact_id)` in Python. These methods perform authenticated retrieval; the SDK does not automatically add a model tool that calls them.
+## Limits
 
-## Share context between application components
+Packing is a connected call. With no service reachable it returns every item with zero savings, which is safe but is also silent: check `tokensBefore` before you report a saving.
 
-TypeScript exposes `cave.sharedContext.put(sessionKey, content)` and `.get(sessionKey)`; Python exposes `cave.shared_context.put(session_key, content)` and `.get(session_key)`. They send connected storage requests and return service JSON. Keep session keys stable within the intended conversation and use the service's documented authorization and retention rules.
+Item ids must be unique and non-empty. A duplicate or blank id makes the call return everything rather than guess which fragment you meant.
 
-None of these helpers is a durable agent runner. A reference does not guarantee permanent storage, and inferred token counts do not prove quality preservation or billing savings.
+`assemble()` refuses a slot whose content is not JSON-serializable, a duplicate slot id, an unknown stability, and a missing `model` or `sessionId`, with a message naming the slot.

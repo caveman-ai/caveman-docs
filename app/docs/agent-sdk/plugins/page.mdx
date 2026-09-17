@@ -4,50 +4,158 @@ export const metadata = docMetadata("agent-sdk/plugins");
 
 <DocSchema slug="agent-sdk/plugins" />
 
-The optional workspace loader turns installed skills and declarative plugin commands into agent context. The core runtime does not search your filesystem automatically.
+`@caveman-ai/agent/plugins` loads Agent Skills and plugin slash commands from a workspace and attaches them to a definition. Each skill's one-line description enters stable context, and its body stays on disk until the model asks for it by name, so adding a large playbook does not enlarge every request.
 
-## Load an explicit environment
+The core runtime never searches for repository files. This entrypoint is the opt-in for products that want that interoperability.
 
 ```ts
-import { agent, auto } from "@caveman-ai/agent";
+import { agent, auto, run } from "@caveman-ai/agent";
 import { applyAgentEnvironment, loadAgentEnvironment } from "@caveman-ai/agent/plugins";
 
-const environment = await loadAgentEnvironment({
-  cwd: process.cwd(),
-  includeDefaultRoots: false,
-  includeWorkspacePlugin: false,
-  skillRoots: ["./.agents/skills"],
-});
-const reviewer = applyAgentEnvironment(agent({
-  id: "reviewer",
-  instructions: "Review the requested changes.",
+const environment = await loadAgentEnvironment({ cwd: process.cwd() });
+
+const support = applyAgentEnvironment(agent({
+  id: "support",
+  instructions: "Resolve support requests.",
   model: auto(),
+  sandbox: "host",
 }), environment);
+
+const result = await run(support, "Can I refund an order from 40 days ago?");
+
+console.log("skills:", environment.skills.map((skill) => skill.name));
+console.log("tools:", support.tools.map((item) => item.name));
+console.log("contexts:", support.contexts.map((item) => item.id));
+console.log("text:", JSON.stringify(result.text));
+console.log("contextBill:", JSON.stringify(result.contextBill));
+console.log("receipt.tools:", JSON.stringify(result.receipt.tools));
 ```
 
-This example uses only the declared skill root. The default loader also discovers project and user `.agents/skills` and `.agents/plugins` directories. Read `environment.diagnostics` to see skipped or unsupported material.
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
 
-## What reaches the model
+With one skill at `.agents/skills/refund-policy/SKILL.md` and an empty `~/.agents/skills`, captured from that script against a scripted model:
 
-Skill descriptions and command metadata enter stable context. Full skill text, resources, and command bodies are loaded only when activated. A large skill therefore does not become part of every request.
+```console
+skills: [ 'refund-policy' ]
+tools: [ 'load_skill' ]
+contexts: [ 'agent.skills' ]
+text: "Past 30 days, so a supervisor has to approve it."
+contextBill: {"instruction":7,"skill":66,"tool_schema":70,"user_intent":10}
+receipt.tools: [{"name":"load_skill","calls":1,"errors":0}]
+```
 
-`loadAgentDir()` uses the same loader for `.agents/skills/<name>/SKILL.md` inside the agent project. It does not enable user-home or plugin discovery. Use the optional environment loader when your product needs those additional roots.
+66 tokens of skill context for the index, whatever the body's length. The body arrived as a tool result when the model called `load_skill`.
 
-## Accepted plugin layouts
+## A skill on disk
 
-| Manifest | Format |
-| --- | --- |
-| `plugin.json` | Agent Plugins v1 |
-| `.plugin/plugin.json` | OpenPlugin |
-| `.claude-plugin/plugin.json` | Claude-compatible manifest |
-| `.cursor-plugin/plugin.json` | Cursor-compatible manifest |
+```text
+.agents/skills/refund-policy/SKILL.md
+```
 
-The first applicable format takes precedence. Extra `skillRoots` and exact `pluginRoots` use highest-precedence-first ordering. `pluginCollections` searches immediate child packages.
+```markdown
+---
+name: refund-policy
+description: The refund window, the exceptions, and who may approve one.
+---
 
-Plugin commands and skills use qualified names such as `review:check`. `expandAgentEnvironmentSlashCommand()` expands a command invocation; command templates support `$ARGUMENTS` and `$1` through `$9`.
+# Refund policy
+
+Refunds inside 30 days are automatic. Past 30 days a supervisor approves.
+```
+
+`name` and `description` are required. The name has to equal the directory name, match `[a-z0-9]` with single hyphens, and the description has to be 1 to 1,024 characters, because that description is the only thing the model reads before deciding to load the skill. `license`, `allowed-tools`, `compatibility` and a string-valued `metadata` map are accepted; anything else in the frontmatter is rejected with a named error rather than ignored.
+
+The index that enters context is exactly this:
+
+```text
+Skills available to this agent. Load one only when its description matches the task.
+Call load_skill({"name":"<skill>"}) for instructions. Use its resource argument for referenced files.
+- refund-policy: The refund window, the exceptions, and who may approve one.
+```
+
+It is a `context()` segment with `id: "agent.skills"`, `kind: "skill"` and `stability: "build"`, so it sits in the cached prefix. `applyAgentEnvironment` adds one tool, `load_skill`, whose `resource` argument reads any other file inside the skill directory. Rename the tool with `{ skillToolName }` if programmatic mode should collapse it under a different name.
+
+## Where it looks
+
+| Kind | Roots, highest precedence first |
+|---|---|
+| Skills | `skillRoots` you pass, then `<workspace>/.agents/skills`, then `~/.agents/skills` |
+| Plugins | `pluginRoots` you pass, the working directory when it carries a manifest, then `<workspace>/.agents/plugins` and `~/.agents/plugins` |
+
+The workspace root is the nearest ancestor of `cwd` containing `.git`, and `cwd` itself when there is none. Set `includeDefaultRoots: false` to use only the roots you passed, and `includeWorkspacePlugin: false` to stop treating the working directory as a plugin.
+
+A duplicate id keeps the higher-precedence copy and records a diagnostic. Nothing throws on a bad skill or plugin: loading collects diagnostics and carries on, so one broken file cannot take an agent down.
+
+```ts
+console.log(environment.diagnostics);
+```
+
+```console
+[
+  {
+    code: 'agent_environment_duplicate_skill',
+    path: '…/.agents/skills/refund-policy/SKILL.md',
+    message: 'ignored lower-precedence duplicate skill "refund-policy"'
+  }
+]
+```
+
+That capture has the same skill in `~/.agents/skills` as well as the workspace. With only the workspace copy, as in the run above, `diagnostics` is `[]`.
+
+## Plugins and their commands
+
+A plugin package is a directory with a manifest. Four layouts are recognised, and the first match wins:
+
+| Manifest path | `format` |
+|---|---|
+| `plugin.json` | `agent-plugins-v1` |
+| `.plugin/plugin.json` | `open-plugin` |
+| `.claude-plugin/plugin.json` | `claude-code` |
+| `.cursor-plugin/plugin.json` | `cursor` |
+
+Its `skills/` directory contributes skills under `plugin:skill` ids, and its `commands/` directory contributes slash commands. A command body may use `$ARGUMENTS` and `$1` through `$9`, expanded from what the user typed.
+
+```ts
+import { expandAgentEnvironmentSlashCommand } from "@caveman-ai/agent/plugins";
+
+const prompt = expandAgentEnvironmentSlashCommand("/refund-policy 40 days", environment);
+await run(support, prompt);
+```
+
+`/skill <id> <request>` addresses a skill explicitly, `/<id>` resolves a command first and then a skill, and a prompt matching nothing is returned unchanged. An explicit invocation inlines the whole body for that turn inside an `<agent-skill>` or `<agent-plugin-command>` wrapper, which is the one path that puts a body in the prompt without a tool call.
+
+Commands enter their own context segment, `agent.plugin-commands`, with the line: "Plugin slash commands available to this agent. Commands activate only when explicitly invoked."
 
 ## What stays disabled
 
-The loader supports declarative skills and Markdown commands. It reports MCP declarations, hooks, and custom agents without launching them. It does not spawn plugin subprocesses or inherit ambient secrets. Installing a manifest does not authorize its executable integrations.
+A plugin's MCP servers, hooks, and custom agents are recognised and then left alone, each with a diagnostic naming the path:
 
-See [Define an agent](/docs/agent-sdk/define) for directory loading and [Coding agents](/docs/agent-sdk/coding) for tool execution.
+```text
+agent_environment_unsupported_plugin_mcp    plugin MCP component recognized but not loaded by declarative-only client
+agent_environment_unsupported_plugin_hooks  plugin hooks recognized but not executed by declarative-only client
+agent_environment_unsupported_plugin_agents plugin agents recognized but not loaded by declarative-only client
+```
+
+No plugin subprocess runs, and no ambient secret is inherited. This adapter reads declarative content and nothing else, which is why a third-party plugin directory can be pointed at an agent without auditing executable code first.
+
+## Verify and undo
+
+`environment.diagnostics` is the check: an empty array means every root loaded and every skill and plugin parsed.
+
+```ts
+console.log(environment.diagnostics.length === 0 ? "clean" : environment.diagnostics);
+```
+
+```console
+clean
+```
+
+To undo, drop the `applyAgentEnvironment` call and pass the bare `agent({...})` to `run()`. The definition loses `load_skill` and the `agent.skills` context on the next run, the files on disk stay where they are, and `loadAgentEnvironment` keeps working if you want to inspect them without attaching them.
+
+## Limits
+
+A `SKILL.md` over 1 MiB is rejected, and a resource read through `load_skill` is capped at 4 MiB. Resource paths are resolved against the skill directory's real path, so an absolute path, a `..` segment, or a symlink out of the directory fails with `cave_agent_skill_resource_path_invalid` or `cave_agent_package_path_escape`.
+
+`applyAgentEnvironment` refuses a collision instead of merging one: a definition that already has a context with the same id throws `cave_agent_environment_context_collision`, and one that already has a `load_skill` tool throws `cave_agent_environment_tool_collision`.
+
+An undeclared sandbox posture stays undeclared through `applyAgentEnvironment`, so a definition keeps its host-by-default downgrade rather than silently gaining a declared posture. [Sandbox and execution](/docs/agent-sdk/sandbox) covers what that means.

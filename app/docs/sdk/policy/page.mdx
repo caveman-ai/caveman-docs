@@ -4,69 +4,153 @@ export const metadata = docMetadata("sdk/policy");
 
 <DocSchema slug="sdk/policy" />
 
-The runtime-policy client fetches an existing published policy bundle from your configured service and makes decisions locally. Use it when your deployment already supports that API. The SDK does not create policies or execute their workflows.
+A runtime policy client fetches your project's published policy bundle once per `refresh()` and then answers routing questions locally. `decide()` is synchronous, local-only and never throws, so a policy outage leaves you on your own baseline path. It routes work and reports why it routed that way.
 
-## Refresh and decide
-
-Examples assume your quickstart's `cave` client. Set `CAVE_POLICY_PUBLIC_KEY` to the service's raw 32-byte Ed25519 public key encoded as base64.
+### TypeScript
 
 ```ts
-const policies = cave.runtimePolicy({
-  publicKey: process.env.CAVE_POLICY_PUBLIC_KEY!,
-});
-try {
-  const refreshed = await policies.refresh();
-  if (!refreshed.ok) console.error("Policy refresh failed", refreshed.error);
-  const decision = policies.decide("support", {
-    unitKey: "case-42",
-    context: { priority: "normal" },
-  });
-  console.log(decision.decision, decision.workflow, decision.reason);
-  // Map an allowed workflow to your application's handler; otherwise use its baseline.
-} finally {
-  policies.close();
-}
+import { Cave } from "@caveman-ai/sdk";
+
+const { CAVE_API_KEY = "", CAVE_BASE_URL = "" } = process.env;
+const cave = new Cave({ apiKey: CAVE_API_KEY, baseURL: CAVE_BASE_URL, agent: "support-agent" });
+
+const policy = cave.runtimePolicy({ autoRefreshSeconds: 300 });
+console.log(await policy.refresh());
+
+const decision = policy.decide("summarize", { unitKey: "case-118", context: { locale: "en" } });
+console.log(decision);
+
+policy.close();
 ```
+
+### Python
 
 ```python
-policies = cave.runtime_policy(public_key=os.environ["CAVE_POLICY_PUBLIC_KEY"])
-try:
-    refreshed = policies.refresh()
-    if not refreshed.ok:
-        print("Policy refresh failed", refreshed.error)
-    decision = policies.decide("support", unit_key="case-42", context={"priority": "normal"})
-    print(decision.decision, decision.workflow, decision.reason)
-    # Map an allowed workflow to your application's handler; otherwise use its baseline.
-finally:
-    policies.close()
+import os
+from caveman_cloud import Cave
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], base_url=os.environ["CAVE_BASE_URL"], agent="support-agent")
+
+policy = cave.runtime_policy(auto_refresh_seconds=300)
+print(policy.refresh())
+
+decision = policy.decide("summarize", unit_key="case-118", context={"locale": "en"})
+print(decision)
+
+policy.close()
 ```
 
-Validate the TypeScript environment variable before constructing the client if signed policy is required; a non-null assertion does not validate it at runtime.
+With no bundle fetched, `decide()` still answers. This is a real run against a closed port, in TypeScript then Python:
 
-## Interpret decisions
+```json
+{ "decision": "baseline", "reason": "policy_unavailable", "policyId": null, "workflow": null, "signed": false }
+```
 
-| Decision | Application behavior |
+```console
+PolicyDecision(decision='baseline', reason='policy_unavailable', signed=False, policy_id=None, workflow=None,
+               experiment_id=None, arm=None, propensity=None, budget=None, verify=None, escalation=None,
+               policy_version=None, sequence=None)
+```
+
+## The decision
+
+| TypeScript | Python | What it holds |
+| --- | --- | --- |
+| `decision` | `decision` | `"execute"`, `"fallback"` or `"baseline"` |
+| `reason` | `reason` | Why it landed there |
+| `policyId` | `policy_id` | The policy that decided, `null` on baseline |
+| `workflow` | `workflow` | The workflow to run, `null` on baseline |
+| `experimentId`, `arm`, `propensity` | `experiment_id`, `arm`, `propensity` | Set when a policy carries an experiment |
+| `budget`, `verify`, `escalation` | same | The policy's own terms, passed through untouched |
+| `policyVersion`, `sequence` | `policy_version`, `sequence` | Counters from the bundle in force |
+| `signed` | `signed` | `true` when the bundle in force verified against an Ed25519 key |
+
+`"baseline"` means your own path and always comes with a `workflow` of `null`. `"fallback"` means the policy's declared fallback workflow, which can itself be `null`. `budget`, `verify` and `escalation` are opaque: the SDK hands them to you and leaves them alone.
+
+Every reason, and what produced it:
+
+| Reason | What happened |
 | --- | --- |
-| `execute` | Resolve the returned workflow through your own allowed handlers. |
-| `fallback` | Use the returned fallback workflow when supported, otherwise your baseline. |
-| `baseline` | Continue your application's normal path. No workflow is selected. |
+| `applied` | A single policy matched, its guards passed, and it executes |
+| `holdout` | The unit fell in the experiment's holdout slice, which is forced onto the fallback path |
+| `guards_failed` | Every enabled policy for the family declined on its guards |
+| `disabled` | The matching policies are marked disabled |
+| `kill` | The bundle itself carries `kill: true` |
+| `local_kill` | `kill()` was called, or the kill environment variable is set |
+| `policy_unavailable` | The client has yet to accept a bundle |
+| `no_policy` | The task family is absent from the bundle |
+| `no_unit_key` | A policy with an experiment got an empty `unitKey` |
+| `invalid_policy` | Every candidate document is missing an id, a task family or an execute workflow |
+| `invalid_experiment` | The experiment's arms or holdout fraction are unusable |
+| `ambiguous_policy` | More than one policy matched the family and passed its guards |
 
-`decide()` performs no network request and does not throw. No valid bundle, a kill switch, a failed guard, or an invalid experiment can produce a non-executing path with a reason. Always retain a working baseline. A workflow string is not executable code and does not bypass your application permissions.
+Guards are AND-ed, and anything unclear makes a guard false: an absent context field, a type mismatch or an unknown operator all make the policy decline. The operators are `eq`, `ne`, `gt`, `gte`, `lt`, `lte` and `in`.
 
-## Refresh, signatures, and lifecycle
+## Refreshing
 
-`refresh()` returns an outcome with `ok`, `signed`, and optional `error`; failure retains the last accepted bundle. A configured `publicKey` / `public_key` requires signature verification. Without a pinned key, the client also supports unsigned input and first-use trust of a supplied signing key; do not confuse that with a key you independently authenticated.
+`refresh()` is the only network call this client makes. It GETs the policy endpoint on your configured service with a 30 second deadline, stops reading a body past 1 MiB, verifies the signature over the bundle string's exact bytes before parsing it, checks the schema version is `caveman.runtime-policy.v1`, and refuses a bundle whose sequence has gone backwards.
 
-Refresh is explicit unless you set `autoRefreshSeconds` / `auto_refresh_seconds`. Close the client at shutdown to stop background refresh. `state()` reports whether a bundle exists, its signature state, version/sequence when available, and kill flags.
+It never raises. A failure returns `ok: false` with an error and leaves the previously accepted bundle in force, which is why a broken endpoint degrades into yesterday's routing rather than an outage. From the run above, with the client pointed at a closed port:
 
-`kill()` latches a local stop. The `CAVEMAN_POLICY_KILL` environment variable is checked on decisions by default; `killEnv` / `kill_env` can select another variable. Killing policy execution does not cancel already-running application work.
+```console
+TypeScript: { ok: false, signed: false, error: 'fetch failed' }
+Python:     RuntimePolicyRefresh(ok=False, signed=False, error='transport')
+```
 
-## Experiments and spans
+TypeScript reports the underlying message; Python reports a short code, one of `transport`, `oversized_response`, `malformed_response`, `unsigned_rejected`, `signature_invalid`, `invalid_bundle`, `unknown_schema_version`, `invalid_bundle_counter` or `stale_sequence`.
 
-Supply a stable `unitKey` / `unit_key` when a policy has an experiment. Do not invent a random key for each retry of the same task. Decisions expose an experiment ID, arm, and propensity when applicable; missing assignment inputs must not be treated as a guessed arm.
+`autoRefreshSeconds` starts a background refresh. TypeScript uses an unref'd interval that skips a tick while a refresh is already in flight; Python uses a daemon thread. `close()` releases either one, and a client with the timer stopped keeps deciding from the bundle it holds.
 
-Pass a trace or exporter via the `trace` decision option to buffer a decision span, then [flush the exporter](/docs/sdk/tracing). Decision evaluation does not send a span by itself. Budget, verification, and escalation fields are returned to your application; the SDK does not enforce or execute them.
+### Signatures
+
+Pass `publicKey` as a base64 raw 32 byte Ed25519 key to pin one. A pinned key makes a signature mandatory, and an unparseable value raises at construction rather than producing a client that rejects every bundle:
+
+```console
+runtimePolicy publicKey must be a base64-encoded 32-byte Ed25519 key
+runtime_policy public_key must be a base64-encoded 32-byte Ed25519 key
+```
+
+With nothing pinned, the first bundle that carries a signature and a usable key is verified with that key, and the key is pinned for the rest of the client's life the instant it verifies. Pinning happens before the schema and sequence checks, so a bundle rejected for its shape has still established which key the project signs with.
+
+## Turning it off
+
+Two brakes, both landing on `reason: "local_kill"`.
+
+`policy.kill()` latches this client onto baseline for the rest of the process, past any later refresh.
+
+The environment variable, `CAVEMAN_POLICY_KILL` by default, is read on every `decide()`, so an operator can pull it mid-process:
+
+```bash
+export CAVEMAN_POLICY_KILL=1
+```
+
+It counts as set for any value except an empty string, `0`, `false`, `no` or `off`, compared after trimming and lowercasing. Change the variable it reads with `killEnv` in TypeScript or `kill_env` in Python.
+
+`state()` shows what the client is holding right now:
+
+```json
+{ "hasBundle": false, "signed": false, "kill": false, "killedLocally": false }
+```
+
+`kill` is the bundle's own flag, which a pass-through project ships as `true`. `killedLocally` is the latch from `kill()`.
+
+## Reproducing an assignment
+
+`policyUnitFraction(...keys)` in TypeScript and `policy_unit_fraction(*keys)` in Python return the deterministic fraction in `[0, 1)` an experiment assigns on. Both hash each key behind an eight byte big-endian length prefix, which keeps `("ab", "c")` and `("a", "bc")` apart, and both return the same float:
+
+```console
+policyUnitFraction("proj_1", "exp_router", "case-118")  → 0.37640055415877904
+policy_unit_fraction("proj_1", "exp_router", "case-118") → 0.37640055415877904
+```
+
+`decide()` calls it with the project id, the experiment id and your `unitKey`. The holdout slice is carved off the bottom of that range first, then the remainder is rescaled across the declared arms, so `propensity` is the probability this unit had of getting the arm it got.
+
+Pass an exporter or a trace as `trace` to buffer one `caveman.policy.decision` span with the decision, the reason and the experiment fields. It rides the exporter's existing batch, so the call stays synchronous. [Tracing](/docs/sdk/tracing) covers flushing it.
 
 ## Limits
 
-This client routes according to a received policy. It does not optimize a model, validate task quality, or measure savings. The presence of the API in the package does not prove your service has a policy endpoint or published bundle.
+`unitKey` must be a stable identity, such as a task id or a case id. A fresh value per call reshuffles the assignment on every decision and makes the experiment unreadable.
+
+`decide()` reads only what `refresh()` last accepted. A policy published a second ago reaches this client at the next refresh, and the local brake outranks whatever arrives.
+
+A decision names a route. What that route costs is measured elsewhere, on [Numbers and limits](/docs/counting).

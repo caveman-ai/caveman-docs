@@ -4,53 +4,157 @@ export const metadata = docMetadata("agent-sdk/sandbox");
 
 <DocSchema slug="agent-sdk/sandbox" />
 
-Every agent has a sandbox mode. The default is `required`. The mode is set on the definition, not guessed at run time.
-
-| Mode | Where tool closures run | Writes | Lock eligible |
-|---|---|---|---|
-| `required` | Contained Node workers from a staged source graph; network denied unless scoped egress is configured | Allowed inside the worker | Yes, when the rest of the build passes |
-| `fixture` | Host process. Trusted tests only | Blocked before execute | For fixture corpora |
-| `host` | This process, no worker | Execute | No |
-
-Host mode is an explicit opt-in. It is never the default, and it is never isolation. A host-mode child under a `required` parent is refused, so a subagent cannot walk out of its root's containment.
-
-`compile` refuses a host-mode agent with `cave_host_sandbox_lock_ineligible` before any search run. Live coding sessions therefore cannot produce a Cave Build. Coding agents that need a lock compile against fixture corpora with a contained sandbox.
-
-## Required mode
-
-Before provider traffic, the framework copies the project-relative source graph into a per-run immutable staging directory, imports tools only from that snapshot, and tears the staging down when the stream settles. `RunOptions.entryPath` must point at the module that exports the definition. The CLI fills this in. Programmatic `run()` of a tool-using required-sandbox agent without `entryPath` is refused.
-
-The worker starts from a fixed environment baseline (`LANG`, `LC_ALL`, `PATH`, `TZ`, plus a fixture marker), not a spread of the parent env. One runtime-owned provider capability may be requested: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or the Google pair (`GEMINI_API_KEY` / `GOOGLE_API_KEY` as aliases). Signing, deployment, bootstrap, database, loader, and ambient secret names are denied.
-
-Network egress is blocked at the OS: a network namespace on Linux (`unshare --net`), `sandbox-exec (deny network*)` on macOS. In-process monkeypatching is defence in depth, not the boundary. Requesting unbounded egress fails closed with `cave_sandbox_network_egress_unbounded`. Scoped egress is available on supported backends through an explicit host and port policy.
-
-Linux without bubblewrap uses a network namespace without a mount namespace, so reachable Unix sockets remain a gap. Scoped egress refuses that backend. Install bubblewrap for the stronger Linux boundary; no backend here provides VM isolation.
-
-## Windows
-
-Ordinary agent runs, runtime startup, and explicit `sandbox: "host"` coding tools work on native Windows through `cmd.exe`. `sandbox: "required"` is fail-closed on native Windows because the package has no verified OS network-isolation boundary there. Use WSL2 for production sandboxed tools. `doctor` reports `cave_sandbox_os_network_isolation_unavailable` and the WSL2 remedy. Do not replace required sandbox with fixture mode in production.
-
-## Fixture mode
-
-Trusted tests may set `sandbox: "fixture"`. Closures run in the host process, which is why writes are blocked: a test that needs to observe a write belongs on a contained worker or an explicit host-mode agent, not in fixture.
-
-## Scoped network access
+`sandbox` on a definition says where tool closures run: `required` puts them in an OS-contained Node worker sealed off the network, `fixture` runs them in the host process for trusted tests and blocks write tools before they execute, `host` runs them in the host process with real access. An execution backend is the other axis: it moves shell and workspace tools to a service you run, wherever that service happens to be.
 
 ```ts
-await run(support, "Read the approved API", {
-  entryPath: "./agent.ts",
-  sandboxProfile: {
-    network: { allowedHosts: ["api.example.com"], allowedPorts: [443] },
-    childProcess: false,
-    credentialEnv: [],
-  },
+import { agent, auto, run, tool, schema } from "@caveman-ai/agent";
+
+const orders = { "A-123": { status: "shipped", carrier: "DHL" } };
+
+const lookupOrder = tool({
+  name: "lookup_order",
+  description: "Read one order.",
+  input: schema.object({ id: schema.string() }),
+  effect: "read",
+  async execute({ id }) { return JSON.stringify(orders[id] ?? null); },
 });
+
+const support = agent({
+  id: "support",
+  instructions: "Answer from order data.",
+  model: auto(),
+  tools: [lookupOrder],
+  sandbox: "required",
+});
+
+await run(support, "Where is order A-123?", { entryPath: "dist/agent.js" });
 ```
 
-The tool reaches a parent-owned proxy, which enforces the allowlist. Exact hosts and leading `*.` wildcards are supported; `*.example.com` does not match the apex `example.com`. Ports default to 443. Unbounded `network: true` remains refused.
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
 
-A backend without a reachable protected proxy path returns `cave_sandbox_scoped_egress_unavailable`. Node's environment-proxy support requires Node 22.21 or later for native HTTP clients. The proxy does not decrypt TLS: this controls the named destination, not the contents of a tunnel, and does not prevent domain fronting. Child-process containment remains separately gated.
+`entryPath` is the module the worker imports to rebuild the tool closures, resolved against `rootDir`, which defaults to the working directory. `dist/agent.js` is what `tsc` writes for the `src/agent.ts` above, the module that exports the definition: see [Define an agent](/docs/agent-sdk/define). The runtime walks that module's source graph, stages a copy, and imports the copy inside the worker, so the tools the worker builds are the tools the entry exports. Under `sandbox: "required"` it is mandatory, and a run missing it throws before any provider call:
 
-## What it will not do
+```console
+cave_tool_sandbox_entry_required: sandboxed tools need RunOptions.entryPath; use sandbox fixture only for trusted tests
+```
 
-`sandbox: "host"` is not a synonym for isolation. Required mode is not available on native Windows. Fixture mode is not a production fallback. A passing doctor sandbox check is a containment probe, not a proof that every OS gap is closed.
+## The three postures
+
+| | `required` | `fixture` | `host` |
+|---|---|---|---|
+| Where closures run | Isolated Node worker under an OS sandbox | Host process | Host process |
+| Network for tools | Denied, or a named allowlist through a parent proxy | Host's | Host's |
+| `effect: "write"` tools | Execute | Blocked with `cave_side_effect_blocked` | Execute |
+| `RunOptions.entryPath` | Required | Not used | Not used |
+| Nested and composite tools | Refused with `cave_nested_tool_sandbox_unsupported` | Allowed | Allowed |
+| Eligible for a build lock | Yes | Yes | Refused with `cave_host_sandbox_lock_ineligible` |
+
+`required` is the type-level default, and the SDK distinguishes an author who wrote it from one who left it out. A definition whose author left the posture out, run with `entryPath` omitted, is downgraded to host execution and announces it once per definition on stderr:
+
+```console
+cave: support host execution — tools are not isolated
+```
+
+An explicit `sandbox: "required"` keeps its meaning and throws instead. Only the root definition is downgraded, so a subagent that asked for containment keeps it.
+
+`host` is an opt-in the root makes for itself. The definition graph rejects a subagent that asks for it under a contained ancestor, at construction, with `cave_host_sandbox_nested_under_required`. Effect declarations stay mandatory in every posture: host mode changes enforcement and leaves declaration alone.
+
+## What containment actually is
+
+Under `required`, tool code runs as a child process with Node's permission model on, reading only the staged source graph, and the process itself is wrapped by the strongest OS backend this machine has.
+
+| Backend | Where | What it adds |
+|---|---|---|
+| `bubblewrap` | Linux, when `bwrap` is present | Mount namespace, `/` read-only, tmpfs over `/run`, `/var/run`, `/tmp`, `/root`, `/home`, private loopback |
+| `seatbelt` | macOS | `sandbox-exec` denying the whole `network*` class, including AF_UNIX |
+| `unshare` | Linux fallback | Network namespace only. Host unix sockets stay visible, and it is refused whenever a caller needs more |
+
+Selection throws rather than downgrading. A machine whose backends are all unusable throws `cave_sandbox_os_network_isolation_unavailable`, and a request for scoped egress beyond what the available backend provides throws `cave_sandbox_scoped_egress_unavailable`. Windows is served through WSL2; run required-sandbox tools there.
+
+`verifySandboxConformance()` is how you check a machine instead of trusting it. It spawns the probe worker, has it try to read a file outside the allowed roots, spawn a child process, open a socket, resolve a name, and send a UDP packet, then returns `true` only if every one of those was denied.
+
+```ts
+import { verifySandboxConformance } from "@caveman-ai/agent";
+
+console.log(await verifySandboxConformance());
+```
+
+```console
+true
+```
+
+Captured on macOS 26.3 with Node 22.22.2, where the `seatbelt` backend is the one selected. Run it in your own CI; it is the same probe the runtime's backend selection uses.
+
+## Naming the hosts a tool may reach
+
+`RunOptions.sandboxProfile.network` takes three values. `false` removes every route out. A policy object leaves the child one peer, a parent-owned proxy that dials only the hosts you named, and removes its network stack. `true` throws `cave_sandbox_network_egress_unbounded`, because a filtered socket is the most tool code holding a provider credential is given.
+
+```ts
+import { egressAllowed, resolveEgressPolicy } from "@caveman-ai/agent";
+
+const policy = resolveEgressPolicy({ allowedHosts: ["api.stripe.com", "*.githubusercontent.com"] });
+console.log(JSON.stringify(policy));
+console.log(egressAllowed(policy, "raw.githubusercontent.com", 443));
+console.log(egressAllowed(policy, "githubusercontent.com", 443));
+console.log(egressAllowed(policy, "api.stripe.com", 80));
+```
+
+```console
+{"allowedHosts":["*.githubusercontent.com","api.stripe.com"],"allowedPorts":[443]}
+true
+false
+false
+```
+
+`allowedPorts` defaults to `[443]`. Matching is label-wise rather than by string suffix, `*.` is the only wildcard and only leading, it never matches the apex, and any byte outside letters, digits, hyphen and dot rejects the whole policy rather than dropping one rule: `resolveEgressPolicy({ allowedHosts: ["*"] })` throws `cave_sandbox_egress_host_invalid`. Both functions are exported so your own tests can assert the exact rule your deployment will be held to.
+
+<Note tone="honest" title="The proxy sees the name, not the bytes">
+The egress proxy does not terminate TLS. It constrains the host the client says it is dialing, not what travels inside the tunnel, so domain fronting defeats it. That is the ceiling of every non-intercepting allowlist, and it is the reason the allowlist is data you can read rather than a promise.
+</Note>
+
+`sandboxProfile` also carries `childProcess: boolean` and `credentialEnv`, an explicit list of environment variables a tool may see. Tool and subprocess environments are allowlists, so a tool sees the variables you named and those only.
+
+## Running tools somewhere else
+
+An execution backend is where shell and workspace tools do their work. The default is the local host, which is uncontained host execution.
+
+```ts
+import { httpExecutionBackend, shellTools } from "@caveman-ai/agent";
+
+const backend = httpExecutionBackend({
+  url: process.env.CAVE_EXEC_URL!,
+  token: process.env.CAVE_EXEC_TOKEN!,
+});
+
+const tools = shellTools({ workspace: "/workspace", executionBackend: backend });
+```
+
+The remote contract is a bearer token and three JSON endpoints, so a container, a microVM, or a sandbox provider satisfies it in about forty lines.
+
+| Endpoint | Request | Response |
+|---|---|---|
+| `POST /exec` | `{execId, command, args, cwd, env, timeoutMs, maxOutputBytes}` | `{stdout, stderr, code, timedOut, truncated, startFailed?}` |
+| `POST /read` | `{path, maxBytes?}` | `{data}`, base64 |
+| `POST /write` | `{path, data}`, base64 | `{}` |
+| `POST /cancel` | `{execId}` | `{}`, optional and best effort |
+| `POST /prepare`, `/snapshot`, `/restore` | | optional lifecycle |
+
+An `http:` URL outside loopback throws `cave_execution_backend_http_insecure_url`, and an empty token throws `cave_execution_backend_http_token_required`. Non-2xx responses stop the call. `/read` answers `404` for a missing path and `422` for a non-regular one; a path escaping the workspace answers `403`, which the client raises as `caveman-code: path escapes the workspace`.
+
+Cancellation crosses the boundary in two parts, because an `AbortSignal` stops at the process boundary: the client aborts the HTTP request, then posts `/cancel` with the same `execId` and gives it five seconds. A server that omits `/cancel` leaves its process running until its own `timeoutMs`.
+
+The server enforces containment for remote paths, resolving symlinks against its own workspace root. `env` from the client carries `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, and `TERM`; the server owns `PATH`, `HOME`, `TMPDIR`, `PWD`, and `USER`, and that is the whole environment a remote tool is given. Provider credentials stay on the client.
+
+## Verify and undo
+
+`verifySandboxConformance()` is the check: `true` means this machine's backend denied every probe. Run it in CI before a deployment relies on containment.
+
+To undo, take the posture back to what it was. Declaring `sandbox: "host"` returns the definition to host execution, and dropping `entryPath` from `RunOptions` returns an undeclared definition to the host downgrade and its stderr line. Both take effect on the next run.
+
+## Limits
+
+Interactive bash sessions are local only. `commandSessions: true` or a spill configuration with a non-local backend throws `cave_execution_backend_command_sessions_local_only` while the agent is being constructed, rather than on the first call.
+
+Programmatic tools need `sandbox: "host"`: `createProgrammaticToolRuntime` throws `cave_programmatic_tools_require_host_sandbox` otherwise, and its Worker is a code-organisation boundary rather than a containment one. Use a `required` agent when containment is the point. [Programmatic tools](/docs/agent-sdk/code) has the detail.
+
+Host execution is host execution. The local backend's containment is a realpath check against the workspace root, nothing more, and the threat model in the repository names the rest.

@@ -4,130 +4,145 @@ export const metadata = docMetadata("agent-sdk/build");
 
 <DocSchema slug="agent-sdk/build" />
 
-A Cave Build is an eval-gated freeze of one plan. The command searches on development cases, writes nothing if quality gates fail, then opens holdout cases that the search never saw. Failed evals never produce a lock.
-
-<figure className="my-6">
-  <div className="flex flex-col gap-0 text-[13px]">
-    <div className="rounded-md border px-3 py-2">
-      <strong>Profile.</strong>
-      <span className="text-muted-foreground"> Declared <span className="font-mono">split: "profile"</span> evals, or content-blind traces already under <span className="font-mono">.caveman/traces/</span>.</span>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓</div>
-    <div className="rounded-md border px-3 py-2">
-      <strong>Search on development.</strong>
-      <span className="text-muted-foreground"> Candidate plans run only on <span className="font-mono">split: "development"</span> cases.</span>
-    </div>
-    <div className="pl-4 text-muted-foreground">↓ quality gates pass</div>
-    <div className="rounded-md border px-3 py-2">
-      <strong>Freeze.</strong>
-      <span className="text-muted-foreground"> The winner is written. Holdout has not been opened yet.</span>
-    </div>
-    <div className="pl-4 text-ember">↓</div>
-    <div className="rounded-md border border-ember/40 px-3 py-2">
-      <strong>Holdout.</strong>
-      <span className="text-muted-foreground"> Untouched <span className="font-mono">split: "holdout"</span> cases. If they fail, there is no lock.</span>
-    </div>
-  </div>
-  <figcaption className="mt-2 text-xs text-muted-foreground">
-    Ember is the first time holdout is visible. Search never trains on it.
-  </figcaption>
-</figure>
-
-```bash
-caveman-agent build
-caveman-agent check
-```
-
-In a generated project those are `npm run build` and `npm run check`. No Caveman account is required. `npm run build` runs every declared fixture inside the configured search budget. The SDK adds no approval prompt.
-
-## Eval splits
+An eval is a fixture plus the graders that decide whether an answer to it was acceptable. A build runs every declared eval against candidate plans, and writes `.caveman/agent.lock.json` only when one candidate clears the quality floor and the guardrails; anything else ends with a status and no lock. `runLocked()` then executes that frozen plan.
 
 ```ts
 import { eval as defineEval } from "@caveman-ai/agent";
+import { readFileSync } from "node:fs";
 
-export const profile = defineEval({
-  id: "profile-a",
-  lineageId: "profile-family",
+export const refundRequest = defineEval({
+  id: "refund-request",
+  lineageId: "refund-family",
   split: "profile",
-  input: "representative task",
-  quality: [{ type: "exact_match", expected: "expected result" }],
-});
-
-export const development = defineEval({
-  id: "development-a",
-  lineageId: "development-family-a",
-  split: "development",
-  input: "different representative task",
-  quality: [{ type: "exact_match", expected: "expected result" }],
-});
-
-export const holdout = defineEval({
-  id: "holdout-a",
-  lineageId: "holdout-family-a",
-  split: "holdout",
-  input: "unseen representative task",
-  quality: [{ type: "exact_match", expected: "expected result" }],
+  input: readFileSync(new URL("../tickets/refund-request.md", import.meta.url), "utf8"),
+  quality: [
+    { type: "tool_called", tools: ["lookup_order"] },
+    { type: "contains", fragments: ["eligible"] },
+    { type: "not_contains", fragments: ["refund issued", "refund completed"] },
+  ],
 });
 ```
 
-`lineageId` is the stable task-family identifier. Graders the native compiler can lower without a network: `contains`, `not_contains`, `tool_called`, `exact_match`, `json_schema`. `exact_match` is trimmed and case-insensitive by default; `case_sensitive` and `remove_punctuation` opt into stricter variants.
+Name each fixture file with a literal `new URL(…, import.meta.url)`. A computed path is not lockable, so the source graph cannot pin its bytes and the build refuses it.
 
-A v3 build needs explicit splits. Unsplit legacy suites still produce Pi Cave Build v2.
+## Fixture fields
 
-If content-blind Caveman `RunResult`, OpenTelemetry, or OpenInference rows already exist under `.caveman/traces/`, the same `build` command imports them and skips profile-eval spend. Raw prompt and result span attributes are refused. Generic OTel and OpenInference spans stay unpriced; only strict Caveman evidence can be repriced from the pinned public catalog.
+| Field | What it declares |
+|---|---|
+| `id` | Required, non-empty. |
+| `lineageId` | The task family. Split isolation uses it so a holdout cannot share a family with a fixture the search tuned on. |
+| `split` | `profile`, `development` or `holdout`. A v3 build requires every fixture to declare one, and never invents a split. |
+| `input` | What the agent is run on: the `AgentInput` for this task. |
+| `tools` | `{ mode: "fixture" }` by default. `{ mode: "live", sandbox }` runs real tools and requires an explicit sandbox. |
+| `quality` | At least one grader. The compiler admits the ones it can lower without a model or a network: `contains`, `not_contains`, `tool_called`, `exact_match`, `json_schema`. |
+| `guardrails` | `{ type: "latency_threshold", p95_ms }` and `{ type: "error_rate", max }`. |
 
-## What a successful v3 build writes
+Graders come from `@caveman-ai/evals` and are ordinary functions, so you can run one against a finished run before you ever start a build. `@caveman-ai/evals` is not published, and a path install of `@caveman-ai/agent` does not pull it in, so install it from the same checkout you [built the agent package from](/docs/agent-sdk/install#build-from-the-checkout):
 
-- `.caveman/agent.lock.json`: Cave Build proof envelope
-- `.caveman/workload-profile.json`: content-blind profile and provenance
-- `.caveman/build-report.json`: search cost, holdout evidence, claims, and a local inferred point-estimate `break_even_tasks` when search cost is complete and holdout catalog delta is positive (`null` otherwise)
-
-No envelope is written when usage is missing, the model is unpriced, cache regresses, recovery fails, sandbox or privacy fails, quality drops, search is incomplete, or the cost ceiling is exceeded. `check` rejects drift before a model call.
-
-## Who can change behaviour
-
-Exact native Pi (`tool-free-v1`) owns candidate generation and the locked runner. For agents with no declared tools it can select a priced model, lower reasoning effort, add reversible Context IR routes with derived recovery, and lower output budget. Any root tool, including a subagent, refuses that path before runner spend.
-
-Generic Pi, Vercel AI SDK, Eve, and Mastra v3 builds remain baseline-equivalent: they bind identity and evidence around an unchanged baseline plan. They do not currently construct changed model, reasoning, context, transform, recovery, retry, or output-budget behaviour from compiler output.
-
-Claude Cave Build compilation and registration refuse. Public `runClaudeAgent` stays unlocked.
-
-Callers cannot inject native candidates, runners, or target identity into `compileProfiledNativePi`. `compileProfiled` remains the generic caller-owned-runner API and emits baseline-equivalent v3 only.
-
-Hashes bind canonical bytes for integrity. They are not signatures, SBOM provenance, runtime attestation, or proof that registered bytes served traffic.
-
-## Running a lock
-
-```ts
-import { readFile } from "node:fs/promises";
-import { runLocked } from "@caveman-ai/agent";
-import { parseAnyCaveBuildLock } from "@caveman-ai/agent/build";
-import support from "./agent.js";
-
-const build = parseAnyCaveBuildLock(JSON.parse(
-  await readFile(".caveman/agent.lock.json", "utf8"),
-));
-const result = await runLocked(support, "Can I get a refund?", build);
+```bash
+npm install <checkout>/packages/evals
 ```
 
-`runLocked()` accepts only Pi locks. Source freshness remains `caveman-agent check` at deployment. A Pi lock cannot authorise Claude or third-party execution.
-
-## Test a run without provider traffic
-
 ```ts
-import { agent, run } from "@caveman-ai/agent";
+import { agent, run, schema, tool } from "@caveman-ai/agent";
 import { fauxModel, scriptedStream } from "@caveman-ai/agent/testing";
+import { grade } from "@caveman-ai/evals";
 
-const model = fauxModel();
-const reviewer = agent({ id: "test-reviewer", instructions: "Explain the result.", model });
-const result = await run(reviewer, "What happened?", {
-  model,
-  streamFn: scriptedStream([{ text: "The check passed." }]),
+const lookupOrder = tool({
+  name: "lookup_order",
+  description: "Look up an order by id.",
+  effect: "read",
+  input: schema.object({ orderId: schema.string() }),
+  execute: async ({ orderId }) => ({ orderId, status: "delivered" }),
+});
+
+const desk = agent({
+  id: "support-desk",
+  instructions: "Decide the refund from the order record.",
+  model: fauxModel({ priced: true }),
+  tools: [lookupOrder],
+  sandbox: "host",
+});
+
+const result = await run(desk, "Refund for NB-1042?", {
+  streamFn: scriptedStream([
+    { toolCalls: [{ name: "lookup_order", args: { orderId: "NB-1042" } }] },
+    { text: "NB-1042 is eligible for a refund." },
+  ]),
+});
+
+console.log(await grade({ type: "contains", fragments: ["eligible"] }, result.text));
+console.log(await grade({ type: "not_contains", fragments: ["refund issued"] }, result.text));
+console.log(await grade({ type: "tool_called", tools: ["lookup_order"] }, result.toolCalls));
+```
+
+```text
+{ passed: true, reason: 'all fragments present' }
+{ passed: true, reason: 'no forbidden fragments present' }
+{ passed: true, reason: 'all required tools called' }
+```
+
+Captured from that file at source 0.1.0 of `@caveman-ai/evals`. The value each grader reads differs: the text graders take the answer, and `tool_called` takes something carrying tool calls, which `result.toolCalls` is because it is the tool names in call order. `exact_match` compares trimmed and case-insensitively by default; `case_sensitive` and `remove_punctuation` opt into stricter variants.
+
+## The build config
+
+```ts
+import { defineBuild } from "@caveman-ai/agent/build";
+
+export default defineBuild({
+  entry: "./agent.ts",
+  evals: "evals/*.eval.ts",
+  maxSearchCostUsd: 2,
 });
 ```
 
-`scriptedStream` consumes one scripted turn per model call. Exhausting the script is an error, so unexpected extra calls cannot disappear into an empty success. Scripted runs remain `observe-only`; they prove local control flow, not provider quality or savings. `fauxModel({ priced: true })` selects a cataloged model identity for tests that need priced budgeting.
+| Field | Default | What it sets |
+|---|---|---|
+| `entry` | required | The definition module, or `"."` for an [agent directory](/docs/agent-sdk/define#load-an-agent-directory). |
+| `evals` | required | Glob for the eval modules. |
+| `requiredFixturePassRate` | `1` | Share of fixtures a candidate must pass. |
+| `qualityRetention` | `0.98` | Quality floor against the baseline, judged on a 95 percent lower confidence bound. |
+| `maxSearchCostUsd` | `2` | Ceiling on what the candidate search may spend. |
+| `efficiency`, `lock`, `sandbox` | `"max"`, `"strict"`, `"required"` | Fixed values. Any other value is refused. |
+| `allowedModels`, `deniedModels`, `maxP95LatencyMs`, `forbiddenSafetyClasses` | unset | Extra admission policy. |
 
-## What it will not do
+An unknown key throws, and `dataResidency` throws outright rather than being accepted and ignored.
 
-A local build report is not a bill. Publish no savings percentage from it. `break_even_tasks` is a point estimate that stays `null` when evidence is incomplete; missing evidence is not a favourable zero. Verified savings remain `$0` until real traffic passes separate rollout and ledger gates that this package does not run.
+## Run it
+
+```bash
+npx caveman-agent build caveman.config.ts
+npx caveman-agent check caveman.config.ts
+```
+
+`build` compiles, searches candidates, runs the evals and writes the lock. `check` re-derives the current digests and compares them against the lock without spending anything:
+
+```text
+caveman-agent: cave_build_lock_missing: add eval fixtures, then run npm run build
+```
+
+Captured from `check` in a hand-written project that has a config and evals but no lock yet. An `entry: "."` project written by the initializer fails both commands at commit `311be40` with `caveman-agent: EISDIR: illegal operation on a directory, read`, because the source graph walker tries to read the directory URLs in the generated `run.ts` as source files. Point `entry` at a module until that is fixed. When a lock is present and current, `check` prints its build digest, the selected plan, the catalog cost per task, and the line `local evidence: passed (estimate only)`. A lock whose inputs moved fails with `cave_stale_lock:` and the list of what changed, drawn from the source graph, the agent definition, the Context IR, the eval suite, the framework version, the harness versions, the transform registry and the price catalog.
+
+## Why a failed eval cannot produce a lock
+
+`compile()` returns a status and a lock, and the lock is present in exactly one case.
+
+| Status | What happened | Lock |
+|---|---|---|
+| `locked` | A candidate passed every fixture and guardrail. | written |
+| `needs_eval` | No eval fixture was declared. | none |
+| `no_passing_build` | Every complete candidate missed the quality floor or a guardrail. | none |
+| `incomplete_evidence` | The evidence set was not complete for the baseline or a candidate. | none |
+| `search_budget_exceeded` | The search hit `maxSearchCostUsd` first. | none |
+
+`compileAndWrite()` returns early when the result carries no lock, so the file on disk is never touched by a build that did not pass. The lock itself is written to a temp file with `wx` and then renamed, so a half-written lock cannot appear either. An agent whose sandbox posture is `host` anywhere in its graph is refused before any of this with `cave_host_sandbox_lock_ineligible`.
+
+## What a lock contains
+
+`schema_version`, the agent id, and digests for the build policy, the selected plan, the source graph, the agent definition, the Context IR and the eval suite. Then the harness and its versions, the framework version, the transform registry and external provenance digests, the price catalog digest, the baseline and selected plan ids, the plan itself, and the evidence: `quality_retention_lcb95`, `error_rate`, `p95_latency_ms`, `catalog_cost_usd_per_task` and `completed_runs`, with `basis: "inferred"`.
+
+`runLocked` re-checks the lock against the definition digest, the framework version, the catalog digest and the engine's transform registry before the first call, and refuses on any mismatch with its own code. That is the same evidence `check` uses, applied at the point where spending is about to start. [Running a locked build](/docs/agent-sdk/run#running-a-locked-build) has the call.
+
+## Limits
+
+Everything a build measures is a local estimate labelled `inferred`, over the fixtures you wrote, on the machine that ran it. `catalog_cost_usd_per_task` is a public-catalog price for the fixture set, not a bill and not a projection. [Numbers and limits](/docs/counting) has the rules those words follow.

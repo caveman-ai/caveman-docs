@@ -1,0 +1,138 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/search-results");
+
+<DocSchema slug="proxy/compressors/search-results" />
+
+The search-result compressor handles line-oriented hit lists, the `path:line:text` output of grep and ripgrep and
+lists of URLs. It keeps the first 8 and last 4 hits, every hit carrying a diagnostic or security word, and one
+example of every distinct kind of hit, and folds the rest into a marker that counts them.
+
+## Before and after
+
+The fixture is 90 lines of ripgrep output: one hit per file, one of them a failure path, one of them about a
+token.
+
+```text
+src/billing/handler_00.go:12:	log.Printf("handler %d ready", 0)
+src/checkout/handler_01.go:13:	log.Printf("handler %d ready", 1)
+src/catalog/handler_02.go:14:	log.Printf("handler %d ready", 2)
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/search-results/rg.txt
+caveman-engine compress < rg.txt 2> report.json
+```
+
+The whole output, 17 lines:
+
+```text
+src/billing/handler_00.go:12:	log.Printf("handler %d ready", 0)
+src/checkout/handler_01.go:13:	log.Printf("handler %d ready", 1)
+src/catalog/handler_02.go:14:	log.Printf("handler %d ready", 2)
+src/shipping/handler_03.go:15:	log.Printf("handler %d ready", 3)
+src/identity/handler_04.go:16:	log.Printf("handler %d ready", 4)
+src/search/handler_05.go:17:	log.Printf("handler %d ready", 5)
+src/billing/handler_06.go:18:	log.Printf("handler %d ready", 6)
+src/checkout/handler_07.go:19:	log.Printf("handler %d ready", 7)
+… 29 search result lines elided (caveman) …
+src/billing/refund.go:88:	log.Printf("refund FAILED for order %s", id)
+… 26 search result lines elided (caveman) …
+src/identity/session.go:41:	log.Printf("session TOKEN rotated for %s", user)
+… 21 search result lines elided (caveman) …
+src/catalog/handler_86.go:98:	log.Printf("handler %d ready", 86)
+src/shipping/handler_87.go:99:	log.Printf("handler %d ready", 87)
+src/identity/handler_88.go:100:	log.Printf("handler %d ready", 88)
+src/search/handler_89.go:101:	log.Printf("handler %d ready", 89)
+```
+
+The report on stderr, with the per-run digests and the handle trimmed to `…`:
+
+```json
+{"content_type":"search-result","tokens_before":1947,"tokens_after":343,"ratio":0.8238315356959425,
+ "basis":"inferred","recovery_handle":"ccr_6b40…","method":"search-result"}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+1,947 tokens to 343, counted by the offline `o200k_base` counter behind [Token counting](/docs/proxy/tokens).
+
+## How it works
+
+Input that is not valid UTF-8 is reported as a parse problem and the caller forwards the original bytes. So is
+anything under 18 lines. Lines are split on LF with each line keeping its own CR, so a file with mixed endings
+rejoins byte for byte, and a marker takes the ending the majority of the file uses.
+
+Each line is marked keep or drop.
+
+<Steps>
+<div>
+The first 8 lines and the last 4 lines.
+</div>
+
+<div>
+Any line matching `ERROR|FAIL|FAILED|PANIC|ACTION|FOLLOWUP|SECURITY|SECRET|TOKEN|PASSWORD|KEY` at a word
+boundary, case insensitive. A hit that names a credential is kept for the same reason an error is: it is the hit
+the reader was looking for.
+</div>
+
+<div>
+Any marker from an earlier pass, which keeps a second pass identical to the first.
+</div>
+
+<div>
+When a query is supplied, deterministic BM25 scores every line, and up to 24 lines scoring at least 0.30 of the
+best score are added.
+</div>
+
+<div>
+One representative of every distinct kind of line, added by the shared redundancy guard. Each line is reduced to
+its set of words with digit runs masked to `#`, and a line counts as represented when 90 percent of that
+vocabulary appears in a single surviving line. Paths and line numbers therefore stop distinguishing two hits
+whose text is the same, while a hit with different words survives on its own. When the masking applies, and the
+cap on how many kept lines a dropped line is compared against, are on
+[Compressors](/docs/proxy/compressors#what-every-compressor-guarantees).
+</div>
+</Steps>
+
+Kept lines are written in order. Each run of dropped lines becomes one line,
+`… N search result lines elided (caveman) …`.
+
+## What is always kept
+
+The first 8 and the last 4 lines. Every line carrying one of the diagnostic or security words above. One
+representative of every distinct kind of hit. Markers from an earlier pass. Surviving lines are written
+unchanged, including their paths and line numbers.
+
+## When it is chosen
+
+Detection calls a payload `search-result` when it has at least 6 lines, at least 4 of them match, and matching
+lines are at least a third of all lines. A line matches when it starts with a path-like token followed by
+`:<digits>` and a colon, optionally with a column number, up to 240 characters before the first colon, or when it
+starts with an `http://` or `https://` URL.
+
+```bash
+caveman-engine detect < rg.txt
+```
+
+```text
+search-result
+```
+
+See [how detection decides](/docs/proxy/compressors#how-detection-decides) for where this test sits among
+the others.
+
+The two floors differ. Detection fires at 6 lines and the compressor declines under 18, so a 6 to 17 line result
+detects as `search-result` and comes back unchanged with ratio 0. It also declines, and the engine forwards the
+original bytes, on invalid UTF-8, when nothing is dropped, and when the result counts no fewer tokens than the
+input.
+
+## Options
+
+A query, when the caller supplies one, adds up to 24 relevance-selected lines. An empty query behaves exactly
+like a queryless run, and a query keeps the output at most the size of the queryless view.
+
+## Recovery
+
+The original bytes are stored before the compressed view is emitted, and the handle in the report retrieves them:
+see [Recovery](/docs/proxy/recoverable).

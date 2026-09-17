@@ -4,129 +4,63 @@ export const metadata = docMetadata("quickstart");
 
 <DocSchema slug="quickstart" />
 
-Use this path for Claude Code, Codex, or another coding agent you already run. Start with the skill for shorter replies. Add the CLI when you want to inspect token use and manage local compression.
+Install one rule file and your coding agent answers the same question in fewer output tokens. It is text, it needs no account and no binaries, and it takes about a minute.
 
-Building an application with Vercel AI SDK or Python? [Optimize your existing app](/docs/integrations) instead.
+Want the local tools that shrink what the agent reads? That is [Add the local tools](/docs/quickstart/cli). Building an agent from scratch? Start at the [Agent SDK](/docs/agent-sdk).
 
-## Install the skill
+## Install
 
-<Steps>
-<div>
-This works for most agents:
+In Claude Code, install the plugin. It also wires the two hooks that track the mode and write it to disk:
 
 ```bash
-npx skills add JuliusBrussee/caveman
+claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman
 ```
 
-Without `-g` this writes into `./.agents/skills` under the directory you are standing in, not into a
-global config. That is usually what you want for a project, and surprising if you expected otherwise.
-</div>
-
-<div>
-Some agents have a native path that wires up more than the skill file:
+Everywhere else, the skills CLI:
 
 ```bash
-# Claude Code
-claude plugin marketplace add JuliusBrussee/caveman
-claude plugin install caveman@caveman
-
-# Gemini CLI
-gemini extensions install https://github.com/JuliusBrussee/caveman
-
-# Codex CLI
-npx skills add JuliusBrussee/caveman -a codex
-
-# Cursor, which needs the global flag
-npx skills add JuliusBrussee/caveman -a cursor -g
+npx skills add JuliusBrussee/caveman -g
 ```
-</div>
 
-<div>
-Check it took. In your agent, run:
+`-g` installs into the agent's user skill directory. Drop it to install into the current project instead. [Supported agents](/docs/skill/profiles) lists the profile slug for each host, and JetBrains Junie takes `npx skills add JuliusBrussee/caveman -a junie -g`. The full matrix is in [INSTALL.md](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md).
+
+[JetBrains](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) ran 86 real coding tasks as a paired A/B with this skill alone and found 8.5 percent fewer output tokens with no detectable quality change, sign test p = 0.82.
+
+## Ask a question
+
+Start a new session and ask the agent something. The answer arrives without the preamble, and the symbol is still named. [The skill](/docs/skill#what-it-changes) has the same question answered both ways, at 69 tokens against 19. Code, commands, file paths and exact error strings are copied through byte for byte; only the prose around them shortens. [What it leaves alone](/docs/skill#what-it-leaves-alone) is the full list.
+
+## Pick a level
+
+Type `/caveman` in the agent if it has not woken up on its own, then `/caveman lite` or `/caveman ultra` to change how far it goes. `full` is the default, and three `wenyan` variants exist as well. [Levels](/docs/skill#levels) shows the same answer at each one.
+
+## Verify
+
+For the plugin, read the mode file the hooks write:
+
+```bash
+cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active"
+```
 
 ```text
-/caveman
+full
 ```
 
-You should get a confirmation that the mode is active. `/caveman off` turns it back off, and so does
-saying "normal mode".
-</div>
-</Steps>
-
-<Note title="What it changes, and what it does not">
-The skill drops articles, filler and narration from your agent's replies. It is explicit about what stays
-byte for byte: code blocks, function and API names, CLI commands, and exact error strings. It also steps
-aside on its own for security warnings, irreversible actions, and any moment where being terse would make
-an instruction ambiguous.
-</Note>
-
-## Inspect token use with the local tools
-
-The CLI is published on npm under a scoped name.
+It mirrors whichever window wrote most recently. For a `npx skills add` install, check the directory instead:
 
 ```bash
-npm i -g @caveman-ai/cli
-caveman setup --install
+ls ~/.claude/skills/caveman
 ```
 
-<Note tone="warning" title="Two package names, one of them is not ours">
-The bare `caveman` package on npm is an unrelated JavaScript templating library. Install
-`@caveman-ai/cli`. On PyPI the same applies: our SDK is `caveman-sdk`, imported as `caveman_cloud`.
-</Note>
+## Undo
 
-`caveman setup --install` downloads the companion binaries into `~/.caveman/bin`. It checks a key-signed
-manifest first, then verifies each artefact against its own SHA-256 before installing it.
-
-<Note tone="honest" title="The CLI sends anonymous counts, and says so on first run">
-Command names, version, platform, duration, exit class, and aggregate token counts from local sessions.
-Never prompts, code, file paths, arguments, model names or dollar figures. It is how we see which
-commands people use and which ones break, and it is a large part of why the local tools can stay free.
-Turn it off with `caveman telemetry off`, `CAVEMAN_TELEMETRY=0`, or `DO_NOT_TRACK=1`. The full payload is
-listed on [Telemetry](/docs/telemetry).
-</Note>
-
-Then start your agent through the CLI so traffic goes through the [local proxy](/docs/proxy). The default record mode observes traffic without changing it:
+Say `stop caveman` or `normal mode` in the session to go back to full sentences there. To remove it:
 
 ```bash
-caveman claude
+claude plugin uninstall caveman@caveman   # the plugin
+npx skills remove caveman                 # a skills CLI install
 ```
 
-The same works for `codex`, `gemini`, `aider`, `hermes`, `kilo`, `openclaw`, `opencode`, `pi`, and
-`qwen`. Ten wrap profiles ship today, and each is one JSON file in the registry. That set is smaller
-than the thirty-plus agents the skill supports, because wrap has to know the host's provider endpoint.
+## Limits
 
-## Find out where your tokens go
-
-```bash
-caveman learn
-```
-
-This reads your local agent sessions and ranks what is actually consuming the budget. It measures and
-does nothing else. Applying a fix is a separate, consent-gated step:
-
-```bash
-caveman learn report --json
-caveman learn apply <sink_id> --dry-run
-caveman learn apply <sink_id>
-```
-
-Every applied fix is checked for being net token negative. If an edit does not make the thing smaller, it
-is reverted.
-
-## What you should expect to see
-
-On the committed benchmark suite, the skill cuts output tokens by about 65 percent on average, with a
-range from 22 to 87 percent across ten prompts. That is a per-run inferred estimate measured on that
-suite, not a promise about your bill.
-
-Nothing you run locally will ever report a dollar figure or a monthly total. That is deliberate and
-[the reasoning is here](/docs/counting).
-
-
-## Enable compression when you are ready
-
-After inspecting a representative task, follow [Wrap an agent](/docs/proxy/wrap) to enable compression for your agent and check its recovery support. Read [modes](/docs/proxy/modes) before comparing runs: a successful response in record mode does not mean compression ran.
-
-## Remove it
-
-Say `normal mode` to stop the skill in the current conversation. To stop using the proxy, close the wrapped session and launch your agent directly. Keep your original prompts and compare the same task before and after each change.
+The skill rides along as input tokens on every call. `skills/caveman/SKILL.md` is 1,650 tokens under `o200k_base`, and the compiled per-agent pack Claude Code loads is 2,131, so on a one-line question it can cost more than it saves. If you are billed per request rather than per token, a shorter answer is still one request. [Numbers and limits](/docs/counting) has the rest.

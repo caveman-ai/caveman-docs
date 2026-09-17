@@ -1,0 +1,253 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/tool-schemas");
+
+<DocSchema slug="proxy/compressors/tool-schemas" />
+
+Two compressors shrink a tool catalog. `toolschema` drops JSON Schema annotation metadata and cuts long
+descriptions to their opening sentence plus every sentence that states a constraint. `toolschema-annotations`
+removes four annotation keywords by deleting their byte spans and copies every other byte through unchanged. Tool
+names, parameter names, types, `enum`, `required`, `default`, `const`, and `$ref` targets survive both.
+
+Neither is ever chosen by detection. A caller names the type.
+
+## Before and after
+
+The fixture is the engine's own two-tool catalog fixture, minified to one line of 1,840 bytes. It has a
+`write_file` tool with a filler sentence in its description, a `title` and `$schema` on the input schema,
+`examples` on a property, and a `$defs` member literally named `default`.
+
+```json
+{"tools":[{"name":"write_file","description":"Write bytes to a file on disk. This trailing sentence is pure filler that carries no rule and should be dropped once the description grows past the small budget. The path must be an absolute path. Provide exactly one of body or body_b64.","inputSchema":{"type":"object","title":"WriteFileArgs","$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"path":{"type":"string","description":"Target path, e.g. /srv/data/out.txt. It must be absolute, not relative.","examples":["/srv/x"]},
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/tool-schemas/catalog.min.json
+caveman-engine compress --type toolschema < catalog.min.json 2> report.json | python3 -m json.tool
+```
+
+Stdout is one line of compact JSON, so the pretty-printer is there to make it readable. Re-serialising sorts the
+keys. The second tool is trimmed here.
+
+```json
+{
+    "tools": [
+        {
+            "description": "Write bytes to a file on disk. The path must be an absolute path. Provide exactly one of body or body_b64.",
+            "inputSchema": {
+                "properties": {
+                    "body": {
+                        "description": "UTF-8 text contents. Exactly one of body or body_b64 is required.",
+                        "type": "string"
+                    },
+                    "count": {
+                        "description": "The number of items to return in a single page of results, which the server Values above 100 are not allowed and negative numbers are invalid.",
+                        "type": "integer"
+                    },
+                    "mode": {
+                        "default": "overwrite",
+                        "description": "How to write the file.",
+                        "enum": [
+                            "overwrite",
+                            "append"
+                        ],
+                        "type": "string"
+                    },
+                    "path": {
+                        "description": "Target path, e.g. /srv/data/out.txt. It must be absolute, not relative.",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "path"
+                ],
+                "type": "object"
+            },
+            "name": "write_file"
+        }
+    ]
+}
+```
+
+```json
+{"content_type":"toolschema","tokens_before":436,"tokens_after":366,"ratio":0.16055045871559634,
+ "basis":"inferred","recovery_handle":"ccr_94e4…","method":"toolschema","lossless_to_model":false}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+436 tokens to 366 on two tools, counted by the offline `o200k_base` counter described on
+[Token counting](/docs/proxy/tokens). The handle is trimmed with `…` because it varies per run.
+
+Read the `count` description closely. Its lead sentence was capped at 80 bytes mid-clause and its constraint
+sentence was kept whole and joined straight onto the cut. That is the trade the compressor makes: the sentence
+stating the rule is never shortened, the sentence introducing the parameter is.
+
+### The annotation strip
+
+`toolschema-annotations` takes the provider `tools` array on its own, not the request body around it. It removes
+`$schema`, `title`, `examples`, and `deprecated` from inside tool schemas and leaves everything else where it was,
+byte for byte.
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/tool-schemas/tools.min.json
+caveman-engine compress --type toolschema-annotations < tools.min.json 2> report.json
+```
+
+Here `tools.min.json` is the same catalog with the `{"tools": …}` wrapper removed. Stdout is one line, trimmed here
+after the first property. `title`, `$schema`, and `examples` are gone; every other byte is where it was.
+
+```json
+[{"name":"write_file","description":"Write bytes to a file on disk. This trailing sentence is pure filler that carries no rule and should be dropped once the description grows past the small budget. The path must be an absolute path. Provide exactly one of body or body_b64.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"Target path, e.g. /srv/data/out.txt. It must be absolute, not relative."},
+```
+
+```json
+{"content_type":"toolschema-annotations","tokens_before":434,"tokens_after":405,
+ "ratio":0.06682027649769585,"basis":"inferred","recovery_handle":"ccr_12c6…",
+ "method":"toolschema-annotations","lossless_to_model":false}
+```
+
+434 tokens to 405. Key order, whitespace, number formatting, and string escapes all survive, and the descriptions
+are untouched. Feeding it the whole `{"tools": […]}` object instead of the array leaves the bytes unchanged at
+436 tokens with ratio 0.
+
+## How it works
+
+### toolschema
+
+The catalog is decoded with `json.Decoder` in number-preserving mode. A payload that fails to decode, or that
+carries a second value after the first, is a parse problem and the caller forwards the original bytes.
+
+The decoded value is then classified. A top-level array, an object with a `tools` key, or an object carrying
+`name`, `input_schema`, `inputSchema`, `parameters`, or `function` is a tool envelope. Anything else is treated as
+a bare JSON Schema.
+
+Inside a tool envelope the walk touches three fields and copies the rest: `input_schema` / `inputSchema` /
+`parameters` go to the schema walk, `function` recurses as another envelope, and `description` goes to the
+description reducer. MCP's `annotations.title` is a tool name the model selects on, so it is copied through.
+
+Inside a schema the walk works key by key:
+
+| Key | What happens |
+| --- | --- |
+| `examples`, `example`, `$comment`, `title`, `$schema` | Dropped. |
+| `enum`, `required`, `default`, `const` | Kept verbatim, with no recursion into them. |
+| `properties`, `$defs`, `definitions`, `patternProperties`, `dependentSchemas`, `dependentRequired`, `dependencies` | Every child key survives as written, and only the schema underneath each one is compressed. |
+| `description` | Goes to the description reducer when it is a string. |
+| anything else | Recursed into as a schema. |
+
+That `properties` row is why the fixture's `$defs` member named `default` survives with its own description
+intact. Inside those seven keys, a name that happens to collide with schema vocabulary is still a name, so a
+property called `description` or a definition called `title` is kept the same way.
+
+The description reducer leaves a description alone when it is 160 bytes or shorter, which is twice the 80 byte
+lead cap. Above that it splits the text into sentences and rebuilds it in the original order from:
+
+- every sentence matching the constraint pattern, kept whole and never capped;
+- the first sentence that does not match, capped at 80 bytes on a rune boundary, backing off to the last space
+  when that space is past the halfway mark.
+
+Every other sentence is dropped. The constraint pattern is deliberately wide. This is all of it, matched case
+insensitively on word boundaries:
+
+```text
+must|must not|cannot|can't|shall|
+require\w*|reject\w*|disallow\w*|forbidden|
+invalid|not allowed|not permitted|
+exactly one|only one of|one of|at least|at most|
+mutually exclusive|only|unique|case[- ]?sensitive|
+max|min|maximum|minimum|range|between|
+greater than|less than|more than|fewer than|no more than|no less than|
+over|above|below|under|beyond|exceed\w*|
+format\w*|iso[- ]?\d*|rfc[- ]?\d*|absolute
+```
+
+Over-keeping costs a few tokens; dropping a constraint costs an invalid tool call and a retry.
+
+Sentence splitting only breaks on a period followed by whitespace and an uppercase letter, and only when the
+preceding token is not an abbreviation. `e.g.`, `i.e.`, `Node.js`, `v1.2`, `3.14`, and a list including `etc`,
+`vs`, `cf`, `inc`, and `approx` all stay intact.
+
+### toolschema-annotations
+
+This one works on bytes rather than on a decoded value. It validates the JSON, walks it recording half-open byte
+ranges to delete, copies the untouched bytes through in one pass, and validates the result. It drops exactly `$schema`, `title`,
+`examples`, and `deprecated`, and only where they sit inside a schema.
+
+The walk enters a tool envelope only through `input_schema`, `inputSchema`, `parameters`, and `function`. Inside a
+schema it descends only through an allowlist: `items`, `prefixItems`, `additionalItems`, `unevaluatedItems`,
+`additionalProperties`, `unevaluatedProperties`, `propertyNames`, `contains`, `not`, `if`, `then`, `else`,
+`allOf`, `anyOf`, `oneOf`, plus the name maps `properties`, `patternProperties`, `$defs`, `definitions`, and
+`dependentSchemas`. A keyword outside that list, including `enum`, `const`, `default`, and any `x-` extension, is
+stepped over entirely.
+
+Copying bytes rather than re-serialising is what keeps an Anthropic `cache_control` breakpoint exactly where the
+provider saw it last turn. Tool order survives as written, and stripping an already stripped catalog returns the
+same bytes.
+
+## What is always kept
+
+Tool names. Parameter names and every key under `properties`, `$defs`, `definitions`, `patternProperties`, and the
+dependency keywords. `type`. `enum`, `required`, `default`, and `const`, verbatim. `$ref` targets. MCP
+`annotations`, `_meta`, and vendor fields on the envelope. Every sentence of a description that states a
+constraint. With the annotation strip, every byte that is not one of the four dropped members.
+
+<Note tone="honest" title="Selection tokens survive; tool choice is a grader's claim">
+Keeping every name, type, enum, and required list means the model can still see and call the same tools.
+Descriptions are model-visible and `toolschema` reduces them, so identical tool choice across every model is a
+claim only a task grader can make. The annotation strip removes documentation-only keywords and is the narrower
+of the two.
+</Note>
+
+## When it is chosen
+
+Detection never returns either type. `caveman-engine detect` on a tool catalog prints `json`, and the engine's
+general compression path leaves the tool catalog alone, because that catalog is the front of the provider's cache
+prefix.
+
+```bash
+caveman-engine detect < catalog.min.json
+```
+
+```text
+json
+```
+
+Both are reached by naming the type: `caveman-engine compress --type toolschema` or
+`--type toolschema-annotations`.
+
+In the proxy, the annotation strip is a separate path with its own switch, described under Options. `toolschema`
+appears in the engine capability registry as `caveman.engine.toolschema.v1` with eligible segment kind
+`tool_schema`; `toolschema-annotations` is deliberately absent from that registry.
+
+```bash
+caveman-engine registry
+```
+
+Both decline, and the bytes go through unchanged, on malformed JSON, on a trailing second value, when nothing was
+removed, when the result is no smaller, and when no recovery store is available.
+
+## Options
+
+The proxy exposes the annotation strip as `toolschema_strip` in `caveman.yaml`, or `CAVEMAN_TOOLSCHEMA_STRIP` in
+the environment. It is off by default.
+
+```yaml
+toolschema_strip: annotations
+```
+
+`annotations` is the only value that turns it on. Empty, `off`, and any unrecognised value all normalise to `off`
+at config load, so a typo leaves the strip switched off.
+
+When it runs, the response carries `toolschema-annotation-strip` in the `x-cave-optimization` header. The proxy
+keeps the original catalog when the request shape cannot be extracted, when the strip removed nothing, when the
+original cannot be stored for recovery, when the stripped catalog cannot be spliced back in, or when the spliced
+body is not valid JSON. A session whose measured cache creation grows after the strip ran loses the strip for the
+rest of that session.
+
+`toolschema` itself has no configuration surface. It is reached by a caller naming the type.
+
+## Recovery
+
+The original catalog is stored before the rewritten one is emitted, and the handle retrieves it byte for byte: see
+[Recovery](/docs/proxy/recoverable).

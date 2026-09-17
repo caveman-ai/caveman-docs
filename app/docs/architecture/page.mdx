@@ -4,92 +4,91 @@ export const metadata = docMetadata("architecture");
 
 <DocSchema slug="architecture" />
 
-Caveman is not one program. Most people install the skill, the proxy, or both, and never touch the rest.
-This page shows how a single request moves through the pieces and why they are separable.
+One request leaves your agent, passes through a rule file and a local proxy, and reaches your provider smaller than it started. This page follows that request, names the part that acts at each hop, and shows where the removed bytes are kept.
 
-It describes the `caveman` repository. The [Agent SDK](/docs/agent-sdk) is a different repository with a
-different job: it is how you build an agent, not how you make an existing one cheaper, and nothing on
-this page is required to use it.
+## Before and after
 
-## One request
+The engine is the compressor. Feed it a 65 line build log on stdin and the smaller view goes to stdout while the report goes to stderr, so a redirect keeps the two apart:
+
+```bash
+caveman-engine compress < build.log > small.log
+```
+
+```
+2026-06-16T09:00:00Z [INFO] build started: caveman-engine
+2026-06-16T09:00:00Z [INFO] compiling module pkg/mod000 ... ok
+… 59 lines elided (caveman) …
+2026-06-16T09:05:11Z [ERROR] failed to link target: undefined symbol caveman_compress
+  at link_stage (linker.go:412)
+  at build.run (build.go:88)
+2026-06-16T09:05:11Z [FATAL] build aborted after 1 error
+```
+
+```json
+{
+  "content_type": "log",
+  "tokens_before": 1536,
+  "tokens_after": 132,
+  "token_count_basis": "o200k_base",
+  "ratio": 0.9140625,
+  "basis": "inferred",
+  "recovery_handle": "ccr_0d3b5b5c431246dc87f7e3d1ad00ee11",
+  "method": "log",
+  "lossless_to_model": false
+}
+```
+
+`small.log` holds the first block, `stderr` the second. The errors, the stack frames and the first line survive. The 59 identical `INFO` lines fold into one marker. The report is trimmed here to the fields that matter; the full object also carries the tokenizer's build and digests.
+
+## One request, end to end
 
 <RequestPath />
 
-The agent decides what to say. The skill has already shaped how it says it. When the request is wrapped,
-it goes to the [local proxy](/docs/proxy) on loopback; the [engine](/docs/proxy/engine) reduces whatever
-payload is about to leave; the provider bills for what arrives. Without the proxy, the engine is a binary
-you call yourself.
+Four hops, and one of them runs backwards. The skill shapes what the agent decides to say. The engine shapes what the payload weighs. The provider bills for whatever arrives. The dashed line is a recovery: something the engine left out, asked for again.
 
-The dashed line is the part that makes the rest defensible. Compression here is not a one-way door. Before
-the engine emits a smaller payload it writes the original bytes to a local store keyed by a hash of those
-bytes, and the compressed output carries that handle. An agent that needs the part that was removed asks
-for the handle and gets the original back, byte for byte, in the same turn.
+How much that recovery costs depends on which path is doing it. Where the proxy injected its own retrieve tool, the proxy answers the call from the local store and continues the same agent turn: the agent issues no second request, and the provider calls that continue the exchange are made and metered by the proxy, up to three retrievals. Where the agent holds the [MCP](/docs/mcp) tool itself, it calls the local store directly. In the [middleware](/docs/sdk/middleware/deployment#what-to-measure), a recovery is a real extra provider call your application makes and pays for, which is why that page tells you to count it.
 
-<Note title="No store, no compression">
-The rule the engine follows has three possible outcomes and no fourth: the payload is compressed and
-recoverable, or it passes through untouched, or it is recovered. If the recovery store is unavailable, the
-engine does not compress. It passes the original through.
-</Note>
+## Where the skill acts
 
-## Why the pieces are separable
+Before the request exists. The skill is an instruction file the agent reads at session start, so it changes the agent's own output: fewer preambles, fewer restatements, fewer closing summaries. It is text, not software, and there is no process to run.
 
-Each layer answers a different question, and they fail independently.
+It is explicit about what it copies through byte for byte, and about the moments where it drops back into full sentences. [What it leaves alone](/docs/skill#what-it-leaves-alone) is that list.
 
-<Facts rows={[
-  ["Skill", "Changes what the agent writes. No process, no config, no network."],
-  ["Proxy", "Changes the base URL and what a payload weighs. A loopback process that routes and records, plus the engine binary it calls to compress."],
-  ["Memory", "Changes what you have to say twice. A local SQLite store."],
-  ["Cloud", "Changes what you can prove to someone else. An account, across a network."],
-]} />
+## Where the proxy acts
 
-Nothing above a layer is required by the layer below it. The skill does not know the proxy exists. The
-proxy does not need an account. This is why the licence split follows the same lines rather than
-cutting across them.
+<ProxyPath />
 
-## Where the open-core line falls
+After the agent has decided what to send and before the bytes leave your machine. The proxy listens on `127.0.0.1:8787` by default, forwards to the provider you configured, and passes your credentials through untouched. Inside it, the engine runs on each eligible segment:
+
+1. **Detect the content type.** `detect()` types the payload from its bytes alone. `caveman-engine registry` lists the types it knows: JSON, log, code, diff, search result, table, config, terminal output, tool schema, text, HTML, accessibility tree, repetition and TOON.
+2. **Look up the compressor** for that type. A type with no compressor registered is forwarded unchanged.
+3. **Check the safety class.** A compressor that loses bytes carries `RequiresCCR`, so it may only run when the original can be written to the recovery store first.
+4. **Store the original, then publish.** The original goes to the store, and only after that write succeeds does the smaller view leave with its handle. Output that is not smaller than the input is dropped and the original goes instead.
+
+Those four are the ones that decide what reaches the provider. The engine runs three more around them, unwrapping presentation and counting both sides; [The pipeline](/docs/proxy/engine#the-pipeline) has all seven in order.
+
+Two local databases sit under the proxy. The usage store holds one `inferred` row per request, which is what [`caveman stats`](/docs/cli) reads. The recovery store holds original bytes. Neither holds a provider bill. [The engine](/docs/proxy/engine) has the per-compressor detail.
+
+## Where recovery lives
+
+In a SQLite file on your machine. The default is `~/.caveman/ccr.db`, and `CAVEMAN_CCR_DB` points somewhere else. The original is written under a content-addressed handle before the compressed view is emitted, so a handle always resolves:
+
+```bash
+caveman-engine retrieve ccr_0d3b5b5c431246dc87f7e3d1ad00ee11 | diff - build.log && echo identical
+```
+
+```
+identical
+```
+
+The agent reaches the same store through the [MCP server](/docs/mcp)'s `caveman_retrieve` tool, and the CLI through `caveman retrieve`.
+
+The store is a hard dependency of any lossy result, and it fails in two different ways. A store that cannot be opened stops the command: `caveman-engine` exits 1 with `cannot open recovery store: …` and writes nothing to stdout. A store that opens but will not take the write returns the accounted pass-through result together with an error: the CLI writes the original to stdout and puts `"error": "cave_ccr_unavailable"` in the report, with `"ratio": 0`. Either way a smaller payload is never emitted without its original behind it. [Recovery](/docs/proxy/recoverable#when-compression-refuses-to-run) has both cases with their reports.
+
+Compression is skipped, and the original bytes are forwarded, in five cases: record mode is on, no compressor claims the content type, the compressor cannot parse the payload, a lossy compressor has no recovery store to write to, or the result came out the same size or larger. [Recovery](/docs/proxy/recoverable) covers each one.
+
+## Where the licence line falls
 
 <OpenCoreBoundary />
 
-The rule that governs new code is one sentence: a module that imports, links, embeds or ships as part of
-the engine-linked runtime is BSL 1.1 unless a decision record explicitly classifies it as an adoption
-surface.
-
-The practical effect for you is in the additional use grant. BSL 1.1 here permits internal evaluation,
-local development, CI, integration, and self-hosted use for your own first-party traffic, production
-included. What it does not permit is offering Caveman's functionality to third parties as a hosted or
-embedded service. That boundary is the commercial line, and it is the only one.
-
-Each BSL release converts to Apache 2.0 on the earlier of 21 June 2030 or four years after that version
-was first distributed.
-
-## Content detection
-
-The engine does not ask you what a payload is. It reads the bytes and decides, then routes to a
-compressor built for that shape. The types it recognises:
-
-`json` · `log` · `code` · `diff` · `search-result` · `text` · `toon` · `html` · `a11y` · `terminal` ·
-`tabular` · `config`
-
-Two compressors are never chosen automatically and have to be asked for by name: the tool-schema
-compressor and the TOON encoder. Automatic selection of either would surprise a caller who did not opt
-in.
-
-When detection is not confident, it answers `text`, which is the compressor that removes the least. Every
-unknown case in this system resolves toward doing less, not more.
-
-## Failure behaviour
-
-This is worth stating on its own, because it is the part that decides whether you can leave the thing
-switched on.
-
-```text
-unknown mode          -> record, which never transforms
-transform error       -> forward the original bytes
-result not smaller    -> keep the original
-low-confidence type   -> text
-unknown grader        -> passed: false
-unknown model price   -> zero, tagged unpriced
-```
-
-Every one of those resolves to the conservative answer. A compression system that is willing to guess is
-a compression system you have to babysit.
+The split follows the compression engine. Anything that links it is BSL 1.1: the engine, the proxy, the rewriter, `caveman-browse`, the MCP server, `caveman-shrink`, the cavemem Go core and the shared Go platform. Everything you adopt it with is MIT: the skill, the CLI, both client SDKs, the middleware, the wire contracts, the provider catalog, the eval graders and the thin cavemem clients. The [Agent SDK](/docs/agent-sdk) is a separate repository under Apache-2.0. [Licensing](/docs/licensing) is the per-path table.

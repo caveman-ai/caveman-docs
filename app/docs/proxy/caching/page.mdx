@@ -4,47 +4,171 @@ export const metadata = docMetadata("proxy/caching");
 
 <DocSchema slug="proxy/caching" />
 
-Prompt caching reuses an exact stable prefix at the provider. Trajectory rewriting shortens old conversation text by making a separate model call. They solve different problems and need separate evidence.
+The proxy compresses only the part of a conversation the provider has not cached, and re-emits every
+message it already rewrote from a durable replacement store, so the bytes upstream are identical on every
+turn of a session. Prompt caching is the reason: a provider bills a cached prefix at a fraction of the
+normal rate, and one changed byte early in the request rebuilds the whole thing.
 
-## Prompt-cache planning
+Here for what gets compressed rather than where: [All compressors](/docs/proxy/compressors).
 
-The planner identifies stable prefix boundaries and adds supported provider cache controls. Planning makes no network call. A cache hint is a request to the provider, not proof that a cache hit occurred.
+## The same conversation, twice
 
-The local proxy configuration enables selected provider planners and defaults `breakpoint_plan` to `frontier`. Explicit `off` disables it; unknown values fail closed to off. Record mode remains byte-preserving even when planners are configured.
+Three messages. The first carries `cache_control`, so the provider has cached everything up to and
+including it. The third is a fresh 12,256 character log.
 
-```yaml
-breakpoint_plan: frontier
-optimizers:
-  anthropic-cache-breakpoints: true
-  openai-prompt-cache-key: true
-  bedrock-cache-points: true
+```bash
+curl -O https://docs.caveman.so/examples/engine/conversation.json
+curl -sD- -o /dev/null http://127.0.0.1:8787/v1/messages \
+  -H 'content-type: application/json' -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H 'anthropic-version: 2023-06-01' --data-binary @conversation.json | grep -i '^x-cave'
 ```
 
-The provider-specific request shape, billing tier, stable boundary, and capability data must all permit the operation. Malformed JSON, duplicate keys, volatile boundaries, unsupported semantics, and unsupported providers keep the original request.
+```text
+X-Cave-Mode: compress
+X-Cave-Optimization: caveman-compression
+X-Caveman-Compression-Ratio: 0.8151
+X-Caveman-Recovery-Handle: ccr_4d378a83f5280594729ada2179e6f827
+X-Caveman-Token-Count-Basis: estimated_engine_o200k
+X-Caveman-Tokens-After: 836
+X-Caveman-Tokens-Before: 4521
+```
 
-## Rewriting old history
+Send the identical body again and the headers change in one place:
 
-A rewriter sends eligible aged conversation context to a configured rewrite model. An accepted result must preserve structural commitments, failure signals, counts, exit codes, and references, beat its size threshold, and retain the exact original behind recovery.
+```text
+X-Caveman-Compression-Ratio: 0.0000
+X-Caveman-Recovery-Handle: ccr_4d378a83f5280594729ada2179e6f827
+```
 
-<figure className="my-6 rounded-md border p-4 text-sm">
-  <div>Old history → threshold check → rewrite model → acceptance checks</div>
-  <div className="mt-2 text-muted-foreground">Accepted: store original, use shorter view · Rejected: keep original</div>
-  <figcaption className="mt-3 text-xs">A rejected rewrite still incurred its model call. Keep that usage in the evidence.</figcaption>
-</figure>
+The upstream bytes are the same both times:
 
-Rewriting requires an explicitly configured model and credential. It is not an offline compressor. Recovery allows the agent to read missing detail; it does not prove that the model will ask for it or that task quality stayed equal.
+```bash
+shasum -a 256 turn1.json turn2.json
+```
 
-## Pick the mechanism
+```text
+709335ee0f50ec3384fcb6b8215123e22b53e5cd9fcd28911b08f642a78b00d9  turn1.json
+709335ee0f50ec3384fcb6b8215123e22b53e5cd9fcd28911b08f642a78b00d9  turn2.json
+```
 
-| Goal | Mechanism |
-| --- | --- |
-| Reuse exact stable prefix bytes | Provider-native prompt caching |
-| Reduce eligible tool output locally | [Compression engine](/docs/proxy/engine) |
-| Shorten aged conversation with a model | Gated trajectory rewriting |
-| Preserve every outbound byte | Record mode |
+Inside those bytes, the cached message is untouched at its original 7,983 characters and the live tail is
+2,366 characters with a recovery marker on the end. The log compressor kept the first 18 lines and the last
+two; the first two kept lines and a `[…]` stand for the other 16 here:
 
-The Agent SDK has its own [compaction ladder](/docs/agent-sdk/compaction) and [wire transport](/docs/agent-sdk/wire). Those interfaces do not enable every local proxy transform automatically.
+```text
+2026-09-16T09:00:01Z INFO  worker.pool task accepted id=t-2001 queue=ingest region=eu-west-1 attempt=1
+2026-09-16T09:00:02Z INFO  worker.pool task accepted id=t-2002 queue=ingest region=eu-west-1 attempt=1
+[…]
+… 99 lines elided (caveman): all queue=ingest region=eu-west-1 attempt=1; id: t-2019..t-2117 all 99 present …
+2026-09-16T09:00:58Z INFO  worker.pool task accepted id=t-2118 queue=ingest region=eu-west-1 attempt=1
+2026-09-16T09:00:59Z INFO  worker.pool task accepted id=t-2119 queue=ingest region=eu-west-1 attempt=1
+… caveman: elided lines resemble shown lines and match the stated invariants — answer from this view; if you truly cannot, one broad caveman_retrieve …
+<<ccr:ccr_4d378a83f5280594729ada2179e6f827>>
+```
 
-## Evidence and limits
+Captured from a caveman-proxy build dated 2026-08-24 in `compress` mode, against a local stub upstream so
+no provider was called; `caveman setup --install` today pins bin-v1.1.7, so digits may move. Three more
+`x-cave` headers are cut from both lists: `x-cave-project`, which carries the project label, and
+`x-cave-request-id` and `x-cave-trace-id`, which are new on every call.
 
-Neither mechanism caches generated answers. Provider usage is needed to observe cache reads or writes. Local planner records and token reductions remain `inferred`; rewrite-model usage is an additional cost, not a saving. Compare task quality and total provider usage before claiming improvement.
+## Where the frozen prefix ends
+
+The cache floor is the highest message index whose **content block** carries `cache_control`, plus one.
+A marker on `system` or on the tool catalog leaves the floor where it is, because those sit above the
+messages rather than inside them.
+
+The floor is then clamped to the index of the last message, so the newest message always stays live. Claude
+Code puts a `cache_control` marker on the newest message, and that turn cannot be in any provider cache
+yet, so freezing it would leave nothing compressible forever. Claude Code 2.1.220 appends a small marked
+system message right after a new user `tool_result`, which is one cache write covering both, so that pair
+stays live together.
+
+Everything below the floor is the frozen prefix. Everything at or above it is the live zone, which is what
+`ExtractCompressible` hands the compressor: user messages and trailing injected system messages, and within
+them the text blocks plus the contents of `tool_result` blocks, which is where a large tool output actually
+sits. The one `tool_result` it passes over is one that answers a `caveman_retrieve` call, because
+collecting recovered bytes would let the replacement store substitute the elision straight back in. The
+top-level `system` field, the tool catalog, assistant messages and other block types stay out. A
+conversation carrying no `cache_control` at all offers no way to know what the provider cached, so the live
+zone narrows to the latest user message alone.
+
+## Why turn two claims nothing
+
+A block the proxy compresses is stored twice: the original under a CCR handle, and the exact replacement
+bytes in `~/.caveman/caveman.db`. On every later turn the same block is looked up and substituted with those
+stored bytes rather than compressed again, because a second compression from a different engine build could
+produce different output and rotate the prefix.
+
+The lookup key is a SHA-256 over a scope string, a zero byte, and the original bytes. The scope is
+`unlocked` plus the tool-schema strip's version when that lever is on, or `locked:` with the segment kind,
+the segment id and the transform id when a compiled plan pinned the route. Binding the bytes to the scope
+is what makes changing a lever retire the entries it wrote: the tool catalog sits at the front of the same
+provider prefix, so a replacement chosen under one setting must never replay under another.
+
+Storage is first-write-wins, so one message has exactly one replacement on the wire, whichever in-flight
+request stored it first. A block whose replacement cannot be stored is forwarded as the client sent it,
+which costs one prefix rebuild and is stable afterwards. The cache keeps its 10,000 most recently used entries; an evicted
+entry reads as a miss and takes the same path.
+
+Token accounting is once per message. The turn that first compresses a block books its reduction; every
+later turn re-books zero and still discloses the handle, which is why the second response above carries
+`0.0000` beside the same handle. Booking it once keeps the reported figure equal to the tokens the proxy
+actually removed.
+
+## Placing the breakpoints
+
+`cache_control` markers are provider metadata rather than model-visible bytes, so the proxy can place them
+on requests that carry none. The planner is controlled by `breakpoint_plan` in `caveman.yaml` or
+`CAVEMAN_BREAKPOINT_PLAN`:
+
+```yaml
+breakpoint_plan: frontier   # the default; "off" and any unrecognised value mean off
+```
+
+It runs in exactly four modes, `recommend`, `shadow`, `canary` and `active`, and stays out of `compress`
+and `pixel`, where the compression path above owns the request, and out of `record`, which forwards bytes
+untouched. See [Modes](/docs/proxy/modes). Both of its arms run on pay-as-you-go credentials only, because
+a subscription session's caching belongs to its harness. Anthropic allows four `cache_control` markers per
+request, and the planner counts what the caller already placed.
+
+**A request with no markers** gets at most three, in a fixed order so the same conversation always produces
+the same bytes: the last tool in the catalog, the tail of the system prompt, and the last content block of
+the newest message. A string `system` is rewritten into its single-text-block array form, which is the only
+shape that can carry a marker.
+
+**A request that already has markers** keeps every one of them exactly where it is. The planner adds the
+frontier breakpoint in one case: when every existing marker sits on the tool catalog and none sits on a
+content block, so the conversation itself is uncached.
+
+To see whether it ran, read `x-cave-optimization` on the response: the planner adds
+`cache-breakpoint-plan` to that list, and a request it left alone lists only the optimizers that did run.
+
+```bash
+curl -sD- -o /dev/null http://127.0.0.1:8787/v1/messages \
+  -H 'content-type: application/json' -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H 'anthropic-version: 2023-06-01' --data-binary @conversation.json | grep -i x-cave-optimization
+```
+
+To turn it off, set `breakpoint_plan: off` in `caveman.yaml`.
+
+The lever can also be taken away mid-session. The proxy watches each session's own
+`cache_creation_input_tokens` and counts a call as anomalous when it lands above 50,000 tokens and more than
+three times that session's running mean. Three such calls freeze the lever for the rest of the session, and
+every later response in it carries `x-caveman-tripwire: cache-breakpoint-plan=frozen`. The disclosure
+starts on the request after the one that tripped it, because the usage that decides the freeze arrives only
+once the response is already on its way. Sessions are identified by the `x-cave-session` header, so strikes
+accrue for a caller that identifies its session and the lever stays available to every caller that does not.
+
+The 20 block lookback guard is present in source and returns no edits. Anthropic's lookback reaches
+backwards from a breakpoint to entries earlier requests wrote, so a position computed from the current
+body's own markers moves forward every turn and lands where nothing was ever written, paying the cache
+write rate on each call. Rebuilding it needs an absolute index carried across turns.
+
+## Recoverable history rewrite
+
+A second, separate mechanism condenses rather than elides: an external model shortens one already-aged step
+of the transcript, and a deterministic gate decides whether the shorter version may replace it, checking
+that the parts an answer could turn on survived: failure words, tallies with their numbers, non-zero exit
+codes, source locations byte for byte. The mechanism is AgentDiet's (arXiv 2509.23586), and it ships as the
+`rewriter` Go library under BSL 1.1. Nothing in the proxy or the CLI imports it today and no configuration
+key turns it on, so nothing on this page reaches it.

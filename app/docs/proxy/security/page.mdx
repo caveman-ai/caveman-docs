@@ -4,97 +4,126 @@ export const metadata = docMetadata("proxy/security");
 
 <DocSchema slug="proxy/security" />
 
-The proxy is a single-operator tool. It defaults to loopback. A shared-network listener requires an inbound token, but does not add multi-user isolation. Treat it with the same care you already give a coding agent that holds a
-provider key.
+The proxy holds provider credentials and the full text of what your agent sends, so its defaults are the
+narrow ones: it listens on loopback, reads every key from the environment at request time, rebuilds the
+upstream header set from scratch, and refuses to dial private addresses. This page says where each of those
+lines sits and what is on your disk afterwards.
 
-<Facts rows={[
-  ["Listen", "Loopback by default; other binds require an inbound token."],
-  ["Auth on the listener", "Optional shared token; required off loopback."],
-  ["Keys", "Inbound header, then a named environment variable. Never YAML."],
-  ["Savings label", <code key="s">inferred</code>],
-]} />
+The inbound token gate, the `cave_proxy_unauthorized_total` counter, and auth-before-routing ship from
+binary release bin-v1.1.7. Run `caveman setup --install`, then check that `~/.caveman/bin/.bin-manifest.json`
+reads `"release": "bin-v1.1.7"` or later before exposing a listener. `caveman version` reports the release the
+CLI pins, not the one on disk. On an older binary a non-loopback bind is still refused, but a token on a
+loopback listener is not enforced.
 
-## Trust model
+```bash
+caveman start --host 0.0.0.0
+```
 
-One trusted operating-system user. Do not expose the listener on a LAN, a container bridge, a
-public interface, or a shared host. Signing in to Caveman Cloud does not turn this process into a
-shared service. Those are different products and different data flows.
+```text
+{"time":"…","level":"ERROR","msg":"cannot load caveman.yaml","error":"listen address \"0.0.0.0:8787\" is not loopback; standalone proxy has no inbound authentication; set CAVEMAN_AUTH_TOKEN to expose the proxy beyond loopback"}
+```
 
-Local wrap sends request content to the model provider the agent selected, and keeps recovery
-copies on disk. "Local" describes the Caveman hop, not the whole model request. The provider still
-sees whatever the proxy forwards.
+The proxy exits at config load rather than putting every configured provider credential on the network.
+Captured from caveman-proxy bin-v1.1.7 with the timestamp replaced by `…`.
 
-## Credentials
+The health payload under [Start it](/docs/proxy#start-it) reports `billing: byok`, which is the fact
+underneath the rest of this page: the credential that pays for a request is one you supplied, held by this
+process only for the moment it forwards.
 
-Keep API keys in the environment or in the provider's own credential store. Do not write them
-into `caveman.yaml`, a project overlay, a prompt, a benchmark fixture, or shell history.
+## Who can reach it
 
-The proxy preserves an inbound authorization header and does not log it. Environment fallbacks
-apply only when the integration sent no credential. Distinct development keys are better than
-sharing a production key with a local listener, where the provider lets you do that.
+The default listen address is `127.0.0.1:8787`, so only processes on your machine can connect. A wider bind
+is refused at config load unless `CAVEMAN_AUTH_TOKEN` is set, in which case every request must present that
+token in `x-cave-api-key` or `Authorization: Bearer`. [Shared proxy](/docs/proxy/shared) covers that
+deployment.
 
-If a terminal, a trace, or an issue report ever printed a key, rotate it.
+`localhost` and any loopback IP count as local. Everything else, including `0.0.0.0`, is a wider bind.
 
-## SSRF
+## What happens to your keys
 
-Outbound checks cover configured endpoints and redirects. Private, loopback, link-local, and
-other unsafe address classes are blocked by default. A self-hosted model on this machine needs an
-exact `CAVE_SSRF_ALLOWLIST` entry.
+Keys live in the environment of the proxy process, and a key on the incoming request wins over that
+environment. Either way the proxy builds the upstream headers from an allowlist of caller fields plus the
+resolved credential in the header that provider expects: `x-api-key` for Anthropic, `Authorization: Bearer`
+for OpenAI, `x-goog-api-key` for Gemini, `api-key` for Azure, a fresh SigV4 signature for Bedrock. A client's
+own `Authorization` value reaches a provider only when the resolver chose it as the credential.
 
-Allow only the hosts you need. A broad private-network range can let a prompt-driven request
-reach an unrelated local service.
+Caveman's own headers are stripped in both directions. Any inbound `x-cave-` or `x-caveman-` field is dropped
+before the request goes upstream, and the same fields are dropped from the provider's response before it
+reaches the client, along with the hop-by-hop fields a caller nominated in `Connection`.
 
-A listen-address change will not fix a blocked upstream. The bind check and the outbound check
-are different doors.
+The config file holds no secrets by design, and
+[an `auth_token:` key in it stops the proxy from starting](/docs/proxy/configure#every-field).
 
-## What sits on disk
+## What gets logged
 
-| Store | Typical contents |
-| --- | --- |
-| `~/.caveman/caveman.db` | Request metadata, usage rows, learn data |
-| `~/.caveman/ccr.db` | Exact originals behind recovery handles |
-| Feature configuration | Mode and switch values, not keys |
-| Agent-native hooks | Host-specific files the profile installed |
+Every log line the proxy writes goes through a redactor before it is emitted, and errors from upstream are
+redacted again on the way into a log field. The redactor covers bearer tokens of 20 characters or more,
+`sk-` keys, AWS access key ids, PEM private key blocks, connection strings carrying credentials, and
+assignments whose name contains key, secret, token or password.
 
-A recovery handle is an identifier, not encryption and not an authorization token. Anyone who can
-read `ccr.db` can retrieve the payload. Do not share handles across a trust boundary. See
-[Recoverable compression](/docs/proxy/recoverable).
+Request and response bodies are outside the logging path entirely. A rejected inbound token is logged as the
+path and the remote host, and the value that was presented stays out of the record.
 
-Restrict permissions on these files to the owner. Hook writes use restrictive modes and
-symlink-safe replacement; do not loosen that to make a backup script easier.
+## Where the proxy dials
 
-## Lossy transforms
+Standalone mode runs the SSRF guard on every upstream connection, checking the resolved IP at the moment the
+kernel connects rather than only at parse time. Loopback, link-local, metadata-service and private addresses
+are blocked, so a malicious or mistyped `base_url` cannot turn the proxy into a way to reach an internal
+host.
 
-Record mode is the byte pass-through. Compress and pixel change what the model sees. The safety
-rails around that change are parse validation, a size comparison, explicit capability gates,
-exact-source recovery, and original-byte fallback when the store fails.
+```bash
+CAVE_SSRF_ALLOWLIST=localhost:11434 caveman start
+```
 
-Recovery means the source is still available. It does not mean the model will ask for the missing
-detail, and it does not mean the compressed view had equal quality. For work where every input
-byte must remain visible, stay in record.
+That is the opt-in for a local model server or a LAN inference box. An entry is a bare hostname or
+`host:port`, and `localhost` covers `127.0.0.0/8` and `::1`. Bedrock and Vertex pre-flight their resolved
+endpoint against the same policy before the request is built. A dial the guard refuses reaches the caller as
+`502 cave_upstream_unavailable`, and `proxy.log` stays silent, so a mount that answers 502 with an empty log
+is the signature of a missing allowlist entry.
 
-## Local against connected
+Link-local addresses, including the cloud metadata services at `169.254.169.254`, cannot be allowlisted in
+any mode. Neither can multicast, the unspecified addresses, the documentation ranges, carrier-grade NAT or
+the NAT64 prefixes. A reachable metadata service turns a proxy into a way to read cloud credentials, so those
+ranges carry no opt-in at all.
 
-`caveman help tools` is the local surface and needs no account. `caveman help cloud` is the
-connected surface and requires login. Command discovery keeps them apart on purpose.
+Set `upstream_proxy` and provider traffic goes through your outbound HTTP proxy instead, with the destination
+policy moving to that proxy's ACL. It applies to provider traffic only, so the wrapped agent's own tool
+executions inherit nothing.
 
-A connected installation can persist a hosted endpoint. That path necessarily receives request
-and response content while it proxies. This page documents the loopback listener. The Cloud
-product page covers the managed plane at the level a public site can.
+## What is on your disk
 
-## Checklist
+Everything sits under `CAVEMAN_HOME`, `~/.caveman` unless you set it, created with mode `0700`.
 
-1. Confirm loopback binding, or the authenticated private-network setup in [Shared proxy](/docs/proxy/shared).
-2. Keep secrets out of both configuration files.
-3. Review enabled transforms and the pixel model allowlist.
-4. Set a precise SSRF allowlist only when a self-hosted upstream needs it.
-5. Restrict permissions on the local databases and hook state.
-6. Test recovery before a long lossy session.
-7. Use record mode when the input bytes are the point.
-8. Review agent, browser, hook, and plugin permissions separately.
+| File | Contents | Risk if read |
+|---|---|---|
+| `caveman.db` | One row per request: time, provider, model, endpoint, token counts, mode, SHA-256 of the bytes. | Metadata about your traffic. |
+| `ccr.db` | The exact original bytes of everything compression removed. | Your prompts and tool output, in the clear. |
+| `proxy.log` | Startup lines and warnings, redacted. | Endpoints and error text. |
+| `run/<port>.json` | pid, port, mode, owner, instance token of the live listener. | Local process facts. |
+| `receipts/`, `runtime/` | Per-session state for the installed agent hooks. | Session identifiers. |
 
-## Reporting a vulnerability
+Two opt-in paths widen that. `CAVE_CAPTURE_DIR` writes both sides of every transform to a directory you name,
+as complete unredacted bodies, and it has no rotation and no expiry. [`caveman trial`](/docs/trial) stores
+the raw request body of each request in the run it is measuring, in `caveman.db`, so a before-and-after
+comparison can be replayed.
 
-Do not publish an exploitable report in a public issue before maintainers can assess it. Use the
-repository security policy. Include the affected version, a minimal reproduction, the impact, and
-a suggested mitigation, without real credentials or customer data.
+<Note tone="honest" title="ccr.db is the sensitive file">
+Recovery means the original bytes are still there. Everything the engine folded out of a request, file
+contents, logs, tool results, sits in `ccr.db` in the clear so the agent can ask for it back. It is a local
+SQLite file with your user's permissions, and it deserves the same treatment as a shell history file.
+</Note>
+
+## Deleting it
+
+```bash
+rm ~/.caveman/ccr.db ~/.caveman/caveman.db ~/.caveman/proxy.log
+```
+
+Stop the proxy first, then delete. The next start creates empty stores. To keep the whole thing somewhere
+else, or to give a project its own, set `CAVEMAN_HOME` before starting:
+
+```bash
+CAVEMAN_HOME=/tmp/caveman-scratch caveman start
+```
+
+`CAVEMAN_DB` and `CAVEMAN_CCR_DB` move the two stores individually.

@@ -4,179 +4,172 @@ export const metadata = docMetadata("proxy/configure");
 
 <DocSchema slug="proxy/configure" />
 
-Two files, two jobs. Feature configuration tells `caveman wrap` which switches are on. Proxy
-configuration tells `caveman start` how the listener binds and which provider endpoints it may
-call. API keys belong in neither file.
-
-<Facts rows={[
-  ["Feature file", <>Printed by <code key="f">caveman tools config path</code></>],
-  ["Proxy file", <code key="p">~/.caveman/caveman.yaml</code>],
-  ["Usage store", <code key="u">~/.caveman/caveman.db</code>],
-  ["Recovery store", <code key="r">~/.caveman/ccr.db</code>],
-]} />
-
-## Feature configuration
-
-Inspect the resolved path and a single key:
-
-```bash
-caveman tools config path
-caveman tools config get think.mode
-caveman tools config set think.mode compress
-```
-
-A project may add a restricted overlay at `./.caveman/config.json`. The overlay can set
-`think.toon`, `think.shrink`, `remember.*`, and `execute.*`. It cannot change `think.mode`,
-`think.core`, or pixel settings. A checked-in project file is not allowed to silently turn on a
-more invasive transform.
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `think.mode` | `compress` | `compress`, `record`, or `pixel` |
-| `think.core` | `true` | Architecture-first native instruction pack |
-| `think.toon` | `true` | Allow TOON when it is smaller |
-| `think.shrink` | `true` | Shrink command output where supported |
-| `think.pixel.models` | `[]` | Models allowed to receive pixel context |
-| `think.pixel.density` | `balanced` | `conservative`, `balanced`, or `max` |
-| `remember.mem` | `true` | Local memory integration |
-| `remember.offload` | `auto` | `auto`, `on`, or `off` |
-| `remember.recall` | `false` | Automatic memory recall |
-| `execute.mcp` | `auto` | MCP recovery wiring |
-| `execute.browse_tool` | `true` | Browser tool integration |
-| `execute.browse_cli` | `false` | Browser command integration |
-| `execute.delegate` | `false` | Delegation integration |
-| `execute.proxy` | `true` | Route supported agents through the local proxy |
-
-Environment overrides beat the stored file. Use them for one session; use `config set` for a
-choice you want to keep.
-
-| Variable | Key |
-| --- | --- |
-| `CAVEMAN_WRAP_MODE` | `think.mode` |
-| `CAVEMAN_CORE` | `think.core` |
-| `CAVEMAN_TOON` | `think.toon` |
-| `CAVEMAN_SHRINK` | `think.shrink` |
-| `CAVEMAN_MCP` | `execute.mcp` |
-| `CAVE_PIXEL_MODELS` | `think.pixel.models` |
-| `CAVE_PIXEL_DENSITY` | `think.pixel.density` |
-
-`CAVEMAN_MODE` also overrides wrap and start mode when it is set.
-
-## Proxy configuration
-
-Default path: `~/.caveman/caveman.yaml`. `CAVEMAN_CONFIG` loads a different file. A missing file
-is valid: the listener starts in `record` on `127.0.0.1:8787`.
+The proxy reads one optional YAML file for its mode, its listen address and its per-provider routing, and
+reads every credential from the environment at request time. A missing file is a valid configuration: the
+defaults are record mode on `127.0.0.1:8787`.
 
 ```yaml
-label: local
-mode: record
+# ~/.caveman/caveman.yaml
+mode: compress
 listen: 127.0.0.1:8787
-optimizers: {}
-subscription_compress: live_zone
-toolschema_strip: off
-breakpoint_plan: frontier
-providers: {}
-compat: {}
-```
-
-| Field | Meaning |
-| --- | --- |
-| `label` | Tag on local usage rows. Trials set this through `CAVEMAN_LABEL`. |
-| `mode` | Runtime mode. Unknown values become `record`. |
-| `listen` | Loopback `host:port` only. |
-| `optimizers` | Per-id overrides. Three provider-cache planners default on. |
-| `subscription_compress` | `live_zone` (or empty) allows eligible subscription compression. `off` and any unknown value disable it. |
-| `toolschema_strip` | Only `annotations` turns this on. Everything else, including empty, is off. |
-| `breakpoint_plan` | Cache-breakpoint planner. Default `frontier`. Explicit `off` disables it. Unknown values become `off`. |
-| `providers` | Endpoint, billing tier, and region overrides. No secrets. |
-| `compat` | Named OpenAI-compatible mounts. |
-
-The three planner ids that default on are `anthropic-cache-breakpoints`,
-`openai-prompt-cache-key`, and `bedrock-cache-points`. Set any one to `false` to disable it.
-Planner metadata does not change model-visible bytes. Record mode stays an unconditional
-pass-through even when they are on.
-
-```yaml
 providers:
-  bedrock:
-    region: eu-west-1
-  azure:
-    base_url: https://example-resource.openai.azure.com
-
+  openai:
+    base_url: https://my-azure-resource.openai.azure.com
 compat:
-  local-model:
-    base_url: http://127.0.0.1:11434/v1
-    api_key_env: LOCAL_MODEL_API_KEY
+  my-router:
+    base_url: https://router.example.com/v1
+    api_key_env: MY_ROUTER_KEY
 ```
-
-`caveman start` flags for one run:
 
 ```bash
-caveman start
-caveman start --port 8787 --host 127.0.0.1
-caveman start --config /path/to/caveman.yaml
+caveman start --config ./caveman.yaml
 ```
 
-Non-loopback listeners require a valid `CAVEMAN_AUTH_TOKEN`. See [Shared proxy](/docs/proxy/shared) before changing the bind address. Keep the token in the environment; a non-empty YAML `auth_token:` is refused.
+`--config` and `CAVEMAN_CONFIG` both name the file. Without either, the proxy reads
+`$CAVEMAN_HOME/caveman.yaml`, which is `~/.caveman/caveman.yaml`.
 
-## Environment the binary reads
+## Every field
 
-| Variable | Role |
-| --- | --- |
-| `CAVEMAN_CONFIG` | Path to `caveman.yaml` |
-| `CAVEMAN_MODE` | Override YAML mode |
-| `CAVEMAN_LISTEN` | Override listen address |
-| `CAVEMAN_AUTH_TOKEN` | Inbound shared token; required for a non-loopback listener |
-| `CAVE_UPSTREAM_PROXY` | Provider egress proxy: env, off, or an explicit proxy URL |
-| `CAVE_CA_BUNDLE` | Additional PEM trust roots for provider TLS |
-| `CAVEMAN_LABEL` | Override row label |
-| `CAVEMAN_HOME` | Override the `~/.caveman` directory |
-| `CAVEMAN_PROXY_BIN` | Explicit path to the proxy binary |
-| `CAVEMAN_SUBSCRIPTION_COMPRESS` | Override `subscription_compress` |
-| `CAVEMAN_TOOLSCHEMA_STRIP` | Override `toolschema_strip` |
-| `CAVEMAN_BREAKPOINT_PLAN` | Override `breakpoint_plan` |
-| `CAVEMAN_OBSERVE_ESTIMATE` | Record-mode observe-only estimation |
-| `CAVE_SSRF_ALLOWLIST` | Exact hosts allowed as private or loopback upstreams |
-| `CAVE_BEDROCK_REGION` | Bedrock region, before `AWS_REGION` |
-| `CAVE_BEDROCK_MANTLE_ENABLED` | Enable `/bedrock/anthropic` |
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `label` | string | `local` | Tags every local row. `caveman trial` sets it to isolate one session. |
+| `mode` | string | `record` | `record`, `compress` or `pixel`. See [Modes](/docs/proxy/modes). |
+| `listen` | string | `127.0.0.1:8787` | Host and port. A non-loopback host needs `CAVEMAN_AUTH_TOKEN`. |
+| `optimizers` | map of string to bool | `anthropic-cache-breakpoints`, `openai-prompt-cache-key` and `bedrock-cache-points` on | Gates the provider-native optimizers by id. |
+| `subscription_compress` | string | `live_zone` | `off` stops compression of the live zone, the messages after the provider's cached prefix ([prompt caching](/docs/proxy/caching)), for subscription logins. Unrecognised values read as `off`. |
+| `toolschema_strip` | string | `off` | `annotations` strips tool-schema annotations. Every other value reads as `off`. |
+| `breakpoint_plan` | string | `frontier` | `off` turns off cache-breakpoint planning. Unrecognised values read as `off`. |
+| `upstream_proxy` | string | `env` | `env` honours `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY`. `off` dials providers directly. A URL pins one proxy for provider traffic, with scheme `http`, `https`, `socks5` or `socks5h`. |
+| `ca_bundle` | string | none | PEM file of extra roots to trust for provider TLS, added to the system store. |
+| `providers.<id>.base_url` | string | the provider's public endpoint | Overrides the upstream for `anthropic`, `openai`, `gemini`, `bedrock`, and mounts `azure_openai`, `vertex` and `openai_compatible`, which have no default. |
+| `providers.<id>.billing_tier` | string | none | `paid` or `free`. Other values are dropped rather than guessed. |
+| `providers.bedrock.region` | string | `us-east-1` | Wins over `CAVE_BEDROCK_REGION`, `AWS_REGION` and `AWS_DEFAULT_REGION`. |
+| `compat.<name>.base_url` | string | required | The upstream for the `/compat/<name>/` mount. |
+| `compat.<name>.api_key_env` | string | none | Environment variable holding that mount's key. Empty means the upstream needs no `Authorization`. |
+| `compat.<name>.forward_headers` | list of string | empty | Extra request headers to forward. Routing, framing and credential headers are refused. |
+| `compat.<name>.wire_dialect` | string | OpenAI shape | `anthropic` for a mount whose upstream answers the Anthropic Messages shape. Unknown values fail the config load. |
 
-Companion binaries resolve in this order: the matching `CAVEMAN_*_BIN` override, then `PATH`,
-then `~/.caveman/bin`.
+<Note tone="warning" title="auth_token in caveman.yaml stops the proxy from starting">
+The inbound shared secret is read only from `CAVEMAN_AUTH_TOKEN`. An `auth_token:` key in the YAML file
+refuses the config load with an error naming the file, rather than being ignored, because an ignored key
+leaves you with a proxy you believe is gated and is not. The error never echoes the value.
+</Note>
 
-## Local storage
+## Environment
 
-Default state lives under `~/.caveman`:
+Credentials, the inbound token and the runtime overrides live here.
 
-| Path | Contents |
-| --- | --- |
-| `bin/` | Verified companion binaries |
-| `caveman.db` | Request usage, prefix-replacement cache, trials, learn data |
-| `ccr.db` | Exact recovery payloads and typed working-memory objects |
-| `caveman.yaml` | Proxy configuration |
-| `receipts/` | Local native-agent run receipts when produced |
+| Variable | Default | What it does |
+|---|---|---|
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `AZURE_OPENAI_API_KEY`, `OPENAI_COMPAT_API_KEY` | none | The key for that provider, used when the request carries none. |
+| `AWS_BEARER_TOKEN_BEDROCK`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | none | Bedrock credentials. The bearer key wins; a complete IAM pair signs. |
+| `CAVEMAN_AUTH_TOKEN` | none | Inbound shared secret, minimum 16 bytes, no spaces or control characters. |
+| `CAVEMAN_HOME` | `~/.caveman` | Where the config, the stores and the run state live. |
+| `CAVEMAN_CONFIG` | `$CAVEMAN_HOME/caveman.yaml` | The config file to read. |
+| `CAVEMAN_DB` | `$CAVEMAN_HOME/caveman.db` | The usage store. |
+| `CAVEMAN_CCR_DB` | `$CAVEMAN_HOME/ccr.db` | The recovery store. |
+| `CAVEMAN_CCR_MAX_BYTES` | `536870912` | Cap on retained recovery payloads. At the cap compression stops and requests forward unchanged; nothing is evicted. |
+| `CAVEMAN_LISTEN`, `CAVEMAN_MODE`, `CAVEMAN_LABEL` | the YAML values | Override `listen`, `mode` and `label`. |
+| `CAVEMAN_WRAP_MODE` | none | The mode for `caveman wrap` and `caveman <agent>`. `caveman start` reads `CAVEMAN_MODE` first and falls back to this. |
+| `CAVEMAN_SUBSCRIPTION_COMPRESS`, `CAVEMAN_TOOLSCHEMA_STRIP`, `CAVEMAN_BREAKPOINT_PLAN` | the YAML values | Override those three keys. |
+| `CAVEMAN_RECOVERY` | none | `mcp` tells the proxy the client carries the recovery tool. [Which doors set it](/docs/proxy/wrap#recovery-has-to-be-installed). |
+| `CAVEMAN_OBSERVE_ESTIMATE` | off | In record mode, measure on copies what compression would have removed. The forwarded bytes stay identical. |
+| `CAVEMAN_PROXY_OWNER` | `start` | Recorded in the run state as which door started this listener. |
+| `CAVE_UPSTREAM_PROXY`, `CAVE_CA_BUNDLE` | the YAML values | Override `upstream_proxy` and `ca_bundle`. |
+| `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS` | none | Also read for extra TLS roots. An unreadable one is skipped and logged. |
+| `CAVE_SSRF_ALLOWLIST` | none | Comma-separated hosts or `host:port` allowed past the loopback and private-range block. |
+| `CAVE_MAX_REQUEST_BYTES` | `33554432` | Request bodies over this answer 413. |
+| `CAVE_MAX_RESPONSE_BUFFER_BYTES` | `67108864` | Cap on a buffered response body. |
+| `CAVE_MAX_RETRIEVE_RESPONSE_BYTES` | `8388608` | Cap on what one recovery call returns. |
+| `CAVE_GATEWAY_UPSTREAM_TIMEOUT_MS` | `0`, no cap | Whole-response timeout, streaming included. |
+| `CAVE_GATEWAY_RESPONSE_HEADER_TIMEOUT_MS` | `900000` | Wait for the first upstream response header. `0` removes the limit. |
+| `CAVE_USAGE_SCAN_MAX_BYTES` | `16777216` for a whole body, `2097152` for a stream | How far into a response the usage parser reads. |
+| `CAVE_ENGINE_TOON` | off | `best-of` lets the engine re-encode uniform JSON as TOON when that is fewer tokens. |
+| `CAVE_PIXEL_MODELS` | `claude-fable-5,gpt-5.6` | Comma-separated model bases pixel mode may render for. A falsey value empties the list, which turns pixel mode off. |
+| `CAVE_PIXEL_DENSITY` | `balanced` | `conservative`, `balanced` or `max` pack geometry. A falsey or unrecognised value reads as `conservative`. |
+| `CAVE_PIXEL_GPT_PROFILES` | built-in profiles | JSON overriding the per-model GPT vision cost profiles pixel mode prices a render against. Matched by longest model prefix. |
+| `CAVE_CATALOG_PATH` | none | The provider catalog file to read. Set, it is the only path tried. See [Provider catalog](/docs/provider-catalog). |
+| `CAVE_BEDROCK_REGION` | `us-east-1` | Bedrock signing region, below `providers.bedrock.region`. |
+| `CAVE_BEDROCK_MODEL_ALLOWLIST`, `CAVE_AZURE_API_VERSION_ALLOWLIST` | built-in lists | Comma-separated overrides for the accepted Bedrock models and Azure API versions. |
+| `CAVE_BEDROCK_MANTLE_ENABLED` | off | Enables the separate `/bedrock/anthropic` route. |
+| `CAVE_PROPAGATE_TRACE_HEADERS_UPSTREAM` | off | Forwards `traceparent` and `tracestate` to the provider. |
+| `CAVE_CAPTURE_DIR` | none | Writes both sides of every transform to that directory, unredacted. A diagnostic, off by default. |
+| `CAVE_TRIAL_REPLAY_MAX_BYTES` | `268435456` | Cap on a trial replay payload. |
 
-CCR defaults to 512 MiB of payloads, tunable with `CAVEMAN_CCR_MAX_BYTES`. At the cap, new lossy
-transforms pass through. Existing handles are never evicted. See
-[Recoverable compression](/docs/proxy/recoverable).
+## Middleware runtime
 
-Protect these files the way you protect agent transcripts. They can contain recovered prompts.
+The same listener answers `/caveman/v1/middleware/` for [Middleware](/docs/sdk/middleware): `capabilities`
+on GET, `optimize`, `retrieve`, `receipts` and `sessions/delete` on POST. Its limits are compiled in rather
+than configured, and `GET /caveman/v1/middleware/capabilities` reports the ones a client has to respect.
 
-## Stats
+| What | Value |
+|---|---|
+| `retention_seconds` | `86400`. A scope expires 24 hours after the last optimize or retrieve that touched it. |
+| `deadline_ms` | `500` at the runtime. The client's own `deadlineMs` is 100 ms, so it usually gives up first. |
+| `request_bytes` | `2097152`. A larger optimize body answers 413 `payload_limit`. |
+| `segment_bytes` | `524288`. A larger candidate is skipped with `payload_limit` and sent as it arrived. |
+| `page_bytes` | `262144`. The most one `retrieve` call returns; the rest follows `next_offset`. |
+| Per request | 256 candidates and 4,096 manifest entries. Over either is `payload_limit`. |
+| In flight | 16 optimize calls at once. Further calls wait for a slot until the deadline, then answer `deadline`. |
+
+Captured from a proxy built from the public repository at `eae856e9`. The route ships in bin-v1.1.7, the
+release `caveman setup --install` pins.
+
+## Verify
+
+The listener prints what it resolved, so a config file that was edited after the proxy started shows up as a
+difference between the file and this output.
 
 ```bash
-caveman stats
-caveman stats --json
-caveman-proxy stats
-caveman-proxy stats --recent 20
+~/.caveman/bin/caveman-proxy status
 ```
 
-Rows are local and `inferred`. They do not become a monthly total or a dollar field.
+```json
+{
+  "owner": "start",
+  "mode": "record",
+  "instance_token": "…",
+  "pid": 4603,
+  "port": 8787,
+  "started_at": "…",
+  "version": "dev",
+  "recovery_via_mcp": false
+}
+```
 
-## Precedence
+The first eight fields, captured from a caveman-proxy build dated 2026-08-24, which reports `"version": "dev"`,
+with `instance_token` and `started_at` replaced by `…`. [Modes](/docs/proxy/modes#telling-which-mode-ran) shows the resolved upstream maps that
+follow them.
 
-Feature configuration resolves from defaults, then the global file, then the allowed project
-overlay, then environment. Proxy mode resolves from default, then YAML, then `CAVEMAN_MODE`.
-Command flags (`--off`, `--pixel`) select one session.
+`status` reads the run-state file for the port it is configured for, so pointing it at a port nothing owns
+answers with `"owner": "unknown"` rather than an error:
 
-When resolution fails or a mode is unknown, the runtime uses record or original-byte behaviour.
-It does not guess.
+```bash
+CAVEMAN_LISTEN=127.0.0.1:9999 ~/.caveman/bin/caveman-proxy status
+```
+
+```json
+{
+  "owner": "unknown",
+  "started_at": "0001-01-01T00:00:00Z",
+  "recovery_via_mcp": false
+}
+```
+
+## What is on disk
+
+Everything the proxy writes lives under `CAVEMAN_HOME`, created with mode `0700`.
+
+| Path | What |
+|---|---|
+| `caveman.yaml` | The config file, if you made one. |
+| `caveman.db` | One row per request: timestamp, agent slug, provider, model, endpoint, token counts, mode. |
+| `ccr.db` | The original bytes of everything compression removed, under their handles. |
+| `run/<port>.json` | The live listener's pid, port, mode, owner and instance token. Removed on shutdown. |
+| `run/native.sock` | The socket the installed agent hooks talk to. |
+| `runtime/` | Session correlation state for those hooks. |
+| `receipts/` | Per-session receipt files. |
+| `proxy.log` | Every startup and warning line. Rotation happens at startup only: a file past 16 MiB is moved to `proxy.log.1` at the next start. |
+| `bin/` | The signed binaries `caveman setup --install` downloads. |
+
+[Security](/docs/proxy/security) covers what those files can contain and how to delete them.

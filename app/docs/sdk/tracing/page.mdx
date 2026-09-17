@@ -4,80 +4,144 @@ export const metadata = docMetadata("sdk/tracing");
 
 <DocSchema slug="sdk/tracing" />
 
-Local middleware does not require this connected tracing service. See [measurement](/docs/sdk/middleware/measurement) for a provider-independent evaluation recipe.
+A trace gives one unit of work a trace id and a root span id, and puts both on every provider call made through it. Tool calls wrapped in `trace.tool()` report their name, outcome, order and duration, and `trace.exporter()` buffers OTLP spans that reuse the same trace id, so the service's request rows and your own spans join into one trace.
 
-A trace groups related provider requests, tool calls, and exported spans under one trace ID. The SDK supplies lightweight OTLP/JSON export without an OpenTelemetry runtime dependency. Examples assume your quickstart's `cave` client.
-
-## Trace a workflow
+### TypeScript
 
 ```ts
-await cave.trace({ workflow: "support", tags: { environment: "development" } }, async trace => {
-  const status = await trace.tool("lookup_status", { readOnly: true, idempotent: true },
-    () => ({ status: "ok" }));
-  const response = await trace.model.openai.responses.create({
-    model: process.env.CAVE_MODEL!,
-    input: `Explain this status: ${JSON.stringify(status)}`,
-  });
-  console.log(trace.traceId, response);
+import { Cave } from "@caveman-ai/sdk";
 
-  const exporter = trace.exporter({ serviceName: "support-service" });
-  exporter.recordSpan("support.complete", { operation: "chat", status: "ok" });
-  try {
-    await exporter.flush();
-  } catch (error) {
-    console.error("Trace export failed; pending spans:", exporter.pending);
-  }
+const { CAVE_API_KEY = "", CAVE_BASE_URL = "" } = process.env;
+const cave = new Cave({ apiKey: CAVE_API_KEY, baseURL: CAVE_BASE_URL, agent: "support-agent" });
+
+await cave.trace({ workflow: "answer-question", tags: { tier: "pro" } }, async (trace) => {
+  const docs = await trace.tool("search_docs", { readOnly: true, idempotent: true }, async () => ["refund policy: 30 days"]);
+
+  const reply = await trace.model.openai.responses.create({ model: "gpt-5", input: docs.join("\n") });
+
+  const exporter = trace.exporter();
+  exporter.recordSpan("answer", { workflow: "answer-question", provider: "openai", model: "gpt-5", operation: "chat", inputTokens: 1200, outputTokens: 180 });
+  await exporter.export();
+
+  console.log(trace.traceId, reply);
 });
 ```
 
-```python
-with cave.trace(workflow="support", tags={"environment": "development"}) as trace:
-    status = trace.tool("lookup_status", {"readOnly": True, "idempotent": True},
-                        lambda: {"status": "ok"})
-    response = trace.model["openai"].responses.create({
-        "model": os.environ["CAVE_MODEL"],
-        "input": f"Explain this status: {status}",
-    })
-    print(trace.trace_id, response)
+### Python
 
-    exporter = trace.exporter(service_name="support-service")
-    exporter.record_span("support.complete", operation="chat", status="ok")
-    try:
-        exporter.flush()
-    except Exception:
-        print("Trace export failed; pending spans:", exporter.pending)
+```python
+import os
+from caveman_cloud import Cave
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], base_url=os.environ["CAVE_BASE_URL"], agent="support-agent")
+
+with cave.trace("answer-question", {"tier": "pro"}) as trace:
+    docs = trace.tool("search_docs", {"read_only": True, "idempotent": True}, lambda: ["refund policy: 30 days"])
+
+    reply = trace.model["openai"].responses.create({"model": "gpt-5", "input": "\n".join(docs)})
+
+    exporter = trace.exporter()
+    exporter.record_span("answer", workflow="answer-question", provider="openai", model="gpt-5", operation="chat", input_tokens=1200, output_tokens=180)
+    exporter.export()
+
+    print(trace.trace_id, reply)
 ```
 
-These trace-bound provider calls assume the service supplies provider access. The built-in trace model namespace exposes OpenAI routes; the direct provider factories cover other routes. Calling `cave.openai()` inside a trace callback does not automatically bind that client to the trace.
+The two entry points differ. TypeScript takes an options object and an async callback, `cave.trace(options, fn)`, and returns whatever the callback returns. Python is a context manager, `with cave.trace(workflow, tags) as trace:`, with `trace_id` and `span_id` as keyword-only arguments.
 
-## Trace continuity
+## Ids and continuity
 
-TypeScript exposes `traceId` and `spanId`; Python exposes `trace_id` and `span_id`. Trace IDs use 32 lowercase hexadecimal characters, span IDs 16. Valid nonzero inbound IDs can be passed through the trace options. Invalid IDs are replaced with fresh ones.
+`trace.traceId` is 32 lowercase hex characters and `trace.spanId` is 16, generated with the same source of randomness the exporter uses. Every provider call made through `trace.model` carries `x-cave-trace-id` and `x-cave-parent-span-id`; a client built straight from `cave.openai()` sends the request without them, which is the difference between the two ways of calling a provider.
 
-Calls made through the trace carry `x-cave-trace-id` and `x-cave-parent-span-id`. `trace.exporter()` uses the same trace ID for spans unless explicitly overridden. A standalone `cave.exporter()` is independent of a trace.
+Pass `traceId` and `spanId` to continue an inbound trace. A value outside that exact hex shape, or one that is all zeroes, is replaced with a fresh id rather than put on the wire, because a malformed id breaks the join silently.
 
-## Tool events
+`trace.model` reaches OpenAI only: `trace.model.openai.responses.create(body)` and `trace.model.openai.chat.completions.create(body)` in TypeScript, `trace.model["openai"]` in Python. For the other providers, call them through `cave.anthropic()` and friends on [Provider calls](/docs/sdk/providers) and record your own span.
 
-`trace.tool()` runs your callback and sends a metadata event with the tool name, outcome, sequence, duration, options, and trace tags. It preserves the tool's return value or original exception even when event delivery fails. The event does not contain the callback's result body.
+## Timing a tool
 
-Options include `readOnly`, `idempotent`, and `artifactEligible`. Python passes these through as dictionary keys using the same spelling. They describe the tool; they do not enforce sandboxing, permissions, or idempotency. Your application still owns those controls.
+`trace.tool(name, options, fn)` runs `fn`, then posts a `tool.call` event with the name, the workflow, your options, the outcome, a per-trace sequence number and the duration in milliseconds. An error from `fn` is reported as `outcome: "error"` and then re-raised unchanged.
 
-## Buffer and export spans
+`options` is `{ readOnly?, idempotent?, artifactEligible? }` in TypeScript and a plain dict in Python. The event call is best effort: a failure to report is swallowed, so telemetry can never replace a tool's result or its error.
 
-| TypeScript | Python | Effect |
-| --- | --- | --- |
-| `recordSpan(name, options)` | `record_span(name, **options)` | Buffer one span locally. |
-| `buildPayload()` | `build_payload()` | Inspect the OTLP payload without sending it. |
-| `pending` | `pending` | Number of buffered/in-flight spans. |
-| `export()` or `flush()` | `export()` or `flush()` | Send buffered spans to `/v1/traces`. |
-| `newTraceId()` / `newSpanId()` | `new_trace_id()` / `new_span_id()` | Generate IDs for explicit correlation. |
+Python's `tool()` accepts a callable returning either a value or an awaitable. When the result is awaitable it returns a coroutine that reports on completion, so `await` it inside an async application.
 
-Specify `provider`, `model`, `operation`, and actual observed `inputTokens`/`outputTokens`/`cachedTokens` in TypeScript, or their snake_case equivalents in Python. Do not populate usage fields from compression estimates. Missing provider usage should stay missing.
+## Exporting spans
 
-An export failure preserves the failed batch for an explicit later retry. There is no automatic periodic exporter, trace-exit flush, or shutdown hook. Repeated `trace.exporter()` calls for the same service share a buffer; calling `cave.exporter()` again creates a new one. Flush the exporter you recorded into.
+`cave.exporter({ serviceName })` and `trace.exporter({ serviceName })` both return an `OTelExporter`. `serviceName` defaults to the client's `agent` and becomes the `service.name` resource attribute. A trace memoizes one exporter per service name, so repeated calls give you the same buffer to flush, including the spans the policy client records.
+
+`recordSpan(name, options)` buffers a span and returns it with its generated ids, so a child span can point at `parentSpanId: span.spanId`. `export()` posts the buffer to `{baseURL}/v1/traces` as OTLP/JSON and clears it; `flush()` is an alias for `export()`. A failed export puts the batch back in the buffer, and `pending` tells you how many spans are waiting.
+
+These fields become GenAI semantic-convention attributes, and only these fields can set them:
+
+| Option | Attribute |
+| --- | --- |
+| `operation` | `gen_ai.operation.name` |
+| `provider` | `gen_ai.provider.name` |
+| `model` | `gen_ai.request.model` and `gen_ai.response.model` |
+| `toolName` | `gen_ai.tool.name` |
+| `inputTokens` | `gen_ai.usage.input_tokens` |
+| `outputTokens` | `gen_ai.usage.output_tokens` |
+| `cachedTokens` | `gen_ai.usage.cache_read.input_tokens` |
+| `costUsd` | `gen_ai.usage.cost_usd` |
+
+Anything you pass in `attributes` rides along verbatim, except those keys and `cave.agent` and `cave.workflow`, which are stripped and set from the validated arguments. `cachedTokens` is dropped when it exceeds `inputTokens`, since a cached subset larger than the total is a reporting error.
+
+`cave.workflow` reads `workflow` from the span options, then the client's `defaultWorkflow`, then `unlabeled-workflow`. Recording a span inside `cave.trace({ workflow: "answer-question" }, …)` gives the span the trace's id, not its workflow, so pass `workflow` to `recordSpan()` as the example above does.
+
+`buildPayload()` returns the OTLP body without sending it. This is the span that call recorded, taken from a real `buildPayload()` on `@caveman-ai/sdk` 1.1.0 and trimmed to the span itself:
+
+```json
+{
+  "traceId": "99de90566ad1b475d0a21999823f8b74",
+  "spanId": "8ea1d06d361ea46c",
+  "parentSpanId": "",
+  "name": "answer",
+  "kind": 3,
+  "startTimeUnixNano": "1789600710624000000",
+  "endTimeUnixNano": "1789600710624000000",
+  "attributes": [
+    { "key": "gen_ai.operation.name", "value": { "stringValue": "chat" } },
+    { "key": "gen_ai.provider.name", "value": { "stringValue": "openai" } },
+    { "key": "gen_ai.request.model", "value": { "stringValue": "gpt-5" } },
+    { "key": "gen_ai.response.model", "value": { "stringValue": "gpt-5" } },
+    { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "1200" } },
+    { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "180" } },
+    { "key": "cave.agent", "value": { "stringValue": "support-agent" } },
+    { "key": "cave.workflow", "value": { "stringValue": "answer-question" } }
+  ],
+  "status": { "code": 1 }
+}
+```
+
+The ids and timestamps change every run. Python's `build_payload()` produces the same structure for the same inputs.
+
+## Breaking a retry loop
+
+`cave.retryLoopBreaker(threshold = 3)` returns a breaker that watches for the same tool call repeating. `record(name, args)` builds a signature from the name and the arguments with object keys sorted, so two argument objects that differ only in key order share a signature. An identical signature increments the streak, a different one resets it, and the call after the threshold throws.
+
+```ts
+const breaker = cave.retryLoopBreaker();
+for (let i = 0; i < 5; i++) breaker.record("search_docs", { q: "refund" });
+```
+
+```console
+RetryLoopError: retry loop interrupted: tool call "search_docs({\"q\":\"refund\"})" repeated 4 times (threshold 3)
+```
+
+The default threshold of 3 fires on the fourth consecutive identical call, which is what `repeated 4 times (threshold 3)` reports. Python raises the same message with the signature in single quotes.
+
+`guard(name, args, fn)` does the same check and then runs `fn`, which is the form to reach for inside a tool dispatcher. `reset()` clears the streak when a task ends.
+
+```python
+breaker = cave.retry_loop_breaker()
+docs = breaker.guard("search_docs", {"q": "refund"}, lambda: search("refund"))
+breaker.reset()
+```
+
+The breaker counts consecutive calls in one process and holds no timer, so an alternating two-call loop runs on. It is a floor under the worst case.
 
 ## Limits
 
-A trace context does not itself emit a completed root span or intercept every HTTP call. Tool-event delivery is best effort, while explicit exporter failures are visible to the caller. Metadata tags and custom span attributes are supplied by your application; do not include secrets or raw personal data.
+`trace.tool()` and the exporter both need your configured service to accept their endpoints. A tool event that fails to post is dropped in silence; an export that fails throws, and the spans stay buffered for the next attempt.
 
-The SDK records fields you supply. A trace is not independent proof of provider usage or savings. Keep [measurement vocabulary](/docs/counting) intact when reporting results.
+Token and cost values on a span are the ones you pass in. The SDK reads them from your call, so they are only as good as the provider response you read them from. [Numbers and limits](/docs/counting) has the rest.

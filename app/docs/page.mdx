@@ -4,123 +4,73 @@ export const metadata = docMetadata("");
 
 <DocSchema slug="" />
 
-Start with the agent you already use. Caveman can change how a coding agent writes, compress eligible context in an existing application, or provide the runtime for a new agent.
+An agent pays for every token it writes and every token it reads. Caveman shrinks both, on your machine, with no account. A rule file cuts the filler out of what the agent says, and a local proxy compresses the logs, JSON, diffs and tool output it reads, keeping the original bytes on disk so the agent can ask for them back.
 
-## Choose your starting point
+## Install
+
+The skill, for any of the agents in [Supported agents](/docs/skill/profiles):
+
+```bash
+npx skills add JuliusBrussee/caveman -g
+```
+
+The proxy, which needs the CLI and the signed binaries:
+
+```bash
+npm install -g @caveman-ai/cli && caveman setup --install
+caveman claude        # or codex · gemini · aider · kilo · qwen · opencode · hermes · openclaw · pi
+```
+
+They stack, and each works without the other. [Quickstart](/docs/quickstart) installs the skill; [Add the local tools](/docs/quickstart/cli) installs the rest.
+
+The same question answered twice, with and without the skill, is on [The skill](/docs/skill#what-it-changes): 69 tokens against 19, same diagnosis and same fix. Code, commands, file paths and exact error messages are copied through untouched, and [what it leaves alone](/docs/skill#what-it-leaves-alone) is the list.
+
+## What it saves
+
+| Who measured | What they found |
+|---|---|
+| [Adobe Research](https://arxiv.org/abs/2606.24083) | The CAVEWOMAN paper measured caveman-style output across eight models and five datasets and found it cut realised cost 1.4 to 2.4 times per model, up to 3 times. |
+| [JetBrains](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) | 86 real coding tasks as a paired A/B with the skill alone: 8.5 percent fewer output tokens with no detectable quality change, sign test p = 0.82. |
+| This repo's own runs | The committed skill eval and the pinned wrap benchmark, with their scopes and their one regression, are in [Published numbers](/docs/counting#published-numbers). |
+
+Every figure a local tool prints for you is `inferred`, a per-run estimate from an offline token counter. [Numbers and limits](/docs/counting) defines that word and lists what caveman refuses to claim.
+
+## Where to start
 
 <CardGrid cols={3}>
-  <Card href="/docs/quickstart" title="Optimize your coding agent" meta="Start here">
-    Claude Code, Codex, or another coding agent. Install the skill, then inspect your token use.
+  <Card href="/docs/quickstart" title="A coding agent" meta="Start here">
+    Claude Code, Codex, Cursor and the rest. One skill, then the proxy.
   </Card>
-  <Card href="/docs/integrations" title="Optimize your existing app">
-    Vercel AI SDK, Python, or your own tool loop. Keep your framework and add Caveman.
+  <Card href="/docs/sdk" title="An app you own">
+    Swap a base URL, wrap your framework, or call the client library.
   </Card>
-  <Card href="/docs/agent-sdk" title="Build a new agent">
-    Define tools, context, budgets, and durable runs with the Agent SDK.
+  <Card href="/docs/agent-sdk" title="A new agent">
+    Declare tools, context and budget up front, then run it behind HTTP.
   </Card>
 </CardGrid>
 
-Already using Vercel AI SDK? Go straight to the [complete middleware guide](/docs/sdk/middleware/vercel-ai-sdk). It covers setup, a working tool loop, reports, and deployment.
-
-## How the products fit
-
-The sections below explain the parts behind those paths. Each has its own installation and can be adopted independently.
-
-## caveman: make an existing agent cheaper
-
-Everything in this repository runs on your machine and needs no account. The four rows below are the
-operating stack, bottom to top. Each one answers a different question, and each fails on its own.
+## How the parts fit
 
 <StackDiagram />
 
-### 00 Skill
-
-A [skill](/docs/skill) is a persistent instruction set your coding agent reads before it answers. It cuts
-filler, narration and hedging out of the agent's own output, and it is explicit about what it must never
-touch: code blocks, function names, CLI commands and exact error strings stay byte for byte.
-
-It costs nothing to run because it is not software. It is text your agent already reads.
-
-### 01 Proxy
-
-The [proxy](/docs/proxy) is a reverse proxy on loopback. You point an agent at `127.0.0.1:8787` instead of
-the provider, it keeps your key, and it shrinks the context on the way out.
-
-The compressor doing that shrinking is the engine. It detects what a payload is, routes it to a compressor
-built for that shape, and stores the original bytes under a content-addressed handle before it removes
-anything. If the agent needs what was dropped, it asks for the handle and gets the original back exactly.
-The engine is not a separate product and not a separate install; it is [documented inside the
-proxy](/docs/proxy/engine), because the proxy is how you actually run it.
-
-### 02 Memory
-
-[cavemem](/docs/memory) holds the context you would otherwise paste into every session. It stores text
-once, recalls the parts a question actually needs, and compresses each hit on the way out.
-
-### 03 Cloud
-
-[Caveman Cloud](/docs/cloud) is the managed plane. It is where a fleet's numbers stop being local estimates
-and become something a finance team can read. It is in private development and the waitlist is open.
-
-### Build with it
-
-The same capabilities as a [CLI](/docs/cli), a [TypeScript](/docs/sdk/typescript) or
-[Python](/docs/sdk/python) SDK, an [MCP server](/docs/mcp), and two standalone commands:
-[caveman-shrink](/docs/shrink) for command output and [caveman-browse](/docs/browse) for web pages. These
-are the MIT adoption surfaces. Reach for them when you want the behaviour without a proxy hop.
-
-## agent-sdk: build a new agent
-
-The [Agent SDK](/docs/agent-sdk) is the other direction. Rather than making an existing agent's traffic
-smaller, it is how you write an agent whose context, tools and budget are declared up front, so a turn
-cannot quietly exceed them.
-
-An agent is one frozen [definition](/docs/agent-sdk/define): context, output schema, filesystem,
-[tools](/docs/agent-sdk/tools), and subagents. You [run a turn](/docs/agent-sdk/run) against it and get a
-receipt rather than a vibe. [Evals](/docs/agent-sdk/build) gate the build, so a failed eval never produces
-a lock. [Compaction](/docs/agent-sdk/compaction) is a fail-closed ladder inside a declared budget:
-recover, summarise, clamp, then stop.
-
-It lives in its own repository, ships as its own package, and shares no runtime with the proxy. You can
-use either without the other.
-
-<Note title="Which one do I want">
-For Claude Code or Codex, start with [coding-agent setup](/docs/quickstart). For an application you own, [choose your framework](/docs/integrations). For a new runtime, see the [Agent SDK](/docs/agent-sdk).
-</Note>
-
-## What the numbers mean
-
-Every local tool on this site reports `inferred`. That word is load bearing. It means a per-run estimate
-computed on your machine from an offline token counter, and it is never turned into a monthly figure or
-a dollar amount.
-
-No tool in either repository can emit `verified`. That label is reserved for hosted rollout systems that
-can compare against a real bill.
-
-<Note tone="honest" title="The short version">
-If a number here has no basis label next to it, treat it as an example rather than a promise.
-[How numbers are counted](/docs/counting) explains the four rules the code follows.
-</Note>
+The [skill](/docs/skill) is text your agent already reads, so it costs nothing to run and shortens what the agent writes. The [proxy](/docs/proxy) sits on loopback, holds your key, and shrinks eligible context on the way to the provider. [cavemem](/docs/memory) stores context once and recalls the part a question needs, so you stop resending it. [Caveman Cloud](/docs/cloud) is the managed plane across the network boundary, where a fleet's numbers can be compared against a bill.
 
 ## Where to go next
 
 <CardGrid>
-  <Card href="/docs/quickstart" title="Quickstart" meta="5 min">
-    Install the skill, then compress something real and read the report.
+  <Card href="/docs/quickstart" title="Quickstart" meta="Skill only">
+    Install the rule file and see shorter answers in about a minute.
   </Card>
-  <Card href="/docs/architecture" title="Architecture">
-    The path one request takes, and where the open-core line falls.
+  <Card href="/docs/quickstart/cli" title="Add the local tools">
+    The CLI, the proxy, your token sinks, and a trial that measures your own session.
   </Card>
-  <Card href="/docs/skill" title="The skill" meta="MIT">
-    One command, thirty agents, no runtime.
+  <Card href="/docs/architecture" title="How it works">
+    The path one request takes, and where every removed byte is kept.
   </Card>
-  <Card href="/docs/proxy" title="The proxy" meta="BSL 1.1">
-    Point an agent at loopback. The engine shrinks what leaves.
-  </Card>
-  <Card href="/docs/agent-sdk" title="Agent SDK" meta="Apache-2.0">
-    Build an agent that returns a receipt, not a vibe.
+  <Card href="/docs/counting" title="Numbers and limits">
+    Every published number with its source, and the limits of all of them.
   </Card>
   <Card href="/docs/licensing" title="Licensing" meta="MIT, Apache-2.0, BSL 1.1">
-    Which surfaces are open, and what the additional use grant permits.
+    Which path carries which licence, and what each one lets you do.
   </Card>
 </CardGrid>

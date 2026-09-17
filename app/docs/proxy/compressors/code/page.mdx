@@ -1,0 +1,209 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/code");
+
+<DocSchema slug="proxy/compressors/code" />
+
+The code compressor replaces function and method bodies with a marker and keeps everything else: imports, every
+signature, class and type declarations, comments and module docstrings. The result is parsed again before it is
+emitted, so what the model reads is still syntactically valid source.
+
+## Before and after
+
+The fixture is a 246-line Python module: a dataclass and 18 functions with identical bodies.
+
+```python
+@dataclasses.dataclass
+class Lot:
+    sku: str
+    quantity: int
+    unit_cost_cents: int
+
+
+def reconcile_batch_00(lots: Iterable[Lot], tolerance: float = 0.05) -> dict[str, int]:
+    """Reconcile lot 0 against the ledger."""
+    totals: dict[str, int] = {}
+    for lot in lots:
+        if lot.quantity <= 0:
+            continue
+        totals[lot.sku] = totals.get(lot.sku, 0) + lot.quantity * lot.unit_cost_cents
+    drift = sum(totals.values()) * tolerance
+    if math.isnan(drift):
+        raise ValueError("drift is not a number")
+    return {sku: value for sku, value in totals.items() if value > drift}
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/code/inventory.py
+caveman-engine compress < inventory.py 2> report.json
+```
+
+The output is 84 lines. The first 16 of them, and the rest follow the same shape:
+
+```python
+"""Inventory reconciliation helpers."""
+
+import dataclasses
+import math
+from typing import Iterable
+
+
+@dataclasses.dataclass
+class Lot:
+    sku: str
+    quantity: int
+    unit_cost_cents: int
+
+
+def reconcile_batch_00(lots: Iterable[Lot], tolerance: float = 0.05) -> dict[str, int]:
+    ...
+```
+
+The report on stderr, with the per-run digests and the handle trimmed to `…`:
+
+```json
+{"content_type":"code","tokens_before":2617,"tokens_after":565,"ratio":0.7841039358043561,
+ "basis":"inferred","recovery_handle":"ccr_a1e4…","method":"code"}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+2,617 tokens to 565, counted by the offline `o200k_base` counter behind [Token counting](/docs/proxy/tokens).
+
+A brace language gets the same treatment with a comment in place of the body. From a TypeScript fixture:
+
+```ts
+interface Lot { sku: string; quantity: number; unitCostCents: number }
+
+export function priceLot00(lots: Lot[], tolerance = 0.05): Record<string, number> { /* caveman: body elided */ }
+```
+
+## How it works
+
+A grammar is picked from byte signals in the payload, in this order. The first arm that matches wins.
+
+| Language | Signal |
+| --- | --- |
+| Go | `package ` and `func ` |
+| Python | `def ` and `:` |
+| Rust | `fn ` with one of `->`, `impl `, `pub `, `let mut ` |
+| Java | `public class `, or `public static void main`, or `import ` with `class `, `;` and an access modifier while `#include` is absent |
+| C++ | `#include` with one of `std::`, `template<`, `template <`, `namespace `, `::`, `public:`, `private:` |
+| C | any remaining `#include` payload |
+| TypeScript | `function `, `=>`, `const `, `let `, `interface ` or `class `. The TypeScript grammar parses JavaScript too |
+
+A payload matching no arm is reported as unsupported and the caller forwards the original bytes. A wrong guess
+corrects itself: the wrong grammar produces a parse error, which is also a pass-through.
+
+The file is then parsed with tree-sitter. A parse that reports any error stops the transform, so the compressor
+never edits source it could not read cleanly.
+
+The tree walk collects the byte range of each outermost function body. Function-like nodes include Go function,
+method and literal declarations, Python and C function definitions, JavaScript and TypeScript methods, function
+expressions, generators and arrow functions, Rust function items and Java constructors. A body is a block,
+statement block, constructor body, compound statement or a C++ function-try-block. The walk does not descend
+into a body it is about to replace, so a nested closure is covered by the range around it and the ranges never
+overlap.
+
+Each collected range is replaced: `{ /* caveman: body elided */ }` in a brace language, `...` in Python. A body
+that already holds exactly that text is left alone, which is what makes a second pass produce the same bytes.
+
+The replacements are applied in start order and the result is parsed a second time. If that parse fails or
+reports an error, the whole transform is dropped and the original bytes go through.
+
+### Line-numbered listings
+
+An agent rarely hands the engine a bare file. It hands it what its read tool printed, with a line number in front
+of every line, and a parser cannot read that. The engine splits the gutter off before detection and puts it back
+afterwards.
+
+A payload counts as a listing when it has at least 8 numbered lines, every non-blank line carries a number, the
+numbers strictly increase, and each gutter is at most 12 digits followed by a tab, ` | ` or `: `. A line that is a
+bare number with nothing after it counts too, which is how a numbered blank line is written. Blank lines may also
+carry no gutter at all.
+
+```bash
+cat -n inventory.py | caveman-engine compress 2> report.json
+```
+
+```text
+1	"""Inventory reconciliation helpers."""
+2	
+3	import dataclasses
+4	import math
+5	from typing import Iterable
+6	
+6	
+8	@dataclasses.dataclass
+9	class Lot:
+10	    sku: str
+11	    quantity: int
+12	    unit_cost_cents: int
+13	
+13	
+15	def reconcile_batch_00(lots: Iterable[Lot], tolerance: float = 0.05) -> dict[str, int]:
+16	    ...
+```
+
+Each surviving line keeps the number it had in the file, so the numbers still point at the right code and the
+gaps show where content was removed. Lines the compressor introduced take the number where the elided region
+began. The gutter that goes back on is always the number followed by a tab, whichever of the three forms the
+input used, so a ` | ` listing comes back tab separated. When fewer than half the output lines can be traced back
+to a source line, the gutter is left off and the compressed body is emitted bare; blank lines are left out of
+that count, since a reflowed blank matches nothing in particular and would drag the ratio down on its own.
+
+## What is always kept
+
+Imports and package declarations. Every function and method signature. Class, struct, interface, trait and type
+declarations. Constants and fields. Comments and Python docstrings, under the default options. Directive
+comments in every configuration: `//go:` build, embed, generate and linkname comments, the legacy `// +build`
+constraint, cgo `//export`, and TypeScript triple-slash references. Everything outside a function body is
+untouched.
+
+## When it is chosen
+
+Detection calls a payload `code` when it starts with `#!`, or when it matches at least 3 keywords from
+`func|package|import|def|class|function|return|const|let|var|public|private|protected|static|void|struct|interface|namespace|module|fn|impl|trait|export|async|await`
+and carries one structural signal: a symbol such as `=>`, `::`, `->`, `){`, `) {`, a statement-terminating
+semicolon, an `#include`, or a `from … import` line, or a `{` anywhere, or a Python `def ` with a colon, or a
+four-space indented block.
+
+```bash
+caveman-engine detect < inventory.py
+```
+
+```text
+code
+```
+
+See [how detection decides](/docs/proxy/compressors#how-detection-decides) for where this test sits among
+the others.
+
+Both the detection test and the compressor take a payload of any length. The compressor declines, and the
+engine forwards the original bytes, when no grammar matches the payload, when the parse reports an error, when
+there is no function body to replace, when the re-parse of the result fails, and when the result counts no fewer
+tokens than the input.
+
+## Options
+
+The compressor takes two settings, both defaulting to keep: `Comments` covers comment nodes in every supported
+language, and `Docstrings` covers Python module and class docstrings. The engine's registry builds it with the
+defaults, so bodies are elided and comments and docstrings survive.
+
+With comment removal on, a comment carrying machine semantics is still kept: the directive comments listed above
+are never removed. A Python docstring is only removed when it is a plain string, not an f-string or a bytes
+literal, and only when its block holds more than one statement, so removing it cannot empty a suite. Every
+removal passes through the same re-parse gate.
+
+<Note tone="honest" title="Which languages a build supports">
+Tree-sitter needs cgo. A build with cgo supports the seven grammars in the table above. A build without cgo,
+including the WASM build, uses Go's standard `go/ast` parser and compresses Go alone, emptying function bodies
+and running the result through `gofmt`; other languages pass through unchanged. The signed `caveman-engine`
+binary in `~/.caveman/bin` is the cgo build: the Python and TypeScript examples on this page were produced with
+it.
+</Note>
+
+## Recovery
+
+The original bytes are stored before the compressed view is emitted, and the handle in the report retrieves them:
+see [Recovery](/docs/proxy/recoverable).

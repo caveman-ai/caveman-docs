@@ -4,119 +4,175 @@ export const metadata = docMetadata("skill");
 
 <DocSchema slug="skill" />
 
-The skill is the cheapest layer in the stack because it is not software. It is a file your agent reads,
-and it changes how the agent writes for the rest of the session.
+The skill is one Markdown rule file your agent loads at the start of a session. It changes how the agent writes, so the same answer arrives in fewer output tokens. Code, commands, file paths and error strings pass through untouched.
 
-<Facts rows={[
-  ["What it is", "One Markdown instruction file, plus optional commands and subagent presets."],
-  ["Runtime", "None. No process, no port, no config file."],
-  ["Account", "Not required."],
-  ["Licence", "MIT."],
-  ["Install", <code key="i">npx skills add JuliusBrussee/caveman</code>],
-]} />
+Want to shrink what the agent *reads* rather than what it writes? That is the [proxy](/docs/proxy).
 
 ## Install
 
-```bash
-npx skills add JuliusBrussee/caveman
-```
-
-Without `-g` this writes into `./.agents/skills` under your current directory rather than a global
-location. Several agents have their own native path:
+In Claude Code, install the plugin:
 
 ```bash
-# Claude Code
-claude plugin marketplace add JuliusBrussee/caveman
-claude plugin install caveman@caveman
-
-# Gemini CLI
-gemini extensions install https://github.com/JuliusBrussee/caveman
-
-# Codex CLI
-npx skills add JuliusBrussee/caveman -a codex
-
-# Cursor, which needs -g
-npx skills add JuliusBrussee/caveman -a cursor -g
-
-# opencode
-npx -y github:JuliusBrussee/caveman -- --only opencode
+claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman
 ```
 
-There is also a full installer that wires up hooks and a status line for Claude Code. It is pinned to a
-tag, it is safe to re-run, and it supports `--dry-run`.
+That brings the rule file, the slash commands, the three cavecrew subagent presets, and a `SessionStart` hook that sets the mode and records it on disk.
+
+In every other agent, install the skill:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.3.1/install.sh | bash
+npx skills add JuliusBrussee/caveman -g
 ```
 
-```powershell
-irm https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.3.1/install.ps1 | iex
+`-g` installs into the agent's user skill directory. Drop it to install into the current project instead. This path writes the rule file alone: the hook, the mode file and the subagent presets come with the plugin or with the full installer below.
+
+## What it changes
+
+The same diagnosis, at the default level. From the repository's README:
+
+```text
+The reason your React component is re-rendering is likely because you're
+creating a new object reference on each render cycle. When you pass an inline
+object as a prop, React's shallow comparison sees it as a different object
+every time, which triggers a re-render. I'd recommend using useMemo to
+memoize the object.
 ```
 
-## What it removes
+```text
+New object ref each render. Inline object prop = new ref = re-render.
+Wrap in `useMemo`.
+```
 
-Articles, filler, pleasantries, hedging and tool-call narration. Sentence fragments are allowed.
-Decorative tables and emoji are not.
+69 tokens against 19. Same fix, same `useMemo`, same backticks around the symbol.
 
-## What it will not touch
+## The numbers
 
-This list is the reason the skill is safe to leave on.
-
-- Code blocks, verbatim
-- Function, method and API names
-- CLI commands and flags
-- Commit type keywords
-- Exact error strings
-- The language you are writing in
-
-It also refuses to invent abbreviations. `cfg`, `impl`, `req`, `res` and `fn` are banned, and so are
-arrow characters standing in for words. The reason is measurable rather than stylistic: the tokenizer
-splits those the same way it splits the full word, so the abbreviation saves nothing and costs clarity.
-
-## When it steps aside
-
-The skill drops out of terse mode on its own for:
-
-- Security warnings
-- Confirmations of anything irreversible
-- Ambiguous multi-step sequences
-- Any case where compressing the answer would create the ambiguity
+JetBrains ran 86 real coding tasks as a paired A/B with the skill alone and found 8.5 percent fewer output tokens with no detectable quality change (sign test p = 0.82). On the repository's committed ten question eval, the skill cut output tokens 50 percent at the median against a plain "answer concisely" control, on length only. Both figures are output side. An agentic coding session spends most of its budget on input, which is why the [proxy](/docs/proxy) exists.
 
 ## Levels
 
+`/caveman` on its own sets `full`. The level holds for the rest of the session.
+
+| Level | "Why does my React component re-render?" |
+|---|---|
+| `lite` | Your component re-renders because you create a new object reference each render. Wrap it in `useMemo`. |
+| `full` | New object ref each render. Inline object prop = new ref = re-render. Wrap in `useMemo`. |
+| `ultra` | Inline obj prop, new ref, re-render. `useMemo`. |
+| `wenyan-lite` | 組件頻重繪，以每繪新生對象參照故。以 useMemo 包之。 |
+| `wenyan-full` | 每繪新生對象參照，故重繪；以 useMemo 包之則免。 |
+| `wenyan-ultra` | 新參照則重繪。useMemo 包之。 |
+
 ```text
 /caveman lite
-/caveman full          # default
 /caveman ultra
-/caveman wenyan-lite
 /caveman wenyan-full
-/caveman wenyan-ultra
 /caveman off
 ```
 
-`off`, "stop caveman" and "normal mode" all do the same thing.
+The default mode is resolved from four places, first match wins (`src/hooks/caveman-config.js`):
 
-## What else comes with it
+1. The `CAVEMAN_DEFAULT_MODE` environment variable.
+2. A repo-local `.caveman/config.json` or `.caveman.json`, searched from the working directory upwards to the filesystem root, which is how a team pins one default for a project.
+3. A user config holding `{ "defaultMode": "lite" }`: `$XDG_CONFIG_HOME/caveman/config.json` when that variable is set, then `~/.config/caveman/config.json`, then `%APPDATA%\caveman\config.json` on Windows.
+4. `full`.
 
-One install also brings a set of commands and work-pattern skills.
+## What it strips
 
-<Facts rows={[
-  ["Commands", <code key="c">/caveman-commit · /caveman-review · /caveman-compress · /caveman-stats · /caveman-help</code>],
-  ["Subagent presets", "cavecrew-investigator, cavecrew-builder, cavecrew-reviewer"],
-  ["Work patterns", "investigate-first, lean-build, surgical-patch, safe-refactor, migration, verify-and-stop"],
-]} />
+`skills/caveman/SKILL.md` names the targets: articles, filler words such as *just*, *really*, *basically*, *actually* and *simply*, pleasantries such as *sure*, *certainly* and *happy to*, hedging, tool-call narration, decorative tables, and long raw error-log dumps that nobody asked for. Sentence fragments are allowed. Short synonyms replace long ones: *big* for *extensive*, *fix* for *implement a solution for*.
 
-## What it saves
+Standard tech acronyms pass through: DB, API and HTTP stay as they are. Two compressions are banned because they measure as zero saving under the tokenizer and cost the reader clarity: invented abbreviations such as `cfg`, `impl`, `req` and `fn`, and causal arrows such as `→`. Each is its own token, so the full word is cheaper and clearer at the same time.
 
-On the committed benchmark suite of ten prompts, output tokens drop by about 65 percent on average, with
-a range of 22 to 87 percent. That is a per-run inferred estimate measured on that suite. It is not a
-promise about your bill, and it covers output tokens only.
+## What it leaves alone
 
-The range matters more than the average here. A tightly scoped refactor prompt saved 22 percent. A long
-explanatory answer saved 87 percent. Which end you land on depends on how much of your traffic is prose.
+Code blocks, inline code, exact error strings, numbers, units and technical terms stay verbatim. Negations stay: *not*, *never*, *no*, *only* and *except* flip meaning, which is worth more than any token they cost.
 
-## Hook state in redirected config folders
+The skill drops back into full sentences on its own for security warnings, confirmations of irreversible actions, multi-step sequences where dropping conjunctions would make the order ambiguous, and any question the user repeats or asks to clarify. It resumes after that part is done.
 
-The [current hook source](https://github.com/JuliusBrussee/caveman/blob/cc067b2b3813e3187ba656b1d908761ad3e5b904/src/hooks/caveman-config.js) supports a Windows config directory redirected through a writable junction, including a target on another drive. Mode-state writes and history appends check whether the resolved directory is writable instead of requiring it to remain under your home directory.
+It also stays out of anything that leaves the chat. Commit messages, comments, docs, issue and PR bodies and memory files are written in normal prose, because those go to other people. `/caveman-compress` is the one exception, and it is opt-in per file.
 
-The flag file itself must not be a symbolic link. Clearing the legacy mode flag uses the same directory checks as writing it. If mode persistence or lifetime stats disappear in a redirected folder, check the target directory's permissions and update the installed hooks from current source. This source behavior does not certify every Windows filesystem configuration.
+## Verify
+
+Ask the agent a coding question. The preamble should be gone and the answer should still name the symbol.
+
+After `npx skills add`, the rule file itself is the check. A `-g` install for Claude Code lands here:
+
+```bash
+ls ~/.claude/skills/caveman
+```
+
+```text
+README.md
+SKILL.md
+```
+
+[Supported agents](/docs/skill/profiles#where-the-file-lands) has the directory for the other agents.
+
+After the plugin install, `claude plugin list` shows `caveman@caveman`, and the mode is on disk too, one file per window:
+
+```bash
+cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active"
+```
+
+```text
+full
+```
+
+That file mirrors whichever window wrote most recently. With several windows open, read the directory instead:
+
+```bash
+ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-sessions/"
+```
+
+## Turn it off
+
+Say `stop caveman` or `normal mode` in the session. Prose comes back and the window stays off, including across the automatic context compaction that long sessions hit.
+
+To remove the files:
+
+```bash
+npx skills remove caveman
+```
+
+If you used the full installer, run its uninstaller first, while the `caveman` CLI is still on PATH:
+
+```bash
+npx -y github:JuliusBrussee/caveman -- --uninstall
+```
+
+## Other doors in
+
+The per-agent commands are on [Supported agents](/docs/skill/profiles). Two more of the short ones:
+
+```bash
+gemini extensions install https://github.com/JuliusBrussee/caveman
+npx skills add JuliusBrussee/caveman -a codex -g
+```
+
+The full installer detects every supported agent on the machine, runs each one's own install path, and wires the Claude Code hooks and statusline badge on top. It needs Node.js 18 or newer and is safe to re-run.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.7.0/install.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.7.0/install.ps1 | iex
+```
+
+Add `bash -s -- --dry-run` to print every command it would run and write nothing.
+
+<Note tone="honest" title="The rules cost input tokens on every call">
+The rule file loads into the prompt prefix each session, so it adds input tokens before it removes any output tokens. Whether that trades well depends on your agent, its prompt caching and your billing. [Numbers and limits](/docs/counting) has the accounting and the meaning of `inferred`.
+</Note>
+
+## Limits
+
+The skill changes the agent's prose. It does not shorten your code, and it cannot make a long tool result smaller, because the tool result never passes through it. For the reading side, see [the proxy](/docs/proxy) and [caveman-shrink](/docs/shrink).
+
+<CardGrid>
+  <Card href="/docs/skill/commands" title="Commands and subagents">
+    Every slash command, the output format each one produces, and the three cavecrew presets.
+  </Card>
+  <Card href="/docs/skill/profiles" title="Supported agents">
+    The install command for each of the 36 agents, and where the file lands.
+  </Card>
+</CardGrid>

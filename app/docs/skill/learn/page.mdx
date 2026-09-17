@@ -4,101 +4,223 @@ export const metadata = docMetadata("skill/learn");
 
 <DocSchema slug="skill/learn" />
 
-`caveman learn` reads local agent sessions and shows where tokens are being spent. The command measures and
-prepares candidates. The `caveman-learn` skill is the separate, consent-gated part that can edit a file.
+`caveman learn` reads the agent session history already on your disk, ranks what is eating the token budget worst first, and prints a one-line fix behind each finding. It reads and writes nothing outside its own report, needs no account, and makes no provider call.
 
-<Facts rows={[
-  ["Input", "Local Claude Code, Codex, and Caveman session records."],
-  ["Default window", "The last 30 days."],
-  ["Report basis", <code key="b">inferred</code>],
-  ["Edits", "One approved change at a time."],
-  ["Protected class", <code key="p">load_bearing</code>],
-]} />
-
-## Run the profiler
+## Run it
 
 ```bash
 caveman learn
 ```
 
-In an interactive terminal this shows a local Setup Score, grouped top moves, and a menu for the full report or
-the editing flow. Stable output modes are available for scripts and pipes:
+In a terminal this opens a keyboard menu. `--plain` prints the same thing as text:
 
 ```bash
 caveman learn --plain
-caveman learn --all
-caveman learn --json
-caveman learn --md
-caveman learn --since 7d --sources codex,claude,caveman
 ```
 
-`--plain` has no animation or keyboard menu. `--all` includes every finding, its internal id, its basis, and its
-suggestion. JSON uses the `caveman.learn.v1` schema.
+```text
+scanning local sessions (last 30d)…
+claude-code 2030 · codex 2289 · scoring…
+Setup Score 79/100
+local setup · inferred · not billed spend · separate from org Cave Score
+4319 sessions · Claude 2030 · Codex 2289
+since your last run 13d ago: 218 moves gone · 40 new
 
-If no matching sessions exist, the command returns no score. Repeated-context findings need the same block in
-three or more sessions, so a new installation may need several sessions before that class appears.
+top moves
+1  461 context blocks repeat across sessions
+   recurring context · largest ~3k tokens · up to 68 sessions · inferred
+   Review selected blocks before moving them to memory; repetition does not prove they are unnecessary.
+2  Bash re-fetched 3 times in one session
+   behavioral · inferred
+   Request enough output once, or narrow the query before repeating pagination variants.
+protected  agent config loads ~2102 tokens into every turn · included in score, never auto-fixed
 
-## Read the sink classes
+next:  caveman learn implement   fix with Claude Code or Codex; asks before every edit
+details: caveman learn --all   560 findings
 
-| Class | Meaning | Automatic edit |
-| --- | --- | --- |
-| `reducible` | A heavy instruction file or an installed skill that local evidence says can be smaller. | Candidate only. The skill still asks first. |
-| `recurring_context` | A block re-established across sessions that may fit local memory better. | Candidate only. Recall must work before source text is removed. |
-| `behavioral` | An observation about how the agent or user works. | None. Repetition does not prove the behaviour is wrong. |
-| `load_bearing` | Context that must remain available on every turn. | Never. It stays in the score so the score remains honest. |
+report: /Users/…/.caveman/reports/caveman-learn.html
+```
 
-Rates such as `tokens_per_turn` and `tokens_per_day_rate` describe the observed local pattern. The daily field is
-a rate, not a historical total and not a monthly projection.
+One real run, trimmed from three top moves to two and with the home directory replaced. Every count is from that machine's own history, so yours will differ.
 
-## Review fixes with an agent
+Sources scanned by default are Claude Code, Codex, Gemini CLI and opencode. Aider is included when `CAVEMAN_AIDER_ROOT` points at its history. Narrow either axis:
 
 ```bash
-caveman learn implement
-caveman learn implement claude
-caveman learn implement codex --prompt "focus on project instructions"
+caveman learn --since 7d --sources claude,codex
+caveman learn --repo caveman-docs
 ```
 
-This installs the safety guide when it is missing, opens Claude Code or Codex, and asks the agent to read the
-current JSON report. It does not grant permission to apply every finding.
+## The Setup Score
 
-You can also install the guide directly:
+The score grades your current setup, not your past spend. Four components, each a penalty:
+
+| Component | What it measures |
+|---|---|
+| `config_tax` | Tokens your config loads into every turn, against your median context size |
+| `dumbzone` | The share of turns that ran past half the context window |
+| `dead_load` | Skill description tokens for skills that never get invoked |
+| `subagent_pressure` | Spawn volume across the scanned sessions |
 
 ```bash
-caveman tools skills install caveman-learn --agent claude
-caveman tools skills install caveman-learn --agent codex
+caveman learn report --json
 ```
 
-## Preview one candidate
+```json
+{
+  "schema": "caveman.learn.v1",
+  "basis": "inferred",
+  "window": { "from": "2026-08-17T23:16:56Z", "to": "2026-09-16T23:17:02Z", "since": "30d" },
+  "cave_score": {
+    "score": 79,
+    "basis": "inferred",
+    "scope": "local_setup",
+    "components": [
+      { "key": "config_tax", "penalty": 1, "measured": true, "detail": "config 2102 + recurring re-paste 461 tok/turn vs median context 137866" },
+      { "key": "dumbzone", "penalty": 20, "measured": true, "detail": "68595/173524 turns over 50% window" },
+      { "key": "dead_load", "penalty": 0, "measured": true, "detail": "0 dead-skill tok of 2102 config tok" },
+      { "key": "subagent_pressure", "penalty": 0, "measured": true, "detail": "0 spawns over 4323 sessions" }
+    ]
+  },
+  "sessions_scanned": 4323,
+  "sessions_by_source": { "claude": 2034, "codex": 2289 }
+}
+```
+
+The real document continues with a `sinks` array and a `caveats` array. This is the head of one run, cut before the sinks.
+
+## What a finding looks like
+
+Each entry in `sinks` carries a class, and the class decides what may be done to it.
+
+```json
+{
+  "sink_id": "config_tax:baseline",
+  "practice_id": "context-compression",
+  "title": "Your agent config loads ~2102 tokens into every turn",
+  "class": "load_bearing",
+  "basis": "observed_local",
+  "tokens_per_turn": 2102,
+  "evidence": {
+    "claude_md_user_tokens": 1024,
+    "hook_count": 2,
+    "plugin_count": 2,
+    "skill_count": 14,
+    "skill_desc_tokens": 1078
+  },
+  "suggestion": "Some of this is load-bearing. The reducible parts are broken out as their own sinks below.",
+  "framing": "forward_rate"
+}
+```
+
+| Class | Meaning | What happens to it |
+|---|---|---|
+| `reducible` | A heavy file, a skill nothing invokes | A concrete diff, behind the token gate below |
+| `recurring_context` | A block re-established across sessions | An offload into [cavemem](/docs/memory/offload) |
+| `behavioral` | A pattern in how the agent worked | An observation with a soft suggestion, left for you to act on |
+| `load_bearing` | Config the agent needs | Reported so the score stays honest, and left in place |
+
+`config_tax` is framed as a forward rate: what your current setup will cost per turn from here. It describes the turns ahead of you.
+
+## Preview one fix
 
 ```bash
 caveman learn apply <sink_id> --dry-run
-caveman learn apply <sink_id>
 ```
 
-Both commands prepare information for review. The second writes a candidate under `~/.caveman/candidates`; it
-does not edit your repository. Only the installed skill performs an edit, after showing the proposed change and
-asking for consent.
+```text
+A recurring context pattern (up to ~644 tokens) was re-established across 42 sessions
+sink: recurring_context:repaste:503974f732e0bd8e
+locations: [{"root_kind":"claude","rel_path":"projects/…/…jsonl","jsonl_line":1,"block_index":3,"content_sha256":"4e0dcc…"}]
+gates: net-token-negative · never-dumber
+nothing changed — this is a preview
+```
 
-For a reducible item, the skill compares inferred tokens per turn before and after. If the result is not smaller,
-it restores the original.
+Trimmed: the real run prints all five locators in full, each with its complete path and hash. Paths and hashes here are shortened.
 
-For recurring context, the skill re-reads the source block, verifies its SHA-256 locator, stores the raw block in
-cavemem, and confirms that recall returns it. The source is trimmed only after the pointer and recall path both
-work. A failed recall removes the new memory and leaves the source in place.
+A locator is a file, a line in that file, a block index within the turn and a SHA-256 of the block's bytes. The candidate carries no copy of the block itself. Whatever applies the fix re-reads the real text from the locator and checks the hash before touching anything, so a file that changed since the scan aborts rather than being edited from stale data.
 
-<Note tone="honest" title="Prepared does not mean applied">
-`caveman learn apply` materializes a candidate. It does not edit a file, move a block, or prove a reduction. The
-proof happens after an approved edit is measured again.
+## Apply fixes
+
+```bash
+caveman learn implement
+```
+
+That opens Claude Code or Codex with the current report and the `caveman-learn` guide, installing the guide first if the project does not have it. With both agents on `PATH` and a terminal, it asks which one. Name it directly to skip the question:
+
+```bash
+caveman learn implement codex --prompt "start with the heavy CLAUDE.md"
+```
+
+The agent then works one finding at a time. For each one it shows the proposed diff and the before and after token count per turn, asks yes or no, applies only on yes, and re-measures. There is no apply-all that hides the individual diffs.
+
+<Steps>
+<div>
+Read the plan. The agent runs `caveman learn report --json`, presents the score and the ranked sinks, and states each sink's class and basis.
+</div>
+
+<div>
+Pick one. Behavioral findings are presented as observations, and a `load_bearing` finding stays out of the list.
+</div>
+
+<div>
+See the diff and the numbers. Before is what the file costs per turn now, after is what the edit would make it cost.
+</div>
+
+<div>
+Answer yes or no. The write happens on the yes.
+</div>
+
+<div>
+Re-measure. The touched file is counted again. If after lands at or above before, the edit is reverted and reported as a revert.
+</div>
+
+<div>
+Record it with `caveman learn applied <sink_id>`, which is what lets later runs report a longitudinal verdict: `improved`, `unchanged`, `regressed` or `insufficient_data`.
+</div>
+</Steps>
+
+## The two gates
+
+Every applied fix passes both, and both appear in the `apply` preview.
+
+**Net token negative.** The file that was edited is counted again after the edit. An edit that did not lower tokens per turn is reverted, not kept and explained.
+
+**Never dumber.** An offload into memory is only complete when the block is recallable and a pointer to it sits where the block used to be. If recall returns nothing, or no pointer was written, the memory is forgotten and the source file is restored. Removing context without a working path back to it is the failure this gate exists to block.
+
+One fix kind is deliberately outside the first gate. Writing a repeated procedure down as a skill costs prefix tokens in every session and pays back only in the sessions that hit the pattern, so re-counting a file cannot judge it. It is graded with a holdout instead:
+
+```bash
+caveman learn experiment start <label> --sink <sink_id> --fix-kind skill_distillation
+caveman learn experiment arm <label> off
+caveman learn experiment report <label>
+```
+
+Each arm needs at least five sessions before a verdict exists. `insufficient_data` means keep going. `regressed` means delete the skill.
+
+## Read what fixes returned
+
+```bash
+caveman learn savings
+```
+
+Rows are grouped by how the number was obtained, strongest first: `deterministic_remeasure` re-counted the edited file, `controlled_holdout` ran the change on and off on this machine, `counterfactual_replay` re-ran real history with the change applied, and `interrupted_time_series` compares before-sessions against after-sessions with no control arm. Each group is reported on its own, because a re-counted file and a session median are different kinds of evidence.
+
+Each row also carries an `attribution.provenance`. `intact` means the file still holds the edit. `changed_since` means someone edited past it, so part of the delta belongs to them. `target_missing` means the delta cannot be tied to the fix at all.
+
+For a check that does not depend on history at all, run the work again: [`caveman trial`](/docs/trial) records one session through its own proxy and reports what that session weighed, so a fix you applied here shows up in a task you chose rather than in a re-count of the file you edited.
+
+<Note tone="honest" title="These are inferred figures for one window">
+Every number `learn` prints is `inferred`: a local estimate from an offline token counter over the sessions it scanned. Where the report carries spend, that is what the window cost, never what a fix would return, and it is never multiplied into a month or a year. [Numbers and limits](/docs/counting#inferred) defines the word.
 </Note>
 
-## What it will not do
+## Limits
 
-- Apply all fixes behind one confirmation
-- Edit a `load_bearing` finding
-- Treat a behavioral finding as an instruction
-- Remove recurring context without a working pointer and recall path
-- Keep an edit whose measured result is not net token negative
-- Attach currency, monthly savings, or `verified` to a local result
+`caveman learn` reads history. It writes nothing but its own report and its candidates under `~/.caveman/`, and the analyzer applies no edit: the consent loop in `implement` is the only writer. Behavioral findings are correlational, including the one about sessions with no commit in their window, which is an observation about where tokens went and not a verdict on the session.
 
-Reports are also written under `~/.caveman/reports`, including HTML and JSON forms. They contain local analysis,
-so review them before sharing them outside your machine.
+To share findings without sharing content:
+
+```bash
+caveman learn export
+```
+
+That prints a digest of identities and magnitudes. Read it before you send it.

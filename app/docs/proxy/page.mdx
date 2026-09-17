@@ -4,145 +4,192 @@ export const metadata = docMetadata("proxy");
 
 <DocSchema slug="proxy" />
 
-The local proxy is a reverse proxy on loopback. You point an existing coding agent or provider SDK at
-`http://127.0.0.1:8787`, it forwards each request to your chosen model API with the credential that came in,
-and it compresses eligible context before those bytes leave.
+The proxy is one local process that sits between a client and a model API: point an agent or an SDK at
+`http://127.0.0.1:8787` and each request is forwarded to the provider with the credential it arrived with.
+In compress mode the engine shrinks eligible context on the way out and keeps every removed byte in a local
+store under a handle the agent can ask for.
 
-It is one of two things you install. The [skill](/docs/skill) changes how an agent writes. The proxy changes
-how much the agent has to read. They run independently.
+Running Claude Code, Codex or another coding agent in a terminal? [Wrap an agent](/docs/proxy/wrap) does the
+swap for you and starts the proxy itself.
 
-<Facts rows={[
-  ["Repository", <code key="r">JuliusBrussee/caveman</code>],
-  ["Binary", <code key="b">caveman-proxy</code>],
-  ["Listen", <code key="l">127.0.0.1:8787</code>],
-  ["Account", "Not required."],
-  ["Licence", "BSL 1.1, converting to Apache 2.0 after four years."],
-  ["Reports", <>Always <code>inferred</code>. It cannot emit <code>verified</code>.</>],
-]} />
-
-<Note title="The proxy and the engine are one product">
-Two binaries, one thing you install and one set of pages. `caveman-proxy` routes, authenticates, streams
-and records. `caveman-engine` decides what a payload is and makes it smaller. You almost never run the
-second one directly, so it is documented here rather than as a product of its own: start at
-[the engine](/docs/proxy/engine), then [Compressors](/docs/proxy/compressors) for what happens to a
-specific content type.
-</Note>
-
-<ProxyPath />
-
-The agent and the provider request format stay as they are. The proxy is a base-URL swap, not a new agent
-loop. Recovery copies live in `~/.caveman/ccr.db` on this machine. Usage rows live in
-`~/.caveman/caveman.db`. Neither file is a bill.
-
-## Two ways in
-
-**Wrap an agent.** The CLI starts the proxy and points a known coding agent at it:
-
-```bash
-npm install -g @caveman-ai/cli
-caveman setup --install
-caveman claude
-```
-
-The same shortcut exists for Codex, Gemini CLI, Aider, Hermes, Kilo, OpenClaw, opencode, Pi, and Qwen Code.
-See [Wrap an agent](/docs/proxy/wrap).
-
-**Start the listener yourself.** Use this when an application already has a provider SDK and you only want
-to change its base URL:
+## Start it
 
 ```bash
 caveman start
 ```
 
-Default mode for a bare `caveman start` is `record`: every model-visible byte is forwarded unchanged, and
-the proxy writes local usage rows. Wrap defaults the other way, to `compress`. [Modes](/docs/proxy/modes)
-explains the difference.
+```text
+{"time":"…","level":"INFO","msg":"cache-breakpoint planner enabled","mode":"frontier"}
+{"time":"…","level":"INFO","msg":"caveman proxy listening","addr":"127.0.0.1:8787","mode":"record","basis":"inferred","inbound_auth":"none"}
+```
 
-## Run it for a team
+It stays in the foreground until you stop it. [Add the local tools](/docs/quickstart/cli) installs the
+binaries it runs. Timestamps here are replaced with `…`.
 
-The same binary can run behind an authenticated private-network endpoint with server-side provider credentials and durable storage. Start with [Shared proxy](/docs/proxy/shared), then choose the [provider adapter](/docs/proxy/providers) and client integration. Shared-token access does not provide tenant isolation.
+In compress mode an advisory line comes first. With no caveman MCP server installed for any agent, it reads as below; [which doors install it for you](/docs/proxy/wrap#recovery-has-to-be-installed) is on the wrap page.
+
+```text
+→ subscription and OAuth logins stay byte-identical pass-through here: local compression needs the caveman MCP retrieve tool to recover elided detail — run `caveman mcp install <agent>` to turn it on
+```
+
+From another shell:
+
+```bash
+curl -s http://127.0.0.1:8787/health/live
+```
+
+```json
+{"adapters":5,"billing":"byok","ok":true,"schema":"caveman.proxy.health.v1","service":"caveman-proxy"}
+```
+
+`adapters` counts the mounted provider routes: Anthropic, OpenAI, Gemini and Bedrock, plus the built-in
+`opencode-go` compatible mount. The count rises when you configure Azure, Vertex or another `compat` mount.
+Captured from caveman-proxy bin-v1.1.7.
+
+## The base URL swap
+
+```python
+# The SDK appends /v1/messages itself, so the base URL is just the gateway + /w/my-service.
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="http://127.0.0.1:8787/w/my-service",
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+)
+
+msg = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Why is the sky blue?"}],
+)
+```
+
+Printed by `caveman snippets anthropic-py --app my-service`, with the base URL resolved to the local proxy.
+[Providers and base URLs](/docs/proxy/providers) has the same swap for the other SDKs.
+
+`/w/my-service` is the attribution slug. The proxy strips it, records it on every row for this client, and
+forwards the rest of the path, so one proxy can serve several apps and still tell them apart. A slug starts
+with `[a-z0-9]`, continues with `[a-z0-9._-]` and is at most 64 characters. Leave it out and the path still
+routes; the rows read `unlabeled-agent`.
+
+<Facts rows={[
+  ["Binary", <code key="b">caveman-proxy</code>],
+  ["Default listen", <code key="l">127.0.0.1:8787</code>],
+  ["Default mode", <>record for <code key="s">caveman start</code>, a byte-for-byte pass-through; compress for <code key="a">caveman &lt;agent&gt;</code></>],
+  ["Keys", "Yours, read from the environment at request time."],
+  ["Savings basis", <>Always <code>inferred</code>. See <a href="/docs/counting">Numbers and limits</a>.</>],
+]} />
+
+<ProxyPath />
+
+## Three ways in
+
+`caveman claude` is the door for a coding agent. It installs the integration for that host, starts the proxy
+if nothing is listening, then launches the agent with its provider base URL pointed at the proxy.
+
+`caveman start` is the door for your own code. It runs the proxy in the foreground and changes nothing else,
+so the base URL swap above is yours to make.
+
+The same `caveman start` proxy is also the runtime behind the framework middleware. It answers
+`/caveman/v1/middleware/*` for an application that wraps one framework call instead of swapping a base URL,
+which keeps the provider call in your process and sends only the tool results out for compression. See
+[Middleware](/docs/sdk/middleware).
+
+```bash
+caveman start --help
+```
+
+```text
+usage: caveman start [--port 8787] [--host 127.0.0.1] [--config caveman.yaml]
+```
 
 ## What happens to a request
 
-1. The agent sends a provider-shaped HTTP request to loopback.
-2. The proxy matches a [route](/docs/proxy/providers), keeps or resolves the credential, and inspects the body.
-3. If the mode allows it and every gate passes, the engine stores the original bytes and emits a smaller view
-   plus a recovery handle.
-4. The proxy forwards the (possibly smaller) request upstream and streams the provider response back.
-5. A local usage row is written. Token reductions on that row are `inferred`.
+1. The `/w/<slug>` prefix is stripped and kept as the label for this request.
+2. Inbound authentication runs first. With `CAVEMAN_AUTH_TOKEN` set, the request must carry that token in
+   `x-cave-api-key` or `Authorization: Bearer`, and the proxy deletes the header before anything else reads
+   it. Unset, which is the loopback default, every request is accepted.
+3. The path is matched against the mounted provider routes. An unmatched path answers
+   `404 cave_route_not_found`.
+4. The credential is resolved: the one on the request wins, otherwise the provider's environment variable.
+5. The body is read, capped by `CAVE_MAX_REQUEST_BYTES` (33554432 bytes by default). Over the cap answers 413.
+6. The provider adapter inspects the body for model, endpoint and whether the response streams.
+7. The mode decides the bytes. record forwards them untouched, compress runs the engine on eligible blocks
+   and stores the originals, pixel renders allowlisted text to an image. See [Modes](/docs/proxy/modes).
+8. Upstream headers are built from scratch: a fixed allowlist of the caller's headers plus the credential in
+   the header that provider expects.
+9. The request goes upstream. If the provider answers 4xx and the bytes were changed, the proxy retries once
+   with the original bytes and books no saving for that request.
+10. One row lands in `~/.caveman/caveman.db`, labelled `inferred`.
 
-If any transform gate fails, step 3 is skipped and the original body is forwarded. A compression problem
-never becomes a fake success or a client-side parse error. Provider errors still arrive as provider errors.
+In a pinned Claude Code benchmark, wrapping used 33.2 percent fewer provider-reported input tokens across 18
+paired runs, 95 percent interval 14.6 to 48.5. One case regressed 9.9 percent. All exact-answer checks passed.
+That is pinned benchmark evidence, not a measurement of your traffic.
 
-## Build from source
+Those ten steps run before the provider call does, so every request pays the proxy's own time on top of the
+provider's. [Numbers and limits](/docs/counting#latency) has what that costs.
 
-Most people never do this. The CLI installs a signed `caveman-proxy` into `~/.caveman/bin`. If you want the
-binary yourself:
+## What it recorded
+
+After a request has gone through, `caveman stats` reads the local store:
 
 ```bash
-git clone https://github.com/JuliusBrussee/caveman
-cd caveman
-go build -o ./bin/caveman-proxy ./proxy/cmd/caveman-proxy
-ANTHROPIC_API_KEY=… ./bin/caveman-proxy
+caveman stats
 ```
 
-The public repository now includes a container image build and shared-service configuration. `@caveman-ai/cli` is the MIT
-launcher.
+```json
+{
+  "requests": 1,
+  "total_cost_usd": 0,
+  "savings_usd": 0,
+  "token_accounting": {
+    "unavailable": 1
+  },
+  "auth_mode_accounting": {
+    "payg": 1
+  },
+  "compression_tokens_before": 0,
+  "compression_tokens_after": 0,
+  "compression_tokens_saved": 0,
+  "compression_token_count_basis": "unavailable",
+  "cache_bust_requests": 0,
+  "requests_eligible_for_compression": 0,
+  "would_save_tokens": 0,
+  "would_save_usd": null,
+  "basis": "inferred"
+}
+```
 
-## What the numbers mean
+That run was one request in record mode against a fresh store, which is why every compression figure is zero.
+When the installed proxy answers without the `caveman.stats.v1` schema, `caveman stats` prints that older
+output and adds `Detailed stats require an updated proxy: caveman setup --install`.
 
-In a pinned Claude Code benchmark, the wrap path used 33.2 percent fewer provider-reported input tokens
-across 18 paired runs of six cases. The case-clustered 95 percent interval is 14.6 to 48.5 percent. All 18
-exact-answer checks passed. One case regressed by 9.9 percent and stays in the aggregate. That is controlled
-benchmark evidence on a pinned agent build, not production traffic and not `verified`.
-
-Local rows the proxy writes after your own sessions stay `inferred`. They are never multiplied into a
-monthly figure and never converted to money.
-
-## What it will not do
-
-It will not accept a non-loopback bind without a valid inbound token. Shared-secret authentication does not create per-user permissions or tenant isolation. See [Shared proxy](/docs/proxy/shared).
-
-It will not log authorization headers, put API keys in YAML, or emit `verified`.
-
-It will not replace your agent. Claude Code still owns its UI, permissions, and model calls. The proxy
-owns the hop between that agent and the provider.
-
-It will not compress when the recovery store cannot accept the original. No store, no lossy transform.
-
-## Running it
+## Where next
 
 <CardGrid>
-  <Card href="/docs/proxy/wrap" title="Wrap an agent">
-    Launch a coding agent through the local listener.
-  </Card>
-  <Card href="/docs/proxy/providers" title="Providers">
-    Routes, credentials, and compatibility mounts.
+  <Card href="/docs/proxy/wrap" title="Wrap an agent" meta="1 command">
+    The agents `caveman <agent>` can launch, and what it writes.
   </Card>
   <Card href="/docs/proxy/modes" title="Modes">
-    Record, compress, pixel, and the evaluation modes.
+    record, compress, pixel, and how to tell which one ran.
   </Card>
   <Card href="/docs/proxy/configure" title="Configure">
-    Feature flags, caveman.yaml, and local storage.
+    Every `caveman.yaml` field, every environment variable, and what is on disk.
+  </Card>
+  <Card href="/docs/proxy/providers" title="Providers and base URLs">
+    Every mounted route and the swap for each official SDK.
+  </Card>
+  <Card href="/docs/proxy/litellm" title="LiteLLM">
+    In front of LiteLLM, behind it, or as a callback.
+  </Card>
+  <Card href="/docs/proxy/engine" title="The engine">
+    What compress mode runs: detection, the compressor for each content type, and the handle.
+  </Card>
+  <Card href="/docs/proxy/shared" title="Shared proxy">
+    One proxy for a team, with a token and server-side keys.
   </Card>
   <Card href="/docs/proxy/security" title="Security">
-    Loopback, BYOK, and what stays on disk.
-  </Card>
-</CardGrid>
-
-## What it does to your bytes
-
-<CardGrid>
-  <Card href="/docs/proxy/engine" title="The engine">
-    The compressor the proxy calls, and the standalone binary behind it.
-  </Card>
-  <Card href="/docs/proxy/compressors" title="Compressors">
-    One router per content shape: JSON, logs, code, diffs, search results, prose.
-  </Card>
-  <Card href="/docs/proxy/recoverable" title="Recoverable compression">
-    Why lossy stays honest: every removed byte can be fetched back.
-  </Card>
-  <Card href="/docs/proxy/tokens" title="Token counting">
-    The offline counter behind every ratio the proxy reports.
+    What is on disk, what is never logged, and how to delete it.
   </Card>
 </CardGrid>

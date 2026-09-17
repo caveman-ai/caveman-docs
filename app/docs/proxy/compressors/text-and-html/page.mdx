@@ -1,0 +1,220 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/text-and-html");
+
+<DocSchema slug="proxy/compressors/text-and-html" />
+
+Two compressors share this page. The HTML one extracts the main article from a page and drops the navigation,
+sidebars, scripts and styles around it. The text one is the fallback route for any payload the other detectors decline: it splits prose into sections, keeps the headings, the opening and closing sections and the ones
+marked important, and folds the rest into a marker.
+
+## Before and after, HTML
+
+The fixture is a 100-line page, 8,294 bytes: a 25-link nav, a 30-paragraph article, a 20-link sidebar, a footer,
+an inline script and an inline style block.
+
+```html
+<body>
+  <nav class="site-nav">
+    <ul>
+      <li><a href="/docs/page-00">Reference page 00</a></li>
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/text-and-html/article.html
+caveman-engine compress < article.html 2> report.json
+```
+
+The output is 60 lines of plain text. Its first lines:
+
+```text
+Retry budgets in practice
+
+Paragraph 0: the retry budget absorbs a burst of 100 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.
+
+Paragraph 1: the retry budget absorbs a burst of 109 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.
+```
+
+The report on stderr, with the per-run digests and the handle trimmed to `…`:
+
+```json
+{"content_type":"html","tokens_before":2420,"tokens_after":1115,"ratio":0.5392561983471075,
+ "basis":"inferred","recovery_handle":"ccr_9c51…","method":"html"}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+2,420 tokens to 1,115, counted by the offline `o200k_base` counter behind [Token counting](/docs/proxy/tokens).
+Every paragraph of the article survived. What went was the markup, the two link lists and the footer.
+
+## Before and after, text
+
+The fixture is a 134-line Markdown postmortem, 7,942 bytes: three headings, 60 timeline and impact paragraphs,
+two paragraphs carrying words the compressor treats as important.
+
+```markdown
+# Postmortem: checkout latency, 4 March 2026
+
+Checkout p99 latency rose from 240 ms to 3.1 s for 42 minutes. No orders were lost.
+
+## Timeline
+
+At 09:12, the billing service reported a queue depth of 120 items and the retry budget absorbed the backlog without shedding requests.
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/text-and-html/postmortem.md
+caveman-engine compress < postmortem.md 2> report.json
+```
+
+The whole output:
+
+```markdown
+# Postmortem: checkout latency, 4 March 2026
+
+Checkout p99 latency rose from 240 ms to 3.1 s for 42 minutes. No orders were lost.
+
+## Timeline
+
+At 09:12, the billing service reported a queue depth of 120 items and the retry budget absorbed the backlog without shedding requests.
+
+… 39 sections elided (caveman) …
+
+## Impact
+
+IMPORTANT Every affected request eventually completed. The payment gateway retried twice and the second attempt succeeded in all but three cases.
+
+Region eu-west-1 saw 200 slow requests during the window, all of which returned a 200 after the retry.
+
+… 19 sections elided (caveman) …
+
+## Decision
+
+DECISION Raise the connection pool from 40 to 120 and alert on queue depth above 400.
+```
+
+```json
+{"content_type":"text","tokens_before":1714,"tokens_after":171,"ratio":0.9002333722287048,
+ "basis":"inferred","recovery_handle":"ccr_7883…","method":"text"}
+```
+
+1,714 tokens to 171 on this fixture. The ratio depends on how much of the prose repeats: the redundancy guard
+below keeps one copy of each distinct section, so a document of 60 distinct paragraphs folds far less than this
+one, which repeats a sentence shape 60 times.
+
+## How the HTML extractor works
+
+The document is parsed with the pure-Go `net/html` parser, so this compressor behaves the same in the cgo and
+WASM builds. A parse failure, or a document with no `body`, ends the transform and the original bytes go through.
+
+<Steps>
+<div>
+Noise elements are removed outright: `script`, `style`, `noscript`, `svg`, `iframe`, `form`, `button`, `input`
+and `template`.
+</div>
+
+<div>
+Each block of text scores. A `p`, `pre`, `td`, `blockquote`, `li` or heading holding at least 25 characters of
+text contributes `1 + commas + min(length / 100, 3)` points.
+</div>
+
+<div>
+Those points go to every container ancestor: `div`, `article`, `main`, `section`, `td`. Crediting all of them,
+rather than the nearest one, is what keeps a multi-section article whole instead of truncating it to its best
+section. The `body` element is never credited.
+</div>
+
+<div>
+Each container is credited once for its own class and id: 25 points for a name matching
+`article|body|content|entry|main|page|post|story|text|blog`, minus 25 for a name matching
+`comment|nav|sidebar|footer|header|menu|promo|banner|ad-|share|social|related|breadcrumb|cookie|popup|modal|widget`.
+</div>
+
+<div>
+The winner is the highest score after a link-density discount, `score × (text − anchor text) / text`, taken in
+document order so a tie always resolves to the first candidate.
+</div>
+</Steps>
+
+The extractor then refuses three results: a winner that is the `body` itself, a winner where anchor text is at
+least half the text, and an extraction under 200 bytes. In each case the original bytes go through.
+
+The winning subtree is rendered to plain text. Block elements become line breaks and inline elements become a
+space, so `fifty` and `dollars` in adjacent tags stay two words. A `pre` element is captured verbatim and
+protected from the whitespace collapse that runs over everything else.
+
+## How the text compressor works
+
+Input under 1,600 bytes after trimming, and input that is not valid UTF-8, are reported as a parse problem and
+the caller forwards the original bytes.
+
+A payload that starts with a document declaration or contains a `body` tag has its script, style and svg elements
+replaced by a marker and its comments removed first. That is the path an HTML page takes when it reaches this
+compressor rather than the extractor.
+
+The text is then cut into sections. A blank line ends a section when the document has blank lines at all;
+otherwise every line is its own section. A fenced code block is always one section however many blank lines it
+contains, which is what stops a pasted function coming back with lines missing. An unterminated fence makes the
+rest of the document one section.
+
+A payload with no more than 6 sections is passed through. Otherwise each section is marked keep or drop:
+
+- The first 2 and the last 2 sections.
+- Any heading. A section counts as a heading when it starts with `#`, or when it is at most 96 characters, has at
+  most 8 words, and contains no `.`, `!` or `?`.
+- Any section matching `ERROR|WARNING|IMPORTANT|NOTE|ACTION|FOLLOWUP|SECURITY|SUMMARY|CONCLUSION|DECISION|RECOMMENDATION`
+  at a word boundary, case insensitive.
+- Markers from an earlier pass.
+- When a query is supplied, up to 12 sections scoring at least 0.30 of the best deterministic BM25 score.
+- One representative of every distinct kind of section, from the shared redundancy guard. Each section is
+  reduced to its set of words with digit runs masked to `#`, and a section counts as represented when 90 percent
+  of that vocabulary appears in one surviving section. After 128 promotions the payload is treated as a document
+  and the rest is kept, which leaves the output no smaller and sends the original through. When the masking
+  applies, and how many kept sections a dropped one is compared against, are on
+  [Compressors](/docs/proxy/compressors#what-every-compressor-guarantees).
+
+Kept sections are written back with one blank line between them, and each run of dropped sections becomes
+`… N sections elided (caveman) …`.
+
+## What is always kept
+
+From HTML: every paragraph, list item, table cell, heading and `pre` block of the winning container, as text.
+From the text compressor: the first two and last two sections, every heading, every section carrying one of the
+important words, one representative of every distinct kind of section, and every fenced code block that survives
+as a whole unit.
+
+## When it is chosen
+
+A payload beginning with `<!doctype html` or `<html` is HTML outright. A fragment is HTML when it holds a `body`, `article`, `main`, `div` or `p` container and at least 6 `<`
+characters, and when it carries no source-code structure. That last test is what keeps JSX, TSX and a source file
+with markup in a string literal on the code route: an arrow function, `className=`, a `});` sequence, or a
+leading or embedded `import `, `export `, `package `, `func `, `def `, `class `, `const `, `#include`, `#!`, `//`
+or `/*` all mark the payload as code.
+
+```bash
+caveman-engine detect < article.html
+caveman-engine detect < postmortem.md
+```
+
+```text
+html
+text
+```
+
+`text` is the fallback: a payload reaches it when every other test has declined, and empty input is `text` as
+well. See [how detection decides](/docs/proxy/compressors#how-detection-decides) for the full order.
+
+The HTML extractor declines on a parse failure, a missing `body`, a winner it cannot localise, a link-dense
+winner, an extraction under 200 bytes, and an extraction no shorter than the input. The text compressor declines
+under 1,600 bytes, on 6 sections or fewer, and when no section is dropped. Either way the engine forwards the
+original bytes and reports ratio 0.
+
+## Options
+
+A query, when the caller supplies one, adds up to 12 relevance-selected sections to the text compressor. An empty
+query behaves exactly like a queryless run. The HTML extractor takes no query: it keeps the whole article it found.
+
+## Recovery
+
+The original bytes, markup included, are stored before the compressed view is emitted, and the handle in the
+report retrieves them: see [Recovery](/docs/proxy/recoverable).

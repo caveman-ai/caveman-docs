@@ -1,0 +1,131 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/diff");
+
+<DocSchema slug="proxy/compressors/diff" />
+
+The diff compressor keeps every file header, every hunk header and every added or removed line, with two lines of
+unchanged context on each side, and folds the rest of the context into a marker. A unified diff generated with
+wide context arrives at the model as the same change with less padding around it.
+
+## Before and after
+
+The fixture is `git diff -U20` over a 200-line file with two changed lines: 90 lines of diff, most of it context.
+
+```diff
+diff --git a/server.py b/server.py
+index 4db1cbb..9c81f9b 100644
+--- a/server.py
++++ b/server.py
+@@ -21,41 +21,41 @@
+     handler_020 = build_handler(20)
+     handler_021 = build_handler(21)
+     handler_022 = build_handler(22)
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/diff/change.diff
+caveman-engine compress < change.diff 2> report.json
+```
+
+The whole output, 28 lines:
+
+```diff
+diff --git a/server.py b/server.py
+index 4db1cbb..9c81f9b 100644
+--- a/server.py
++++ b/server.py
+@@ -21,41 +21,41 @@
+     handler_020 = build_handler(20)
+     handler_021 = build_handler(21)
+… 16 context lines elided (caveman) …
+     handler_038 = build_handler(38)
+     handler_039 = build_handler(39)
+-    handler_040 = build_handler(40)
++    handler_040 = build_handler(40, retries=3)
+     handler_041 = build_handler(41)
+     handler_042 = build_handler(42)
+… 16 context lines elided (caveman) …
+     handler_059 = build_handler(59)
+     handler_060 = build_handler(60)
+@@ -101,41 +101,41 @@
+     handler_100 = build_handler(100)
+     handler_101 = build_handler(101)
+… 16 context lines elided (caveman) …
+     handler_118 = build_handler(118)
+     handler_119 = build_handler(119)
+-    handler_120 = build_handler(120)
++    handler_120 = build_handler(120, timeout=45)
+     handler_121 = build_handler(121)
+     handler_122 = build_handler(122)
+… 18 context lines elided (caveman) …
+```
+
+The report on stderr, with the per-run digests and the handle trimmed to `…`:
+
+```json
+{"content_type":"diff","tokens_before":912,"tokens_after":304,"ratio":0.6666666666666666,
+ "basis":"inferred","recovery_handle":"ccr_5e6a…","method":"diff"}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+912 tokens to 304, counted by the offline `o200k_base` counter behind [Token counting](/docs/proxy/tokens).
+
+## How it works
+
+Input that is not valid UTF-8 is reported as a parse problem and the caller forwards the original bytes. So is
+anything under 12 lines. Lines are split on LF with each line keeping its own CR, so a file with mixed endings
+rejoins byte for byte, and a marker takes the ending the majority of the file uses.
+
+A line is structural when it starts with `diff --git `, `index `, `--- `, `+++ `, `@@ `, or when its first byte is
+`+` or `-`. Each structural line is kept along with the 2 lines before it and the 2 lines after it. A marker from
+an earlier pass is structural too, which keeps a second pass identical to the first.
+
+A change line is any line whose first byte is `+` or `-`, with no further test. A single `+` or `-` is how git
+renders an added or removed blank line and counts as a change, and so does a change whose own content starts with
+a dash, such as a removed YAML list item or a removed Markdown rule. The file headers are already matched by
+their prefixes, so no test is needed that would also swallow those lines.
+
+Everything else is context. Each run of dropped context lines becomes one line,
+`… N context lines elided (caveman) …`, written where the run was. The count is of context lines only, which is
+what the marker says.
+
+Every line kept is written unchanged, in order, so the diff can still be read as a diff.
+
+## What is always kept
+
+Every `diff --git` line, every `index` line, every `---` and `+++` file header, every `@@` hunk header, every
+added and removed line, and two unchanged lines on each side of each of them. Markers from an earlier pass.
+
+## When it is chosen
+
+Detection calls a payload `diff` in two steps. The literal bytes must carry a structural marker: a line starting
+`@@ `, or `diff --git `, or both a `--- ` line and a `+++ ` line. Then a pattern over line starts must match at
+least 4 times: `diff --git `, `@@ `, `--- `, `+++ `, or a `+`/`-` whose next byte is neither `+` nor `-`.
+
+```bash
+caveman-engine detect < change.diff
+```
+
+```text
+diff
+```
+
+See [how detection decides](/docs/proxy/compressors#how-detection-decides) for where this test sits among
+the others.
+
+It declines, and the engine forwards the original bytes, on invalid UTF-8, on a diff under 12 lines, when the
+context runs are short enough that no line is dropped, and when the result counts no fewer tokens than the input.
+A diff generated with the default three lines of context has little to fold, so it often passes through with
+ratio 0.
+
+## Options
+
+None. `NewDiff` fixes the floor at 12 lines and the context window at 2 lines on each side, and there is no query
+path.
+
+## Recovery
+
+The original bytes are stored before the compressed view is emitted, and the handle in the report retrieves them:
+see [Recovery](/docs/proxy/recoverable).

@@ -4,123 +4,161 @@ export const metadata = docMetadata("sdk/tools");
 
 <DocSchema slug="sdk/tools" />
 
-Deferred tools let your application begin with a small tool catalog and ask a compatible service for relevant tools later. The SDK selects descriptors; your application still converts them into provider schemas, validates arguments, and executes tools. Examples assume your quickstart's `cave` client.
+`cave.tools()` splits a tool catalog in two: a small set whose schemas you send on the first turn, and the rest, which stay on your side until the model needs them. `search()` asks your configured service which tools match the user's current intent and returns that shorter list, along with the schema tokens it sent and the schema tokens the full catalog would have cost.
 
-## Define and search a catalog
+### TypeScript
 
 ```ts
-import type { CaveTool } from "@caveman-ai/sdk";
+import { Cave } from "@caveman-ai/sdk";
 
-const catalog: CaveTool[] = [{
-  name: "lookup_status",
-  description: "Look up the current service status",
-  inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  readOnly: true,
-  idempotent: true,
-  handler: () => ({ status: "ok" }),
-}];
-const tools = cave.tools({ catalog, strategy: "deferred", initialToolCount: 0 });
-const selected = await tools.search("check service status", { maxTools: 1 });
-console.log(selected.tools.map(tool => tool.name), selected.sessionId);
+const { CAVE_API_KEY = "", CAVE_BASE_URL = "" } = process.env;
+const cave = new Cave({ apiKey: CAVE_API_KEY, baseURL: CAVE_BASE_URL, agent: "support-agent" });
+
+const catalog = [
+  { name: "search_docs", description: "Search the handbook", inputSchema: { type: "object" }, handler: () => {}, readOnly: true, idempotent: true, alwaysLoad: true },
+  { name: "create_ticket", description: "Open a support ticket", inputSchema: { type: "object" }, handler: () => {}, readOnly: false, idempotent: false },
+  { name: "refund_order", description: "Refund an order", inputSchema: { type: "object" }, handler: () => {}, readOnly: false, idempotent: false },
+];
+
+const tools = cave.tools({ catalog, strategy: "deferred", initialToolCount: 1 });
+console.log(tools.strategy, tools.initial.map((t) => t.name));
+```
+
+```console
+deferred [ 'search_docs', 'create_ticket' ]
+```
+
+### Python
+
+```python
+import os
+from caveman_cloud import Cave, CaveTool
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], base_url=os.environ["CAVE_BASE_URL"], agent="support-agent")
+
+catalog = [
+    CaveTool("search_docs", "Search the handbook", {"type": "object"}, read_only=True, idempotent=True, always_load=True),
+    CaveTool("create_ticket", "Open a support ticket", {"type": "object"}),
+    CaveTool("refund_order", "Refund an order", {"type": "object"}),
+]
+
+handle = cave.tools(catalog, strategy="deferred", initial_tool_count=1)
+print(handle.strategy, [t.name for t in handle.initial])
+```
+
+```console
+deferred ['search_docs', 'create_ticket']
+```
+
+Splitting the catalog is local: it reads your array and returns a handle. `search()`, below, is the part that goes to your service.
+
+## A tool
+
+| TypeScript | Python | Meaning |
+| --- | --- | --- |
+| `name` | `name` | The name the model calls |
+| `description` | `description` | What the ranker reads |
+| `inputSchema` | `input_schema` | JSON Schema for the arguments |
+| `readOnly` | `read_only` | The call reads rather than writes |
+| `idempotent` | `idempotent` | Calling twice has the effect of calling once |
+| `alwaysLoad` | `always_load` | Send this schema on the first turn under `deferred` |
+| `handler`, `tags` | | TypeScript only, kept local and never sent |
+
+`readOnly` and `idempotent` are required fields in TypeScript. In Python they default to `False`, as does `always_load`.
+
+## Which tools you start with
+
+`strategy` decides what `initial` holds. Under `"all"`, the default, `initial` is the whole catalog. Under `"deferred"`, `initial` is every `alwaysLoad` tool plus the first `initialToolCount` of the others, in catalog order. `initialToolCount` defaults to 8.
+
+`maxLoadedTools` caps the initial set and becomes the default `maxTools` for `search()`. A cap below the number of `alwaysLoad` tools raises `maxLoadedTools must be at least the alwaysLoad tool count`, since those schemas are going out either way.
+
+The example above used `initialToolCount: 1` with one `alwaysLoad` tool, which is why `initial` holds `search_docs` and `create_ticket` while `refund_order` waits.
+
+`search()` always posts the full catalog, whatever `initial` holds. The ranking happens on your service, and both SDKs forward the `ranker` option verbatim: `"bm25"` is the default and `"embeddings"` applies when your service has an embedding provider configured.
+
+## What search returns
+
+`search()` posts the catalog to your configured service and returns the shorter list it ranked. It needs that service reachable, so run these two against `CAVE_BASE_URL`, not against a local proxy.
+
+```ts
+const found = await tools.search("customer wants their money back");
+console.log(found.tools.map((t) => t.name), found.sentSchemaTokens, found.fullSchemaTokens, found.reductionPct);
 ```
 
 ```python
-from caveman_cloud import CaveTool
-
-catalog = [CaveTool(
-    name="lookup_status",
-    description="Look up the current service status",
-    input_schema={"type": "object", "properties": {}, "additionalProperties": False},
-    read_only=True,
-    idempotent=True,
-)]
-handlers = {"lookup_status": lambda: {"status": "ok"}}
-tools = cave.tools(catalog, strategy="deferred", initial_tool_count=0)
-selected = tools.search("check service status", max_tools=1)
-# Search returns wire dictionaries, not CaveTool instances.
-by_name = {tool.name: tool for tool in catalog}
-selected_names = [item["name"] for item in selected.tools]
-if len(selected_names) != len(set(selected_names)) or any(name not in by_name for name in selected_names):
-    raise ValueError("Search returned unknown or duplicate tools")
-selected_tools = [by_name[name] for name in selected_names]
-print(selected_names, selected.session_id)
+found = handle.search("customer wants their money back")
+print([t["name"] for t in found.tools], found.sent_schema_tokens, found.full_schema_tokens, found.reduction_pct)
 ```
 
-TypeScript descriptors include a local `handler`. Search sends schema metadata, not executable handler code, and reattaches selected descriptors from the local catalog. Python's `CaveTool` has no handler field, and search returns wire dictionaries. Validate returned names against your local catalog, then recover your own descriptors and handlers as shown above. Tool names must be unique and nonempty.
+`search()` is `async` in TypeScript from version 1.1.0 and must be awaited. It was synchronous in 1.0 and returned a plain array. The Python `search()` is synchronous, like the rest of that client.
 
-## Initial selection and limits
+With nothing listening on `baseURL`, the `search()` call itself throws before anything prints: `TypeError: fetch failed` from undici in TypeScript, `urllib.error.URLError: <urlopen error [Errno 61] Connection refused>` in Python.
 
-| Option | Behavior |
-| --- | --- |
-| `strategy: "all"` / `strategy="all"` | Default. Initial tools are the full catalog. |
-| `strategy: "deferred"` | Include every `alwaysLoad` / `always_load` tool, plus an initial subset of other tools. |
-| `initialToolCount` / `initial_tool_count` | Number of additional non-mandatory initial tools; default 8. |
-| `maxLoadedTools` / `max_loaded_tools` | Optional cap for deferred initial selection and default search cap. Must accommodate all mandatory tools. |
-| Search `maxTools` / `max_tools` | Explicit search cap, overriding the handle's default. |
+| TypeScript | Python | Meaning |
+| --- | --- | --- |
+| `tools` | `tools` | The reduced list for this query |
+| `sentSchemaTokens` | `sent_schema_tokens` | Estimated tokens for the schemas actually sent |
+| `fullSchemaTokens` | `full_schema_tokens` | Estimated tokens had the whole catalog gone out |
+| `savedTokens` | `saved_tokens` | The difference between the two |
+| `reductionPct` | `reduction_pct` | That difference as a percentage, one decimal place |
+| `deferredCount` | `deferred_count` | How many schemas stayed behind |
+| `method` | `method` | The ranking method your service used |
+| `tokenBasis` | `token_basis` | How both schema-token figures were counted |
+| `basis` | `basis` | Always `"inferred"` |
+| `sessionId` | `session_id` | Tool-session id for reinjection on the next provider call |
 
-Creating the handle is local. Every `search()` call sends the full catalog to the service, even with strategy `all`. `ranker` accepts `bm25` or `embeddings`; the latter requires service support. The SDK does not compute embeddings itself.
+`savedTokens` and `reductionPct` compare against a catalog that was never sent, so `basis` is `"inferred"` and stays that way. [Numbers and limits](/docs/counting) has the vocabulary.
 
-## Pass selected tools to a provider
+The two clients hand back `tools` differently. TypeScript resolves each returned name against your local catalog and gives you your own `CaveTool` objects, with `handler` attached, throwing `tool search response contained an unknown or duplicate tool` if a name does not resolve. Python returns the response entries as dictionaries, so you look the handler up yourself by `entry["name"]`.
 
-Continue after the catalog example:
+## The loop
+
+A deferred catalog needs the caller to load tools as the conversation moves. The shape is the same in both languages:
 
 ```ts
-const toolResponse = await cave.openai().responses.create({
-  model: process.env.CAVE_MODEL!,
-  input: "Check service status.",
-  tools: selected.tools.map(tool => ({
-    type: "function", name: tool.name, description: tool.description,
-    parameters: tool.inputSchema,
-  })),
-}, { cave: { toolSessionId: selected.sessionId } });
-console.log(toolResponse);
-```
+let loaded = tools.initial;
+let toolSessionId;
 
-```python
-tool_response = cave.openai().responses.create({
-    "model": os.environ["CAVE_MODEL"],
-    "input": "Check service status.",
-    "tools": [{
-        "type": "function", "name": tool.name, "description": tool.description,
-        "parameters": tool.input_schema,
-    } for tool in selected_tools],
-}, tool_session_id=selected.session_id)
-print(tool_response)
-```
+for (const turn of conversation) {
+  const found = await tools.search(turn.text, { maxTools: 4 });
+  toolSessionId = found.sessionId ?? toolSessionId;
+  loaded = [...new Map([...loaded, ...found.tools].map((t) => [t.name, t])).values()];
 
-These calls assume your service already has provider access; pass an upstream key if required. Persist the returned session ID for later search/provider calls belonging to the same tool session. The session hint does not execute a returned function call. Your existing tool loop must dispatch it and send its result back to the model.
-
-## Inspect search results
-
-The result includes selected `tools`, optional `sessionId` / `session_id`, `method`, `deferredCount` / `deferred_count`, and full/sent schema-token estimates. `savedTokens` / `saved_tokens` subtracts sent from full; `reductionPct` / `reduction_pct` expresses the reduction as a percentage. `tokenBasis` / `token_basis` identifies the counter and `basis` is `inferred`.
-
-Search failures raise errors rather than returning an invented empty match. Choose an application fallback, such as the original catalog if it fits your budget. A fallback that exceeds the model window is not safe merely because it includes more tools.
-
-## Stop identical tool loops
-
-```ts
-import { RetryLoopError } from "@caveman-ai/sdk";
-
-const breaker = cave.retryLoopBreaker(3);
-try {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await breaker.guard("lookup_status", {}, () => ({ status: "ok" }));
-  }
-} catch (error) {
-  if (!(error instanceof RetryLoopError)) throw error;
-  console.log("Stopped repeated tool calls", error.repeats);
+  const reply = await cave.openai().responses.create(
+    { model: "gpt-5", input: turn.text, tools: loaded.map(({ name, description, inputSchema }) => ({ name, description, parameters: inputSchema })) },
+    { cave: { toolSessionId } },
+  );
+  console.log(reply);
 }
 ```
 
 ```python
-from caveman_cloud import RetryLoopError
+by_name = {t.name: t for t in catalog}
+loaded = {t.name: t for t in handle.initial}
+tool_session_id = None
 
-breaker = cave.retry_loop_breaker(3)
-try:
-    for attempt in range(4):
-        breaker.guard("lookup_status", {}, handlers["lookup_status"])
-except RetryLoopError as error:
-    print("Stopped repeated tool calls", error.repeats)
+for turn in conversation:
+    found = handle.search(turn, max_tools=4)
+    tool_session_id = found.session_id or tool_session_id
+    for entry in found.tools:
+        loaded[entry["name"]] = by_name[entry["name"]]
+
+    reply = cave.openai().responses.create(
+        {"model": "gpt-5", "input": turn,
+         "tools": [{"name": t.name, "description": t.description, "parameters": t.input_schema} for t in loaded.values()]},
+        tool_session_id=tool_session_id,
+    )
+    print(reply)
 ```
 
-Threshold 3 allows three identical consecutive calls and blocks the fourth before invoking its callback. A different name or arguments resets the streak; `reset()` clears it explicitly. Use one breaker per logical loop. This is not a retry policy, a rate limit, or a detector for longer cycles of different calls.
+`sessionId` comes back when your service kept a tool session for the query. Passing it on the next provider call sends the `x-cave-tool-session` header, which lets the service reinject the schemas it already ranked for this conversation.
+
+Your code still executes the tool calls. The SDK ranks and counts schemas; running a tool and feeding the result back is your loop's job.
+
+## Limits
+
+`search()` is a network call to your configured service, on the request path, before the provider call. A failure throws rather than passing through. A reply outside 2xx gives `tool search failed with HTTP <status>` in TypeScript and `urllib.error.HTTPError` in Python; a connection that never completes gives `TypeError: fetch failed` and `urllib.error.URLError`. Catch both and fall back to the tool set you already had.
+
+Catalog names must be unique and non-empty. TypeScript checks this while mapping the response and throws `tool catalog names must be non-empty and unique`.
+
+`maxTools` must be a positive integer in both languages, and `initialToolCount` a non-negative one.

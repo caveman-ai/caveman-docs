@@ -1,0 +1,146 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/repetition");
+
+<DocSchema slug="proxy/compressors/repetition" />
+
+The repetition compressor collapses a run of consecutive byte-identical lines to the first line plus a marker
+saying how many more there were. It changes nothing else: distinct lines keep their order and their bytes, and a
+line that only repeats once or twice is left alone.
+
+It is never picked by detection. A caller names the type.
+
+## Before and after
+
+The fixture is a 49 line test run: three identical `PASSED` lines, a 28 line pool warning, a real failure, and a
+12 line teardown retry loop.
+
+```text
+$ pytest -q tests/
+collecting ... done
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_refund PASSED
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/repetition/pytest.log
+caveman-engine compress --type repetition < pytest.log 2> report.json
+```
+
+Stdout is the whole compressed run, 12 lines. This is all of it.
+
+```text
+$ pytest -q tests/
+collecting ... done
+tests/test_orders.py::test_create PASSED
+… caveman: 2 identical lines elided …
+tests/test_orders.py::test_refund PASSED
+WARNING  sqlalchemy.pool: connection re-established after timeout
+… caveman: 27 identical lines elided …
+tests/test_ledger.py::test_balance FAILED
+E   AssertionError: expected 1200, got 1199
+retrying ledger fixture teardown ...
+… caveman: 11 identical lines elided …
+1 failed, 2 passed in 4.81s
+```
+
+```json
+{"content_type":"repetition","tokens_before":470,"tokens_after":120,"ratio":0.7446808510638298,
+ "basis":"inferred","recovery_handle":"ccr_dfe6…","method":"repetition","lossless_to_model":false}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+470 tokens to 120, counted by the offline `o200k_base` counter described on
+[Token counting](/docs/proxy/tokens). The handle is trimmed with `…` because it varies per run.
+
+The marker counts the lines it replaced, not the length of the run. Three identical lines leave one line plus
+`2 identical lines elided`, so the arithmetic reads straight: one shown, two gone, three in the file.
+
+## How it works
+
+The whole algorithm is one sequential scan, and it fits in a paragraph.
+
+<Steps>
+<div>
+Refuse inputs under 200 bytes, and refuse anything that is not valid UTF-8.
+</div>
+
+<div>
+Split on `\n`. Walk the lines. At index `i`, advance `j` while `lines[j]` equals `lines[i]` byte for byte. The run
+length is `j - i`.
+</div>
+
+<div>
+Always write `lines[i]`. Then, when the run length is at least 3, the line has at least one non-whitespace
+character, and the line does not already start with `… caveman: `, write one marker line
+`… caveman: <runLength-1> identical lines elided …` and drop the rest of the run. Otherwise write the rest of the
+run out verbatim.
+</div>
+
+<div>
+Continue from `j`.
+</div>
+
+<div>
+Report a parse problem when no run was collapsed, or when the joined result is no shorter in bytes than the input.
+In either case the caller forwards the original bytes and nothing is claimed.
+</div>
+</Steps>
+
+Two properties fall out of that shape. It is deterministic, because the scan depends only on the bytes. It is
+idempotent, because its own marker line is excluded from collapsing, so a second pass over the output either
+returns the same bytes or reports nothing to do.
+
+The three constants are the run floor of 3 identical lines, the size floor of 200 bytes, and the marker prefix
+`… caveman: `, which is what re-entry is detected on.
+
+## What is always kept
+
+The first line of every run. Every line that is not part of a collapsed run, in its original order and bytes. The
+count of what went, on every marker. Blank-line runs, which are never collapsed because collapsing them would not
+reliably shrink the token count.
+
+## When it is chosen
+
+Detection never returns `repetition`. Adjacent identical lines say nothing about what a payload means, so run
+length alone is not allowed to claim a payload from the compressor that understands its shape. The fixture above
+detects as `log`:
+
+```bash
+caveman-engine detect < pytest.log
+```
+
+```text
+log
+```
+
+Naming the type is the only way in: `caveman-engine compress --type repetition`. In the engine capability registry
+it is `caveman.engine.repetition.v1`, and its eligible segment kinds are `history` and `tool_result` only, where
+every other content compressor also lists `artifact` and `skill`.
+
+```bash
+caveman-engine registry
+```
+
+It declines, and the bytes go through unchanged, on an input under 200 bytes, on invalid UTF-8, when no run
+reached 3 identical lines, when the markers did not actually shrink the payload, and when no recovery store is
+available.
+
+<Note title="Runs have to be adjacent">
+Only consecutive identical lines collapse. The same line appearing at the top and the bottom of a file, with other
+lines between, is two runs of one and neither is touched.
+</Note>
+
+## Options
+
+None. `NewRepetition` fixes the run floor at 3 and the size floor at 200 bytes, and there is no query path.
+
+## Recovery
+
+The original lines are stored before the collapsed view is emitted, and the handle in the report retrieves them
+byte for byte: see [Recovery](/docs/proxy/recoverable).

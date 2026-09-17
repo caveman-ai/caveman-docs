@@ -1,0 +1,116 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("trial");
+
+<DocSchema slug="trial" />
+
+`caveman trial` runs one real agent session through a proxy of its own, records what went over the wire, and turns it into a report you can read afterwards. It is the measurement that uses your work rather than someone else's benchmark.
+
+## Run one
+
+```bash
+caveman disable claude
+caveman trial -- claude
+caveman enable claude
+```
+
+Do the task you would have done anyway. When the agent exits, the trial finishes, analyses itself, and prints its report.
+
+Anything after `--` is the command. An agent id from the [wrap list](/docs/skill/profiles#the-wrap-list) is resolved to its binary and its profile arguments; anything else is run as given.
+
+```bash
+caveman trial -- codex
+caveman trial --trial-id may-refactor -- claude
+```
+
+Without a `--`, it prints its own usage:
+
+```text
+usage: caveman trial [--learn] -- <agent> [args...]
+       caveman trial report [--html] [--json] [--trial-id <id>]
+```
+
+## Why disable comes first
+
+A trial stands up its own proxy, on a free port, under a `trial:<id>` label, and points the child at it through the environment. Persistent routing from `caveman enable` pins the base URL inside the agent's own config file, and an agent reads its config in preference to its environment. The agent would keep talking to the persistent listener, the trial would capture nothing, and the report would render every number as zero.
+
+So the trial refuses up front, before it opens a trial row:
+
+```text
+caveman trial cannot measure claude while native routing is enabled.
+
+  …/.claude/settings.json
+  pins the base URL to …
+
+A trial runs its own proxy on its own port and points the agent at it through
+the environment. That config file wins, so the agent would keep talking to the
+persistent listener, the trial would capture nothing, and the report would say
+zero requests and $0.0000 — which reads as a measurement rather than as silence.
+
+Turn native routing off for the duration of the trial, then put it back:
+  caveman disable claude
+  caveman trial -- claude
+  caveman enable claude
+```
+
+The message shape comes from the source; the file path and the route are your machine's.
+
+`caveman enable claude` afterwards restores routing from the integration journal, which is the same journal `caveman disable` wrote your previous values into.
+
+## Read the report
+
+```bash
+caveman trial report
+```
+
+That writes an offline HTML report to `~/.caveman/reports/caveman-trial-<trial-id>.html` and prints where it went. With no trials recorded yet it says so rather than rendering an empty page:
+
+```json
+{"time":"2026-09-16T16:18:53-07:00","level":"ERROR","msg":"command failed","error":"no trial_id supplied and no trial runs exist"}
+```
+
+`--json` prints the plan instead of writing HTML. No trial output is reproduced on this page, because a trial has to run a real agent session against a provider to produce one. The document is `caveman.trial.v1` and carries:
+
+| Field | What is in it |
+|---|---|
+| `window` | `from` and `to` for the recorded session |
+| `headline` | `requests`, `input_tokens`, `output_tokens`, `total_cost_usd`, `estimated_savings_usd` |
+| `origins` | One row per source, agent, provider and model, with requests, input tokens, cost and basis |
+| `quota_snapshots` | Provider, plan type, window, percent used and reset time, where the provider reports them |
+| `moves` | Candidate optimizations: `optimizer_id`, `title`, `safety_class`, `status`, `savings_usd_base`, `confidence` |
+| `learnings` | Text observations with a source kind, a confidence, and whether the trial stored them in cavemem |
+| `caveats` | The conditions that bound this trial's numbers |
+
+Two of those headline fields carry money, and each can only be non-zero on one kind of evidence. `total_cost_usd` is the sum of what the recorded requests cost, priced from the [provider catalog](/docs/provider-catalog) against the token counts the provider itself reported, so it stays at zero for a session the provider never counted in tokens, such as a ChatGPT subscription login. `estimated_savings_usd` sums the explicit move counterfactuals below it, so it stays at zero unless a move produced one. The `$0.0000` in the refusal message above is neither: it is what a trial that captured no requests at all would print.
+
+A move's `savings_usd_base` stays at zero unless the run produced a provider-counted, outcome-evaluated counterfactual. A tokenizer delta on its own is not a dollar figure.
+
+Three more subcommands read the same plan:
+
+```bash
+caveman trial analyze
+caveman trial export
+caveman trial promote <optimizer_id> --trial-id <id>
+```
+
+`analyze` re-runs the analysis for a recorded trial and prints the plan as JSON. `export` writes the plan to `~/.caveman/exports/trial-<id>/`. `promote` turns one move into a candidate config file and names it; it writes a candidate, not live configuration.
+
+## Add history to the picture
+
+```bash
+caveman trial --learn -- claude
+```
+
+With `--learn`, the trial also imports Codex and Claude usage history and runs a [learn](/docs/skill/learn) scan over the same window before analysing, so the report sits beside the ranked token sinks from your own past sessions. `--since` moves that window and defaults to `30d`.
+
+## What the numbers are
+
+Everything a trial records is local and labelled `inferred`. The proxy runs in `record` mode for the trial, so it meters traffic without rewriting bytes, and the analysis compares what was recorded against what a replay with the optimization applied would have weighed. That is a counterfactual on one session, on one machine.
+
+For the pinned cross-session figure, a Claude Code benchmark of 18 paired runs used 33.2 percent fewer provider-reported input tokens through the wrap, with a 95 percent interval of 14.6 to 48.5 percent. One case regressed by 9.9 percent and all exact-answer checks passed. Your own trial outranks it, because it ran on your work.
+
+## Limits
+
+A trial measures one session. Two sessions on the same task differ for reasons that have nothing to do with caveman, so a single trial is a data point rather than a verdict. Run the same task both ways, or run several trials, before treating a difference as real.
+
+The trial's own proxy exits with the session, so nothing keeps listening afterwards. Re-enabling routing is your step, not the trial's: it does not put back what `caveman disable` took away. [Numbers and limits](/docs/counting) has the site-wide accounting rules.

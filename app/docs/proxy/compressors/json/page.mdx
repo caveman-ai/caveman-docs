@@ -1,0 +1,217 @@
+import { docMetadata } from "@/lib/site";
+import { DocSchema } from "@/components/seo/doc-schema";
+export const metadata = docMetadata("proxy/compressors/json");
+
+<DocSchema slug="proxy/compressors/json" />
+
+The JSON compressor collapses long arrays of similar elements and keeps every object key, every error subtree, and
+the elements that carry signal. Each collapsed run becomes one marker object that states how many elements it
+replaced and the facts that held across all of them, so the output is still valid JSON a parser can read.
+
+## Before and after
+
+The fixture is an API response: 965 lines of pretty-printed JSON holding 120 order records under `orders`, one of
+them in an error state.
+
+```json
+{
+  "query": "orders",
+  "page": 1,
+  "orders": [
+    {
+      "order_id": "ord-1000",
+      "customer": "cust-200",
+      "status": "fulfilled",
+      "total_cents": 1999,
+      "region": "eu-west-1",
+      "currency": "EUR"
+    },
+```
+
+```bash
+curl -O https://docs.caveman.so/examples/compressors/json/orders.json
+caveman-engine compress < orders.json 2> report.json | python3 -m json.tool --no-ensure-ascii
+```
+
+Stdout is one line of compact JSON, so the pretty-printer is there to make it readable. The middle records are
+trimmed here; the real output has two markers and eight surviving records.
+
+```json
+{
+    "orders": [
+        {
+            "currency": "EUR",
+            "customer": "cust-200",
+            "order_id": "ord-1000",
+            "region": "eu-west-1",
+            "status": "fulfilled",
+            "total_cents": 1999
+        },
+        {
+            "__caveman_elided__": 60,
+            "__caveman_invariants__": "all currency=EUR; customer: cust-200..cust-236 all 37 present; order_id: ord-1003..ord-1062 all 60 present; status: fulfilled×50 shipped×6 processing×4",
+            "__caveman_note__": "… caveman: elided elements resemble shown elements and match the stated invariants — answer from this view; if you truly cannot, one broad caveman_retrieve …"
+        },
+        {
+            "currency": "EUR",
+            "customer": "cust-227",
+            "order_id": "ord-1064",
+            "region": "eu-west-1",
+            "status": "error",
+            "total_cents": 98999
+        },
+        {
+            "__caveman_elided__": 52,
+            "__caveman_invariants__": "all currency=EUR; customer: cust-200..cust-236 all 37 present; order_id: ord-1066..ord-1117 all 52 present; status: fulfilled×42 shipped×6 processing×4"
+        }
+    ],
+    "page": 1,
+    "query": "orders"
+}
+```
+
+The report on stderr carries the counts. Digests and the handle are trimmed with `…` here because they vary per
+run and per machine.
+
+```json
+{"content_type":"json","tokens_before":6995,"tokens_after":475,"ratio":0.9320943531093638,
+ "basis":"inferred","recovery_handle":"ccr_4fbe…","method":"elision","lossless_to_model":false}
+```
+
+Captured from a caveman-engine build dated 2026-08-24; `caveman setup --install` today pins bin-v1.1.7.
+
+6,995 tokens to 475, counted by the offline `o200k_base` counter described on [Token counting](/docs/proxy/tokens).
+
+## How it works
+
+The input is decoded with a `json.Decoder` in number-preserving mode. A payload that fails to decode, or that
+carries a second value after the first, is reported as a parse problem and the caller forwards the original bytes.
+
+The decoded value is walked recursively.
+
+- An object keeps all of its keys. Each value is transformed in turn.
+- A key matching `error|errors|message|msg|stack|stacktrace|stack_trace|trace|traceback|exception|reason|detail|details|warning|warnings`
+  (case insensitive, whole key) marks its whole subtree as preserved, and a preserved subtree is copied verbatim.
+- An array of 8 elements or fewer keeps every element and recurses into them. An array that already holds an
+  elision marker is returned as it is, which is what keeps a second pass identical to the first.
+- A longer array goes to element selection.
+
+Selection first renders each element to canonical JSON with sorted keys, so every later comparison is
+deterministic. Then it marks elements to keep:
+
+<Steps>
+<div>
+The first 3 and the last 2 elements.
+</div>
+
+<div>
+Any element whose canonical text matches `error|errors|exception|failed|failure|critical|fatal|crash|panic|abort|timeout|denied|rejected`.
+</div>
+
+<div>
+Statistical anomalies. Every numeric leaf is collected under its dotted path, plus a synthetic path for the
+element's own byte length. A path with fewer than 4 values is skipped. For the rest, the MAD-based score
+`|0.6745 × (value − median) / MAD|` is computed and anything at or above 2.0 is an anomaly. When the MAD is zero,
+the standard deviation divided by 0.6745 stands in for it and the centre moves from the median to the mean, so a
+near-constant series with a few outliers still flags. A missing value is left out of its path's statistics rather
+than filled in.
+</div>
+
+<div>
+Change-point boundaries. The series is the full-coverage numeric path with the highest variance, or element
+lengths when no numeric path covers every element. Binary segmentation splits the largest remaining segment at
+its CUSUM maximum, accepting a split when both sides are flat, or when the mean shift exceeds 2.0 MAD-based
+scales of the segment. Both sides of each accepted seam are kept. The budget is a quarter of the item cap,
+capped at 8 splits.
+
+This step produces no seams at all on a series shorter than 8 elements, and none on a straight line, meaning one
+whose successive differences are all equal to within 1e-9, which is how a plain counter column is left alone. A
+segment of fewer than 4 elements is put back without being split.
+</div>
+
+<div>
+Query relevance, when a query is supplied. Deterministic BM25 scores the canonical elements, anything scoring at
+least 0.30 of the best score becomes a candidate, and candidates fill up to 50 kept elements in score order.
+Elements kept by the rules above are never trimmed to fit that cap.
+</div>
+
+<div>
+One representative of every distinct kind of element, added by the shared redundancy guard so that a dropped
+element always resembles something still visible.
+</div>
+</Steps>
+
+Kept elements are emitted in their original order. Each run of dropped elements becomes one marker object:
+`__caveman_elided__` holds the count, `__caveman_invariants__` holds the summary when one can be computed, and
+`__caveman_note__` rides on the first collapsed run of the payload, and only when that run alone dropped at least
+4,096 bytes.
+
+A run of fewer than 3 elements is only collapsed when it has a summary and the marker costs at most half the
+bytes it replaces. Otherwise the elements are written out and the compressor claims nothing for them.
+
+### What a marker may claim
+
+The summary in `invariants.go` is computed from the exact elements the marker replaces, under a budget of 160
+bytes that is also capped at a quarter of the replaced bytes, with a floor of 96. Four kinds of fact are
+available, and an entry is dropped whole rather than truncated when the budget binds.
+
+| Fact | Form | Condition |
+| --- | --- | --- |
+| Constant | `all currency=EUR` | The field is byte-identical in every element. |
+| Enumeration | `status: fulfilled×50 shipped×6 processing×4` | At most 5 distinct values including an `absent` bucket, each at most 24 bytes and free of spaces. Counts sum to the elided count. |
+| Range | `range latency_ms=40..64` | The field is present in every element and every value parses as a number. The printed bounds are the original value strings. |
+| Coverage | `order_id: 25 distinct, ord-1000..ord-1024` or `ord-1003..ord-1062 all 60 present` | The values are identifiers rather than states. The dense form is only printed after counting a gapless fixed-width integer range behind a shared prefix. At most 2 coverage entries per summary. |
+
+A value longer than 40 bytes, a name longer than 32 bytes, and any field whose name matches
+`secret|passw|token|api[_-]?key|authoriz|credential|cookie|session` are left out of the summary. When the budget
+sheds an entry the summary ends with `+N omitted`, so each section still reads as the complete set of facts of
+its kind.
+
+## What is always kept
+
+Every object key. Every value inside an error, message, stack or detail subtree. The first three and last two
+elements of any collapsed array. Every element whose text carries an error or failure word. Every numeric
+anomaly and change-point seam. One element of each distinct kind. The structure stays valid JSON throughout.
+
+## When it is chosen
+
+Detection returns `json` when, after line-number gutters and file wrappers are stripped and whitespace is
+trimmed, the payload starts with `{` or `[` and passes `json.Valid`.
+See [how detection decides](/docs/proxy/compressors#how-detection-decides) for where this test sits among
+the others.
+
+```bash
+caveman-engine detect < orders.json
+```
+
+```text
+json
+```
+
+Detection has no size floor. The compressor's floor is the array: it collapses one only above 8 elements, so a
+JSON file of short arrays detects as `json` and comes back unchanged with ratio 0. It also declines, and the
+engine forwards the original bytes, when the payload is malformed or holds more than one value, when the result
+counts no fewer tokens than the input, and when no recovery store is available.
+
+## Options
+
+Setting `CAVE_ENGINE_TOON=best-of` registers a selector for content type `json` that runs both the TOON encoder
+and this elider, counts the tokens of each, and emits whichever is smaller, reporting `method` as `toon` or
+`elision`. On the fixture above the selector chose `elision` at 475 tokens. See [TOON](/docs/proxy/compressors/toon)
+for what the encoder does.
+
+A query, when the caller supplies one, adds the relevance fill described above. An empty query behaves exactly like a queryless run.
+
+## Limits
+
+The transform is deterministic for every payload except a JSON object holding more than one collapsible array.
+The walk over an object's keys follows Go map iteration order, so on a payload like that the contract line can
+land on a different marker from one run to the next. The markers, their counts and their summaries are the same
+either way. The registry still marks the JSON transform deterministic.
+
+Site-wide limits, and what `inferred` means on the report, are on [Numbers and limits](/docs/counting).
+
+## Recovery
+
+The original bytes are stored before the compressed view is emitted, and the handle in the report retrieves them:
+see [Recovery](/docs/proxy/recoverable).

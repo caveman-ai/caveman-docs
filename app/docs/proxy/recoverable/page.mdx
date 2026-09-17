@@ -4,94 +4,200 @@ export const metadata = docMetadata("proxy/recoverable");
 
 <DocSchema slug="proxy/recoverable" />
 
-Recoverable compression lets the model see a smaller view without destroying source bytes. Caveman calls the
-local store CCR, short for Context Recovery.
+Every byte a lossy compressor removes is written to a local store before the smaller view is emitted, keyed
+by a handle derived from the original's own SHA-256. `retrieve(handle)` returns those bytes exactly, and
+where the store is unreachable or full the original payload travels on as the caller sent it. The store is
+called CCR, Caveman Context Recovery, and it is a plain SQLite file under `~/.caveman`.
 
-<RequestPath />
-
-## Store before showing less
-
-A lossy transform follows this order:
-
-<Steps>
-<div>
-The compressor creates a smaller candidate and the token counter confirms that it is smaller.
-</div>
-
-<div>
-The engine writes the original bytes and accounting metadata to CCR.
-</div>
-
-<div>
-Only after that write commits does the engine return the smaller view and its handle.
-</div>
-</Steps>
-
-If step two fails, step three never publishes a lossy view. The caller receives the original bytes, a zero ratio,
-and no recovery handle.
-
-## Handle format
-
-CCR hashes the original with SHA-256 and uses the first 16 digest bytes in the public handle:
-
-```text
-ccr_<32 lowercase hexadecimal characters>
-```
-
-The same input produces the same handle and is stored once. A handle identifies content, not a session or a
-filename.
-
-## Persistent store
-
-<Facts rows={[
-  ["Default path", <code key="p">~/.caveman/ccr.db</code>],
-  ["Override", <code key="o">CAVEMAN_CCR_DB</code>],
-  ["Default budget", "512 MiB of retained payload and metadata bytes."],
-  ["Budget override", <code key="b">CAVEMAN_CCR_MAX_BYTES</code>],
-  ["Host backend", "SQLite with WAL and a busy timeout."],
-]} />
-
-`CAVEMAN_HOME` changes the parent directory when `CAVEMAN_CCR_DB` is absent. WASM uses an in-memory store because
-the host SQLite implementation is unavailable there. A WASM handle lasts only as long as that in-memory store.
-
-The budget accepts a positive byte count. At the limit, new lossy transforms pass through. Existing handles are
-not evicted to make room, because eviction would invalidate a recovery promise already shown to an agent.
-
-## Retrieve
+## Compress, then get it back
 
 ```bash
-caveman-engine retrieve ccr_xxxxxxxx > original.bin
-caveman-engine retrieve ccr_xxxxxxxx "connection pool" > relevant.txt
+curl -O https://docs.caveman.so/examples/engine/app.log
+caveman-engine compress < app.log > smaller.log 2> report.json
+cat smaller.log
 ```
-
-An empty query returns the stored original byte for byte. A query asks for a deterministic BM25-selected view of
-the original and is useful when full recovery would refill the context window.
-
-The MCP surface exposes the same distinction:
 
 ```text
-caveman_retrieve({ recovery_handle: "ccr_..." })
-caveman_retrieve({ recovery_handle: "ccr_...", query: "connection pool" })
+2026-09-16T09:00:01Z INFO  worker.pool task accepted id=t-2001 queue=ingest
+2026-09-16T09:00:02Z INFO  worker.pool task accepted id=t-2002 queue=ingest
+… 39 lines elided (caveman): all queue=ingest; id: t-2003..t-2041 all 39 present …
+2026-09-16T09:00:42Z ERROR worker.pool task failed id=t-2042 queue=ingest err=connection reset by peer
+… 17 lines elided (caveman): all queue=ingest; id: t-2042..t-2058 all 17 present …
+2026-09-16T09:00:59Z INFO  worker.pool task accepted id=t-2059 queue=ingest
+2026-09-16T09:01:00Z INFO  worker.pool task accepted id=t-2060 queue=ingest
+… caveman: elided lines resemble shown lines and match the stated invariants — answer from this view; if you truly cannot, one broad caveman_retrieve …
 ```
 
-Unknown handles fail with an explicit error. Retrieval never guesses, returns a nearby payload, or treats a
-missing handle as empty content.
+The report on stderr carries the handle:
 
-<Note tone="honest" title="Query recovery is another view">
-Only empty-query retrieval is byte exact. Query recovery selects complete relevant sections from stored original
-bytes. Use full retrieval when exact order, omitted records, or a byte-for-byte comparison matters.
+```json
+{
+  "content_type": "log",
+  "tokens_before": 1774,
+  "tokens_after": 250,
+  "ratio": 0.859075535512965,
+  "basis": "inferred",
+  "recovery_handle": "ccr_af97d456aad47eab01cdcdd56688a39e",
+  "method": "log",
+  "lossless_to_model": false
+}
+```
+
+```bash
+caveman-engine retrieve ccr_af97d456aad47eab01cdcdd56688a39e > recovered.log
+diff app.log recovered.log && echo "byte for byte"
+```
+
+```text
+byte for byte
+```
+
+Captured from a caveman-engine build dated 2026-08-24 on a 61 line log; `caveman setup --install` today
+pins bin-v1.1.7, so digits may move. The stderr report is trimmed to the fields this page names.
+
+## The handle
+
+`ccr_` followed by the first 16 bytes of the original's SHA-256, as 32 lowercase hex characters. Nothing
+else goes into it, so the handle is a name for the content rather than for the event that stored it:
+
+```bash
+shasum -a 256 app.log | cut -c1-32
+```
+
+```text
+af97d456aad47eab01cdcdd56688a39e
+```
+
+Two consequences follow. Compressing the same payload twice returns the same handle and stores one row,
+which is what keeps a repeated tool result from filling the store. And a handle minted on one machine names
+the same bytes on another, though it only resolves where those bytes were stored.
+
+## The store
+
+<Facts rows={[
+  ["File", <>The path in <code key="e">CAVEMAN_CCR_DB</code>, and <code key="f">ccr.db</code> under <code key="hm">CAVEMAN_HOME</code> (default <code key="d">~/.caveman</code>) when it is unset. See <a key="cf" href="/docs/proxy/configure">Configure</a>.</>],
+  ["Engine", "SQLite through the pure Go modernc driver on host platforms, an in-memory map in the WASM build."],
+  ["Table", <><code key="t">recoveries</code>: handle, created_at, content_type, compressor, tokens_before, tokens_after, original, metadata.</>],
+  ["Budget", <>512 MiB of retained payload and metadata bytes, changed with <code key="m">CAVEMAN_CCR_MAX_BYTES</code>.</>],
+  ["Retention", "Every row stays for the life of the file. There is no eviction and no timer."],
+]} />
+
+Several short-lived processes share one file, so the connection opens with `journal_mode(WAL)` and
+`busy_timeout(5000)` and keeps a single writer. Both pragmas are part of the contract rather than tuning:
+they are what keeps a reader resolving a handle while another process writes, and what keeps that write
+durable, which is the pair a compressed payload's honesty rests on.
+
+Rows are kept rather than evicted because a request already on the wire can reference any handle. Evicting
+an old original to make room would turn a compression that was honest at the time into an unrecoverable one
+afterwards. When the budget is reached the engine stops compressing instead.
+
+## Two stores
+
+The framework middleware writes here too, and puts a second name in front of it. A call optimized through
+`/caveman/v1/middleware/*` stores its original as an ordinary `ccr_` row, then hands the application a
+random `cmw_` grant that maps to that row and resolves only under the conversation scope it was minted for.
+The grant expires 24 hours after the last optimize or retrieve that touched that scope, and a retrieve after
+that answers `expired`, while the `ccr_` row it pointed at stays, because nothing here is evicted.
+[Middleware](/docs/sdk/middleware) is that path.
+
+## How an agent asks
+
+Two kinds of marker point at the store. Inside a compressed payload, the compressor leaves an elision
+marker like the `… 39 lines elided (caveman) …` line above, which states what was removed and, once per
+tool result, names `caveman_retrieve`. On the wire, the proxy appends `<<ccr:ccr_…>>` on its own line at
+the end of each block it rewrote, so the handle travels with the content it replaced.
+
+A tool named `caveman_retrieve` resolves those handles, and which one the agent sees depends on the path.
+The proxy adds its own to the upstream request when it answers recovery calls itself:
+
+```json
+{
+  "name": "caveman_retrieve",
+  "description": "Recover original content for a compressed block. Use the handle shown in a <<ccr:...>> marker inside the content. Pass query only when a narrower recovery is enough.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "handle": { "type": "string", "description": "recovery handle from a <<ccr:...>> marker in compressed content" },
+      "query": { "type": "string", "description": "optional: describe the detail you need; the proxy returns only the elided sections most relevant to it instead of the entire original block" }
+    },
+    "required": ["handle"]
+  }
+}
+```
+
+Read off the request a caveman-proxy build dated 2026-08-24 sent to a local stub upstream, with the key
+order as it appeared; `caveman setup --install` today pins bin-v1.1.7, so digits may move. The proxy answers
+at most three retrieve calls per request and stops inspecting an upstream response larger than 8 MiB,
+raised with `CAVE_MAX_RETRIEVE_RESPONSE_BYTES`; past either bound it replays the original exchange to the
+client. The [MCP server](/docs/mcp) publishes the same tool name with the argument spelled
+`recovery_handle`, and normalises a bare `ccr_` handle, a full `<<ccr:HANDLE>>` marker, a `ccr:ccr_` prefix
+and a native `ccr://` reference to the same lookup. Either way an unknown handle is an explicit error
+rather than an empty result.
+
+The `caveman-engine retrieve` command takes the bare handle only, and marker syntax is the MCP tool's job:
+
+```bash
+caveman-engine retrieve ccr_af97d456aad47eab01cdcdd56688a39e "connection reset"
+```
+
+```text
+… [caveman: non-adjacent] …
+
+2026-09-16T09:00:42Z ERROR worker.pool task failed id=t-2042 queue=ingest err=connection reset by peer
+
+… [caveman: non-adjacent] …
+```
+
+With no query the original comes back byte for byte. With a query the stored content is split into whole
+units, ranked by BM25 with a ceiling of 20 sections, and returned in original order. `… [caveman:
+non-adjacent] …` stands wherever content was skipped, including at either end, because two units placed
+side by side that were not neighbours in the source let a reader attribute a field to the wrong record.
+A view that cannot be ranked, or that matches nothing, returns the whole original.
+
+## When compression refuses to run
+
+Each of these returns the input bytes unchanged with `ratio: 0` and no handle.
+
+**No store.** A lossy compressor carries `RequiresCCR`, so it runs where a store is attached or where the
+caller declared its own recovery. Anywhere else the engine hands back the original.
+
+**Store unreachable.** Two cases. A store the CLI cannot open stops the command: it exits 1 with
+`cannot open recovery store: …` and writes nothing to stdout. A store that opens but refuses a write returns
+the original to stdout with `ratio: 0` and `"error": "cave_ccr_unavailable"` in the report.
+
+**At the budget.** A write that would push retained bytes past the cap is refused before anything lossy is
+published:
+
+```bash
+curl -O https://docs.caveman.so/examples/engine/big.json
+CAVEMAN_CCR_MAX_BYTES=65536 caveman-engine compress < big.json > out.json 2> report.json
+cmp big.json out.json && echo identical
+```
+
+```text
+identical
+```
+
+```json
+{
+  "content_type": "json",
+  "tokens_before": 22082,
+  "tokens_after": 22082,
+  "ratio": 0,
+  "basis": "inferred",
+  "error": "cave_ccr_budget_exceeded"
+}
+```
+
+65,536 bytes is the smallest budget the store accepts, and `big.json` is 62,082 bytes of event records
+whose original plus its recovery metadata clears it.
+
+**Not smaller.** Output that counts the same or more tokens than the input is discarded and the original
+goes on, leaving the store exactly as it was.
+
+<Note tone="honest" title="Recoverable is not the same as harmless">
+Recovery guarantees the bytes come back on request. It does not guarantee the model asks. A compressed view
+that hides the one row an answer turned on costs a recovery round trip at best and a wrong answer at worst,
+which is why every elision marker states facts computed from what it replaced instead of only a count. See
+[All compressors](/docs/proxy/compressors#what-every-compressor-guarantees).
 </Note>
-
-## Shared and separate stores
-
-The engine CLI, MCP server, and caveman-shrink use the shared CCR path by default, so a handle minted by one can
-resolve in a later process through another.
-
-cavemem keeps its recovery data under `~/.caveman/mem/ccr.db`. Recover a memory hit with `cavemem recover` or
-`caveman mem recover`; do not send that handle to the engine store.
-
-## What recovery does not prove
-
-Recovery proves that omitted bytes remain available. It does not prove that the model will ask for them, that a
-compressed answer has equal quality, or that the local token count matches a provider bill. Those are separate
-grader, behaviour, and accounting questions.

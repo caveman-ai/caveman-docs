@@ -4,110 +4,146 @@ export const metadata = docMetadata("sdk/troubleshooting");
 
 <DocSchema slug="sdk/troubleshooting" />
 
-Start by checking the package version, runtime version, and exact method that failed. The SDKs use different failure behavior for transformations, provider requests, and connected storage.
+Every message below is the exact string the SDK produces, matched to what it means and what to change. Find yours with the browser's search. The messages come from `@caveman-ai/sdk` and `caveman-sdk` 1.1.0.
 
-## Verify your install
+Two things to know before reading a failure. TypeScript throws `Error` for bad arguments and `CaveRequestError` for a bad response, while Python raises `ValueError` and `urllib.error.HTTPError` in the same places. And `compress()` and `context.pack()` throw nothing at all: they hand back your input, so their failures show up as a ratio of `0` rather than an exception.
 
-```bash
-node --version
-npm ls @caveman-ai/sdk
-python --version
-python -m pip show caveman-sdk
-python -c "import caveman_cloud; print(caveman_cloud.__file__)"
+```ts
+import { CaveRequestError } from "@caveman-ai/sdk";
+
+try {
+  await cave.sharedContext.get("session-42");
+} catch (error) {
+  if (error instanceof CaveRequestError) console.log(error.status, error.path, error.message);
+}
 ```
 
-These guides target `1.1.0`. TypeScript requires Node.js 22.13+ and ESM; Python requires 3.13+. Install `caveman-sdk`, import `caveman_cloud`. Bare `caveman` packages are unrelated. Check that your IDE and terminal use the same Python virtual environment.
+```console
+401 /sdk/v1/shared-context/session-42 cave request failed (401)
+```
 
-## Find the failing layer
+## Building the client
 
-| Symptom | Check / action |
+| Message | Meaning | Fix |
+| --- | --- | --- |
+| `apiKey, baseURL, and agent are required` | One of the three is empty. TypeScript only | Pass all three. An empty `base_url` raises `ValueError` in Python; an empty `api_key` or `agent` is accepted and fails at the first request |
+| `baseURL must be an absolute http(s) URL` | The value failed to parse as a URL | Include the scheme: `https://your-service.example` |
+| `baseURL must be an absolute http(s) URL without credentials` | The scheme is not `http` or `https`, the host is empty, or the URL carries `user:pass@` | Drop the credentials and use the API key |
+| `baseURL must not contain a query or fragment` | A `?` or `#` in the base URL | Keep the base URL to scheme, host and path |
+| `baseURL must not contain surrounding whitespace` | A leading or trailing space, often from a shell variable | Trim the environment value |
+| The same four with `base_url` or `control_url` | Python raises `ValueError` with the snake case field name in front of the identical text | Read the field name in the message; the check and the fix are the same |
+| `timeoutMs must be a positive integer` | A zero, negative or fractional timeout | Pass whole milliseconds, for example `30_000` |
+
+## A request that failed
+
+| Message | Meaning | Fix |
+| --- | --- | --- |
+| `cave request failed (401)` on a `CaveRequestError` | A non-200 from an events, artifact, checkpoint or shared-context call. `status` and `path` are on the error | Read `error.path`; a 401 is the API key, a 404 is a service that does not serve that route |
+| `HTTP Error 401: Unauthorized` from `urllib.error.HTTPError` | The same failure in Python, which raises the stdlib error | Same. `error.code` carries the status |
+| `TypeError: fetch failed` | The TypeScript client never reached the address. undici raises it, and `error.cause` carries the socket error | Check the host and port in `baseURL`, and that something is listening |
+| `urllib.error.URLError: <urlopen error [Errno 61] Connection refused>` | The same failure in Python | Same. The errno in the message names the socket problem |
+| `cave_request_timeout` | The request passed `timeoutMs`, which defaults to 30 seconds | Raise `timeoutMs`, or find out why the service is slow |
+| `cave_request_aborted` | The `signal` you passed to `CaveOptions` was aborted | Expected when you cancel. Check nothing else shares that controller |
+| `cave response was not valid JSON` | A 200 whose body failed to parse | The address is answering but is probably another service |
+| `cave response must be a JSON object` | Valid JSON that is an array or a scalar | As above |
+| `cave_redirect_not_allowed` | The Python client was redirected, and refuses to forward credentials to another origin | Configure the final origin directly |
+| `cave_provider_raw_path_not_allowed` | A `raw()` path outside that client's provider prefix | Use the prefix for the client you built, such as `/anthropic/...` for `cave.anthropic()` |
+| A thrown message that is the provider's own JSON | A provider call returned a non-2xx, and the body is the error text | Read the provider's error. Model ids and provider keys are the usual cause |
+| `cave artifact response missing artifact_id` | A 200 from the artifact call without a usable id | The route is answering in the wrong shape |
+| `cave artifact was not valid JSON` | A stored artifact failed to parse on the way back | As above |
+| `cave checkpoint response missing source_ref or messages` | `expand()` got a reply missing either field | A checkpoint that cannot be expanded is a bug; report it with the `source_ref` |
+
+## Compression and packing
+
+| Symptom | Meaning | Fix |
+| --- | --- | --- |
+| `ratio: 0` and `tokenCountBasis: "unavailable"` | The call never reached a compressor: a transport failure, a non-200, or an unparseable report | Check `baseURL` serves the compression route. [Compression](/docs/sdk/compression) lists every pass-through trigger |
+| `ratio: 0` with a real `tokenCountBasis` | The engine ran and kept the payload | A genuine result on a small or already-dense payload |
+| `tokensBefore: 0` from `context.pack()` with every item returned | Packing passed through, or your budget was rejected | `maxTokens` must be a positive integer, and item ids must be unique and non-empty |
+| `context.pack()` returns everything, repeatedly | A pinned item that cannot fit, or a reply that failed validation | Drop a `pin`, or raise `maxTokens` past the pinned fragments |
+
+## Tools
+
+| Message | Meaning | Fix |
+| --- | --- | --- |
+| `TypeError: found.map is not a function` | `search()` became `async` in 1.1.0 and now returns a `ToolSearchResult` | `await` it and read `found.tools` |
+| `tool search failed with HTTP 500` | A non-200 from the tool-search route | Catch it and keep the tool set you already had |
+| `strategy must be all or deferred` | An unknown `strategy` | Use one of the two |
+| `initialToolCount must be a non-negative integer` | A negative or fractional count | Pass a whole number, or leave the default of 8 |
+| `maxTools must be a positive integer` | A `maxTools` of zero or below | Pass 1 or more |
+| `maxLoadedTools must be at least the alwaysLoad tool count` | The cap is below the number of tools marked `alwaysLoad` | Raise the cap, or drop an `alwaysLoad` flag |
+| `tool catalog names must be non-empty and unique` | Two tools share a name, or one has none | Give every tool a distinct name |
+| `tool search response contained an unknown or duplicate tool` | The reply named a tool outside the catalog you sent | The service is answering from a different catalog |
+| `tool search response tools must be an array` | The reply's `tools` field was another type | The route is answering in the wrong shape |
+
+## Assembly
+
+| Message | Meaning | Fix |
+| --- | --- | --- |
+| `assembly slot "policy" changed after being declared stable` | An `AssemblyStabilityError`. The same `sessionId` saw two different bodies for one `stable` or `session` slot | Mark the slot `volatile`, or keep its content identical for the session |
+| `assemble requires model and sessionId` | One of the two is empty | Both are required, and `sessionId` keys the stability ledger |
+| `assembly slot id must be non-empty and unique: ""` | A blank or repeated slot id | Name every slot once |
+| `assembly slot "x" has unknown stability "sticky"` | A stability outside the three | Use `stable`, `session` or `volatile` |
+| `assembly slot "x" content is not JSON-serializable` | A function, a circular object or a `NaN` in the content | Pass data that survives `JSON.stringify` |
+| `unknown emitCacheHints value "maybe"` | A hint mode outside the three | Use `gateway`, `self` or `none` |
+
+## Runtime policy
+
+`refresh()` returns its failure rather than raising, so read `result.error`. TypeScript gives the message; Python gives a short code.
+
+| TypeScript error | Python code | Meaning |
+| --- | --- | --- |
+| `fetch failed`, `runtime policy fetch failed (HTTP 404)` | `transport` | The policy route is unreachable or answered with a non-200 |
+| `oversized_response` | `oversized_response` | The body passed 1 MiB and was cut off |
+| `runtime policy response was not valid JSON`, `runtime policy response missing bundle` | `malformed_response` | A reply the client cannot read |
+| `runtime policy bundle is unsigned but a public key is pinned` | `unsigned_rejected` | You pinned a key and the bundle arrived unsigned |
+| `runtime policy signature did not verify`, `runtime policy signature did not verify against the pinned key`, `runtime policy carried a signature without a usable public key` | `signature_invalid` | The signature failed against the key in play |
+| `runtime policy bundle was not valid JSON` | `invalid_bundle` | The signed string is not a JSON object |
+| `unknown runtime policy schema_version "…"` | `unknown_schema_version` | The client accepts `caveman.runtime-policy.v1` only |
+| `runtime policy sequence must be a non-negative safe integer` | `invalid_bundle_counter` | `policy_version` or `sequence` is missing or malformed |
+| `runtime policy sequence regressed (3 < 5)` | `stale_sequence` | The bundle is older than the one already held |
+
+Each of these leaves the previously accepted bundle in force, so routing carries on with what the client already had.
+
+| Symptom | Meaning | Fix |
+| --- | --- | --- |
+| Every `decide()` returns `reason: "policy_unavailable"` | No bundle has been accepted | Call `refresh()` and read its result |
+| Every `decide()` returns `reason: "local_kill"` | `kill()` was called, or the kill variable is set | `unset CAVEMAN_POLICY_KILL`, or check `state().killedLocally` |
+| `reason: "ambiguous_policy"` | Two policies matched the family and both passed their guards | Narrow one policy's guards; the client refuses to pick |
+| `reason: "no_unit_key"` | The matched policy carries an experiment and `unitKey` was empty | Pass a stable id, such as the task id |
+| `runtimePolicy publicKey must be a base64-encoded 32-byte Ed25519 key` | The pinned key failed to decode. Python says `runtime_policy public_key …` | Pass the raw 32 byte key, base64 encoded |
+
+## Middleware
+
+Middleware raises `MiddlewareError`, whose message is `Caveman middleware: <code>`. The same codes arrive as the `reason` on a `skipped` report and as the `code` on an `onDiagnostic` call. [Middleware](/docs/sdk/middleware) covers the setup behind them.
+
+| Code | Meaning and action |
 | --- | --- |
-| Connection refused or DNS failure | Confirm the configured service is running and reachable. Installation starts no service. |
-| HTTP 401 or 403 | Check the service key, upstream provider access, and endpoint permissions separately. |
-| HTTP 404 | Confirm your deployment exposes the requested API and the correct provider prefix. |
-| `cave_provider_raw_path_not_allowed` | TypeScript raw URL must use the configured origin and full provider prefix. |
-| JSON parse error on a provider call | Check content type and `stream`; JSON helpers do not consume SSE. |
-| Python response has no `.headers` | Core provider methods return a dictionary, including `raw()`. |
-| Compression returns unchanged text | Could be valid pass-through or request failure. Verify service separately. |
-| Context packing returns every item | Failure falls back to original items; recheck the model-window budget. |
-| `AssemblyStabilityError` | A stable/session slot changed within its declared lifetime. Version your context or start the appropriate new lifetime. |
-| `RetryLoopError` | The next identical call exceeds your threshold. Change course or stop the loop. |
-| `cave_async_jobs_unavailable` | Reserved surface; no job was submitted. |
-| Policy stays on baseline | Inspect refresh `ok`/`error`, policy state, guards, assignment inputs, and kill switches. |
-| No spans appear | Flush the same exporter you recorded into; check `/v1/traces` support and export errors. |
+| `disabled` | Set the client mode to record or compress to enable runtime discovery |
+| `recovery_unavailable` | Enable persistent recovery storage in the runtime before using recoverable compression |
+| `runtime_unavailable` | Start the Caveman runtime and check the configured endpoint and network access |
+| `deadline` | Check runtime responsiveness or increase the configured request deadline |
+| `closed` | Create a new runtime instance; this instance has been closed |
+| `capacity` | Retry after outstanding runtime requests finish |
+| `unsupported_version` | Install compatible Caveman SDK and runtime versions |
+| `unknown_capability` | Install compatible Caveman SDK and runtime versions |
+| `unauthorized` | Check the runtime authentication token; do not use a model provider API key |
+| `redirect_refused` | Configure the runtime origin directly without an HTTP redirect |
+| `invalid_plan` | Check that the endpoint serves the Caveman middleware protocol |
+| `payload_limit` | Check runtime compatibility; the capability response exceeded the SDK limit |
 
-Avoid logging complete credentials, headers, or sensitive payloads while diagnosing requests.
+`no_candidate` is a report reason rather than an error: the call carried nothing eligible to compress, so it went out unchanged. `invalid_scope`, `invalid_deadline` and `invalid_recovery` are argument errors in the same `MiddlewareError` shape.
 
-## Correct older examples
+## Reserved surfaces
 
-Some earlier documentation described helpers that the published clients do not export. Remove imports of `parseReceipt`, `gatewayConfig`, and `gatewayHeaders` in TypeScript, or `parse_receipt`, `gateway_config`, and `gateway_headers` in Python.
+| Message | Meaning |
+| --- | --- |
+| `Async job execution is unavailable: durable encrypted request storage, provider credential custody, and a draining worker are not wired. No job was submitted.` | Every `cave.jobs` method raises `AsyncJobsUnavailableError` locally, with code `cave_async_jobs_unavailable`. The surface is reserved |
 
-TypeScript can inspect headers on the fetch `Response` returned by a valid provider `raw()` call. Read only documented headers from your deployment and preserve missing values. Python's core provider wrappers return decoded JSON and do not expose response headers. Neither package supplies a receipt parser.
+## Loops and limits
 
-Remove `optimize` from provider-call options. The published TypeScript response helper accepts `cave.latencyClass` and `cave.toolSessionId`; Python accepts `latency_class` and `tool_session_id`. Unknown JavaScript fields may be ignored rather than rejected, so do not assume an accepted object changed request behavior.
-
-## Migrate tool search from 1.0
-
-TypeScript search is asynchronous and returns a report object. Await `tools.search(query)`, then read `result.tools`; do not treat the result itself as an array. Python also returns a `ToolSearchResult` with `.tools`.
-
-Keep local handlers. Python descriptors do not contain a handler field. Forward a returned session ID into later search/provider calls when your service uses tool sessions. Schema-token savings are inferred, even when a real search request succeeded.
-
-## Handle failures deliberately
-
-| Operation | Failure contract | Application responsibility |
+| Message | Meaning | Fix |
 | --- | --- | --- |
-| Compression | Original bytes, zero reduction, no handle | Keep original; diagnose service independently. |
-| Context packing | Original items, zero inferred savings | Verify budget before the model call. |
-| Provider JSON helpers | Raise/reject | Decide whether replay is safe. |
-| TypeScript provider raw | HTTP response for non-success status | Check `response.ok`; consume or cancel body. |
-| Tool event delivery | Best effort | Do not use events as a durable audit log. |
-| Explicit OTLP export | Raise/reject; failed batch retained | Retry/flush under your lifecycle policy. |
-| Runtime policy refresh | Outcome with error; last accepted bundle retained | Inspect freshness requirements and keep baseline. |
-| Checkpoints and artifacts | Connected errors propagate | Preserve originals until recovery is established. |
+| `retry loop interrupted: tool call "search_docs({\"q\":\"refund\"})" repeated 4 times (threshold 3)` | A `RetryLoopError`. The same tool call repeated past the breaker's threshold | Break the loop in your agent. `error.signature`, `error.repeats` and `error.threshold` say which call and how many times |
 
-There is no global automatic retry policy. A failed request can occur after a service accepted work. Do not blindly retry non-idempotent tools or assume that a network failure means no provider charge.
-
-## Report an issue
-
-Include package/runtime versions, the method, sanitized route, status or exact error, and a minimal reproduction with credentials removed. Say whether the issue occurs with a configured service or a local test fixture. Report reproducible SDK problems in the [main caveman repository](https://github.com/JuliusBrussee/caveman/issues).
-
-A local mock can establish request shape and fallback behavior; it cannot prove deployment compatibility, provider acceptance, task quality, or billing savings.
-
-## Middleware decisions
-
-Successful inference does not establish that middleware optimized anything. Begin with the complete unpaid [TypeScript](/docs/sdk/middleware/typescript) or [Python](/docs/sdk/middleware/python) example. Then inspect `onReport` / `on_report` at the final native-call boundary. `lastReport` / `last_report` stores only one latest event and is not a per-request history in concurrent applications.
-
-Published SDK `1.1.0` has strict `ready()` capability discovery and no `preflight()`. `ready()` can throw before inference, including when runtime mode is off. A non-strict adapter generally falls back to originals when optimization is unavailable; that does not change the startup method's contract. `strict: true` / `strict=True` deliberately turns applicable bypasses into errors. Cancellation is propagated.
-
-| Symptom or final reason | Meaning | Action |
-| --- | --- | --- |
-| ImportError, missing module, npm resolution failure | Framework or an optional dependency is absent/incompatible | Install that family in a fresh environment; use the compatibility matrix |
-| `unsupported_version` | Adapter cannot accept or resolve installed framework version | Compare actual installed versions with adapter guards, preserve package metadata, and check Node ESM behavior |
-| `unsupported_shape`, `unsupported_request`, `unsupported_endpoint`, `opaque_payload` | Boundary cannot safely map this native request | Keep originals; use supported text results and the correct protocol/entrypoint |
-| `unsupported_provider` | Adapter does not recognize this native provider/model class | Use its documented provider integration; do not assume subclass compatibility |
-| `no_candidate` | No eligible result text was present | Include a successful tool result associated with its tool call; a user prompt alone is not a test |
-| `not_smaller` | Candidate did not beat original plus declared recovery overhead | Use a representative large result; do not force compression |
-| `recovery_unavailable` | Required recovery ownership or storage is absent | Use the complete native helper and keep its real executor/tool table intact |
-| `runtime_unavailable` or connection error from `ready()` | Runtime missing, wrong endpoint, or unreachable | Install/start the runtime separately and check its capability URL |
-| `unauthorized` | Runtime credential rejected | Set the runtime token; do not use a provider key |
-| `redirect_refused` | Runtime endpoint redirected | Configure the final authenticated HTTPS origin directly |
-| `deadline` | Optimization or recovery exceeded its own budget | Check local latency/load, prime readiness, and tune the appropriate deadline deliberately |
-| `capacity` | Client/runtime admission limit reached | Reduce concurrency or provision capacity; retain safe inference fallback |
-| `circuit_open` | Repeated runtime failures opened a temporary client circuit | Fix reachability and allow the circuit to recover; do not add an unbounded retry loop |
-| `payload_limit` | Request/segment exceeds configured limits | Split at your application boundary while retaining original IDs and history |
-| `invalid_plan`, `unknown_capability` | Runtime/client contract or transform mismatch | Compare pinned versions and capabilities; upgrade/test together |
-| `cache_state_unavailable` | Runtime cannot preserve established choices | Restore durable state or begin an appropriate fresh scope from originals |
-| `record` / status `recorded` | Observation without replacing input | Set client and runtime modes deliberately |
-| `off` or `disabled` / status `disabled` | Middleware disabled | Enable only after a successful observation run |
-| Sync method on async runtime raises TypeError | Framework and client execution modes differ | Pair synchronous model/tools with `MiddlewareRuntime`; await async methods on `AsyncMiddlewareRuntime` |
-| `expired`, `deleted`, `not_found`, `epoch_changed` during retrieval | Handle no longer resolves under this scope/runtime | Restore from original application history; check affinity and full scope identity |
-
-A recovery failure is an error in a requested tool operation. It is not the same as an optimizer skip that sends original input to the provider. See [recovery](/docs/sdk/middleware/recovery) before writing retry/fallback behavior.
-
-A sanitized final report looks like this:
-
-```json
-{"schema_version":1,"status":"applied","reason":"eligible","transform_ids":["caveman.engine.log.v1"],"replacement_count":1,"reused_count":0,"adapter":"ai-sdk","logical_call_id":"redacted","attempt_id":"redacted"}
-```
-
-It reports a decision, not saved tokens. To report an issue, include package/framework/runtime versions, OS and language version, the public adapter entrypoint, mode, sanitized capability flags, final reason, and the shortest deterministic reproducer. Include whether `ready()` failed or inference proceeded with a skip. Omit provider keys, runtime tokens, prompts, raw tool outputs, and live recovery handles.
+[API reference](/docs/sdk/reference) has the signatures behind each of these.

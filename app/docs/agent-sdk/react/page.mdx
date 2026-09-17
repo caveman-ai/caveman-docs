@@ -4,67 +4,209 @@ export const metadata = docMetadata("agent-sdk/react");
 
 <DocSchema slug="agent-sdk/react" />
 
-`@caveman-ai/react` renders an agent event stream. Use `useAgent` for one independent run and `useSession` for an ongoing conversation. Neither hook stores a provider credential or agent-server bearer token.
+`@caveman-ai/react` streams an agent run, or a whole session, into a React component. Both hooks take a same-origin path in your own app rather than the agent server's origin, and both leave the token behind: the bearer the [agent server](/docs/agent-sdk/deploy) requires spends money and returns model output, so it belongs on your server.
 
-The package is available in the source workspace; npm returned 404 on 15 September 2026. Pack the workspace package before installing it into your app; React ships source JavaScript and declarations with no build step. See [Install](/docs/agent-sdk/install).
+```bash
+npm install <checkout>/packages/react
+```
 
-## Put your backend between the browser and agent
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install). `@caveman-ai/react` has no build step of its own; install it from the same checkout, where `<checkout>` is the path you cloned into.
 
-<figure className="my-6 rounded-md border p-4 text-sm">
-  <div>Browser hook → same-origin app route → agent server → provider</div>
-  <figcaption className="mt-3 text-xs text-muted-foreground">Your app authenticates the user, checks ownership and spending permission, then attaches the server credential.</figcaption>
-</figure>
+```tsx
+"use client";
+import { useSession } from "@caveman-ai/react";
 
-Use a relative `api` path such as `/api/agent`. Implement that route in your app. Authenticate every request and authorize its run or session before forwarding it. The agent bearer token belongs in server-side configuration, never a browser bundle, URL, or browser WebSocket subprotocol.
+export function Case({ id }: { id: string }) {
+  const { events, send, cancel, status, gap } = useSession({
+    api: "/api/agent",
+    sessionId: id,
+    transport: "sse",
+  });
 
-Forward SSE response bodies without buffering and preserve `Last-Event-ID`. For WebSockets, your backend must attach authorization during the upstream upgrade or terminate and forward the socket itself.
+  return (
+    <div>
+      {gap && <p role="status">Earlier history was evicted. The transcript is complete from here.</p>}
+      <p aria-live="polite" aria-busy={status === "streaming"}>
+        {events.filter((e) => e.kind === "delta.text").map((e) => e.text).join("")}
+      </p>
+      <button onClick={() => send("check again", { author: "Ada" })}>Ask</button>
+      <button onClick={() => cancel()} disabled={status !== "streaming"}>Stop</button>
+    </div>
+  );
+}
+```
 
-## One independent run
+`events` are the Pebble frames the server sends, in order, across every run in the session. `status` is `connecting`, `streaming`, `complete`, `error`, or `cancelled`.
+
+## The routes your app has to proxy
+
+`api` is a base path your app serves. Each route forwards to the agent server with the bearer attached, and each one is where your app decides who may spend money.
+
+```ts
+// app/api/agent/sessions/[id]/messages/route.ts
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return fetch(`${process.env.AGENT_URL}/sessions/${encodeURIComponent(id)}/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${process.env.AGENT_TOKEN}`,
+    },
+    body: await request.text(),
+  });
+}
+```
+
+```ts
+// app/api/agent/sessions/[id]/events/route.ts
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const upstream = await fetch(
+    `${process.env.AGENT_URL}/sessions/${encodeURIComponent(id)}/events`,
+    {
+      headers: {
+        authorization: `Bearer ${process.env.AGENT_TOKEN}`,
+        ...(request.headers.get("last-event-id")
+          ? { "last-event-id": request.headers.get("last-event-id")! }
+          : {}),
+      },
+    },
+  );
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}
+```
+
+Both handlers take `params` as a promise, which is the Next 15 and later signature. Pass `last-event-id` through, and a reconnect resumes where it stopped; drop it and a reconnect replays the session from the beginning. `cancel()` needs `DELETE /sessions/:id` proxied the same way.
+
+`transport: "ws"` swaps the event route for the `/ws` upgrade, and then `send` goes over the socket. Your proxy either adds `Authorization` on the upgrade or terminates the socket itself. The server does accept the bearer as a `cave-bearer.` subprotocol, which exists for clients that cannot set headers; in a browser a subprotocol is as public as the bundle carrying it.
+
+## Reconnecting
+
+On `sse`, `EventSource` reconnects by itself and resumes from `Last-Event-ID`, so every frame arrives once. On `ws` the hook reconnects, because a browser socket leaves that to its caller: it reopens after 250 ms with `?lastEventId=<seq>` and the server answers with exactly the span that was missed. `cancel()` or unmounting stops that for good.
+
+When the requested sequence is older than the server's retained window, the server sends a gap notice before it streams. `gap` becomes `true` and `lastGap` carries `{ requestedSeq, earliestSeq }`. History before that point was evicted, the transcript is complete from there on, and `status` stays live rather than turning into an error. The run journal remains the record of what happened.
+
+## One run instead of a session
+
+`useAgent` streams a single run submitted through `POST /runs`, for a background job or a one-shot answer rather than a conversation. It uses two routes under the same `api` base, proxied the same way:
+
+```ts
+// app/api/agent/runs/route.ts
+export async function POST(request: Request) {
+  return fetch(`${process.env.AGENT_URL}/runs`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${process.env.AGENT_TOKEN}`,
+    },
+    body: await request.text(),
+  });
+}
+```
+
+```ts
+// app/api/agent/runs/[id]/events/route.ts
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const upstream = await fetch(`${process.env.AGENT_URL}/runs/${encodeURIComponent(id)}/events`, {
+    headers: { authorization: `Bearer ${process.env.AGENT_TOKEN}` },
+  });
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}
+```
+
+The hook mints the run id with `crypto.randomUUID()` and posts `{runId, input}`, so your route forwards the body unchanged.
 
 ```tsx
 "use client";
 import { useAgent } from "@caveman-ai/react";
 
-export function AskAgent() {
-  const { text, status, error, submit, usage } = useAgent({ api: "/api/agent" });
+export function Ask() {
+  const { text, tools, status, usage, error, submit } = useAgent({ api: "/api/agent" });
+
   return (
-    <section>
-      <button disabled={status === "streaming"}
-        onClick={() => void submit("Explain the latest result.")}>Ask</button>
+    <div>
+      <button onClick={() => submit("how many items are queued?")} disabled={status === "streaming"}>
+        Ask
+      </button>
+      {tools.map((tool) => <div key={tool.id}>{tool.name}: {tool.status}</div>)}
       <p aria-live="polite" aria-busy={status === "streaming"}>{text}</p>
       {error && <p role="alert">{error.message}</p>}
-      {usage && <p>{usage.costUsd === null ? "Cost unknown" : "Catalog cost available"}</p>}
-    </section>
+      {usage && (
+        <small>
+          {usage.in + usage.out} tokens,{" "}
+          {usage.costUsd === null ? "cost unknown" : `$${usage.costUsd.toFixed(4)}`}
+        </small>
+      )}
+    </div>
   );
 }
 ```
 
-Each `submit` creates a separate run. It does not append a message to the previous conversation. `submit` returns the run id; save it if your app should call `watch(runId)` after a reload.
+| Field | What it holds |
+|---|---|
+| `status` | `idle`, `streaming`, `complete`, `error`, `detached` |
+| `text` | Assistant text so far |
+| `thinking` | Reasoning deltas, when the model emits them |
+| `tools` | `{ id, name, args, status, detail }` per tool call; `args` is the truncated wire summary |
+| `usage` | `{ in, out, cacheRead, cacheWrite, costUsd }` |
+| `route` | `{ model, reason }`, the model actually chosen |
+| `stopReason` | `end_turn`, `budget_paused`, `interrupted`, or `error` |
+| `error` | `{ message, retryable }` |
+| `gap` | `{ error, requestedSeq, earliestSeq }` when a missed span could not be replayed |
+| `runId` | The id this run was submitted under |
+| `submit(input)` | Starts a run, resolves with its id |
+| `watch(runId)` | Attaches to a run this hook did not submit |
+| `stopWatching()` | Closes this view and leaves the run going |
 
-`stopWatching()` detaches this view. It does not cancel execution. Cancellation requires `DELETE /runs/{id}`. A detached run may continue spending.
-
-## A conversation
+A run outlives the tab that started it, and `submit` resolves with the id before the first token arrives, so a reload can reattach:
 
 ```tsx
-import { useSession } from "@caveman-ai/react";
-
-const { events, send, cancel, status, gap } = useSession({
-  api: "/api/agent",
-  sessionId: "case-42",
-  transport: "sse",
-});
-
-await send("Check the new evidence", { author: "Ada", mode: "followUp" });
+useEffect(() => {
+  const resuming = sessionStorage.getItem("runId");
+  if (resuming) watch(resuming);
+}, [watch]);
 ```
 
-Use the id returned by session creation. `transport: "ws"` selects WebSocket. `cancel()` cancels the active session run and drops its queue.
+`watch` replays the run from its first event, so the state it rebuilds is the state an uninterrupted stream would have produced. Reattaching is yours to call, because the decision between reattaching and starting clean lives in your app rather than in a hook.
 
-SSE reconnects with its event cursor. WebSocket reconnects also request the missed sequence. If the server has evicted history, `gap` reports the missing span and retained events continue streaming. Show that gap to the user instead of presenting an incomplete transcript as complete.
+`stopWatching()` closes the stream and leaves the agent working. Cancelling is `DELETE /runs/:id`, which your own code calls when you want it.
 
-## Output and limits
+## Verify and undo
 
-`useAgent` exposes `text`, `thinking`, `tools`, `status`, `usage`, `route`, `stopReason`, `error`, `gap`, and `runId`, plus its control methods. Reasoning appears only when the provider emits it. `usage.costUsd === null` means unknown, never zero; known amounts are catalog estimates, not invoices.
+With the routes in place, one request proves the proxy path end to end:
 
-Events are applied in arrival order and renders are batched to animation frames. For a custom transport, use the exported pure reducers `reduceAgentEvent` and `reduceSessionEvent`.
+```bash
+curl -s -X POST localhost:3000/api/agent/runs -H "content-type: application/json" \
+  -d '{"runId":"smoke-1","input":"Where is order A-123?"}'
+```
 
-The hooks do not provide authentication, permanent transcript storage, or an authorization policy. Your application owns those decisions.
+```console
+{"runId":"smoke-1","status":"running"}
+```
+
+Captured through the `POST /api/agent/runs` route above, forwarding to an agent server running a scripted model. A `401` means the route forwarded without the bearer, and a `404` means the path under `api` is wrong. To roll back, delete the route handlers and the `useAgent` or `useSession` call; the agent server keeps serving and every run stays journaled.
+
+## Limits
+
+`usage.costUsd` is `null` when any message in the turn was unpriced. That means unknown, not zero, and the hook hands you no priced subtotal dressed up as a total. Token counts stay exact either way. Render the null case.
+
+`useAgent` has no `messages` array, because the agent server has no thread: one agent, one input, one run, and a run is not a reply to the last one. Keep your own history if you want one, or use `useSession`, where the conversation is real and lives on the server.
+
+The event window is in memory and bounded. A run that settled long ago, or one whose events an instance restart discarded, has no stream left to attach to and surfaces as a closed stream. `GET /runs/:id` is the authoritative outcome.
+
+React 18 or newer, and both hooks are client components.

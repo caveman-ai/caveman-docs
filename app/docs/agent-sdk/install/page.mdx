@@ -4,98 +4,165 @@ export const metadata = docMetadata("agent-sdk/install");
 
 <DocSchema slug="agent-sdk/install" />
 
-The documented surface is `@caveman-ai/agent` 0.2 in source. npm currently publishes 0.1.0, which is an older API. Clone the repository if you are following these pages.
+Installing `@caveman-ai/agent` gives you the runtime and the `caveman-agent` command: a run needs Node 22.19 or newer and one provider credential in the environment.
 
-<Facts rows={[
-  ["Node", "22.19 or newer."],
-  ["CLI binary", <code key="c">caveman-agent</code>],
-  ["Source", <code key="s">caveman-ai/agent-sdk</code>],
-  ["npm today", <code key="n">@caveman-ai/agent@0.1.0</code>],
-]} />
+```bash
+npm install @caveman-ai/agent
+export ANTHROPIC_API_KEY=sk-ant-…
+```
 
-## Build 0.2 from source
+npm has 0.1.0, a smaller API than these pages describe. To follow them, build from the checkout below.
+
+## Build from the checkout
+
+<Steps>
+<div>
+Clone and install.
 
 ```bash
 git clone https://github.com/caveman-ai/agent-sdk.git
 cd agent-sdk
 npm ci
+```
+</div>
+
+<div>
+Build the packages. The root script runs four builds in order: the protocol, the graders, the runtime and the initializer.
+
+```bash
 npm run build
 ```
 
-The package binary is `caveman-agent`, from `packages/agent`. After the build you can run it with `node packages/agent/dist/cli.js`, or link the package into a project that depends on `@caveman-ai/agent@0.2.0`.
-
-A full repository test pass is `npm test` at the repo root. Restricted macOS sandbox and loopback tests need host permissions before a failure counts as a product defect.
-
-## Check the machine before a provider call
-
-```bash
-caveman-agent doctor
-caveman-agent doctor --json
+```text
+> @caveman-ai/create-agent@0.1.0 build
+> tsc
 ```
 
-Doctor makes no model request. Human output prints `verified savings: $0`.
+The last of the four. Each of the other three prints the same two lines under its own package name and version, `@pebble-agent/protocol@0.1.0`, `@caveman-ai/evals@0.1.0` and `@caveman-ai/agent@0.2.0`.
+</div>
 
-| Check | Pass | Warn | Fail |
-|---|---|---|---|
-| `node` | 22.19 or newer | | older Node |
-| `sandbox` | containment probe passed | | probe failed |
-| `engine` | transform registry loaded | engine missing; observe-only still works | |
-| `runtime_cli` | `caveman` CLI answers `version` | CLI missing; observe-only still works | |
-| `gateway` | local runtime reachable | not reachable; telemetry off, observe-only | |
-| `project` | `caveman.config.ts` loads | no config in this directory | config, entry, eval, or context error |
-| `lock` | lock is current | no lock; unlocked runs are fine | lock drift |
-| `provider` | selected model has a credential | no model, or several credentials and no `CAVE_MODEL` | bad `CAVE_MODEL` or `provider.json` |
-
-Missing engine, runtime CLI, or local runtime is a warning and doctor still exits 0, because observe-only runs still reach a real model. Broken sandbox containment, invalid config, or lock drift fails.
-
-Optional local engine:
+<div>
+Point your project at the checkout.
 
 ```bash
-npm install -g @caveman-ai/cli
-caveman start
+npm install /path/to/agent-sdk/packages/agent
 ```
+</div>
+</Steps>
 
-The Agent SDK accepts a loopback runtime only after identity, process state, and executable ownership check out. An unrelated listener on the same port does not receive provider credentials; the run goes direct in observe-only mode.
+These pages were written against commit `311be40`. `npx caveman-agent --version` prints `0.2.0` when the checkout is the one you installed.
 
-## Optional workspace packages
+## Which credential auto() picks
 
-React and the checked Vercel adapter are not published on npm at this check. Use the workspace source instead of an install line that returns 404. React ships JavaScript and declarations directly, so it needs no build step:
+`auto()` takes the first of these that is present in the environment, in this order, and prints a line on stderr naming `CAVE_MODEL` when more than one is.
+
+| Environment variable | Model `auto()` selects |
+|---|---|
+| `ANTHROPIC_API_KEY` | `anthropic/claude-haiku-4-5` |
+| `OPENAI_API_KEY` | `openai/gpt-5.4-mini` |
+| `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `google/gemini-2.5-flash` |
+
+`CAVE_MODEL` and `.caveman/provider.json` both take precedence over the credential order, and both use the `provider/model` form. A pinned model that the configured catalog does not know fails before the first call.
+
+## Start from a template
+
+The initializer writes a working agent directory, an eval suite, and a build config.
 
 ```bash
-npm pack --workspace @caveman-ai/react --pack-destination /tmp
+npm create @caveman-ai/agent@latest my-agent -- --provider anthropic
 ```
 
-Install the resulting tarball in your app. Packages with a build script must be built before packing. The current source licence is Apache-2.0; older published tarballs retain their shipped licences.
-
-## CLI
-
-```bash
-caveman-agent --help
-caveman-agent --version
-caveman-agent doctor [--json]
-caveman-agent dev [entry] [prompt]
-caveman-agent build [config] [--verbose] [--accept-prefix-shrink]
-caveman-agent check [config]
-caveman-agent register
-caveman-agent connect …
+```text
+created my-agent (support-bot)
+provider anthropic (anthropic/claude-sonnet-5)
+cd my-agent
+npm install
+npm run ticket -- tickets/refund-request.md
+review evals/support.eval.ts, then npm run build (all declared evals run within budget)
 ```
 
-`dev` watches the project and reuses one staged source snapshot until source, config, eval, or file context changes. `build` and `check` own Cave Build execution. `register` is a separate command; it is not a substitute for `build`.
+Captured from the initializer in the checkout with `--no-install`. The flags are `--provider anthropic|openai|google`, `--template support-bot|background-agent`, and `--no-install`. With one provider credential in the environment and no `--provider`, the initializer uses that credential. With none or with several it asks on a TTY, and in a non-interactive shell it exits with `no provider credential detected; pass --provider` or `multiple provider credentials detected; pass --provider`.
 
-A generated project wires the same commands through npm scripts: `npm run doctor`, `npm run dev`, `npm run build`, `npm run check`.
+The tree it writes for `support-bot`:
 
-## Release status checked 15 September 2026
-
-```bash
-npm install @caveman-ai/agent
+```text
+my-agent/
+  agent.ts                         model, budget, breakers
+  instructions.md                  the standing prose
+  tools/lookup_order.ts            one tool() per file
+  data/orders.json
+  tickets/                         three sample inputs
+  evals/support.eval.ts            profile, development, and holdout fixtures
+  .agents/skills/refund-policy/SKILL.md
+  .agents/skills/shipping-claims/SKILL.md
+  .caveman/provider.json           the model the scaffolder pinned
+  caveman.config.ts                defineBuild({ entry: ".", evals: "evals/*.eval.ts" })
+  run.ts                           loadAgentDir() + run()
+  package.json  tsconfig.json  AGENTS.md  README.md  .gitignore
 ```
 
-The registry reported 0.1.0 on 15 September 2026. These pages describe 0.2 source. Do not treat a registry install as the surface documented here until 0.2 is published.
+`npm run ticket -- tickets/refund-request.md` makes a real provider call and prints the receipt at the end of the run.
 
-<Note tone="warning" title="Two different SDKs">
-`@caveman-ai/agent` is this runtime. `@caveman-ai/sdk` is the thin client in [TypeScript SDK](/docs/sdk/typescript). The bare `caveman` package on npm is unrelated.
+<Note tone="honest" title="A scaffolded project's build fails with EISDIR">
+At commit `311be40`, `npm run build` and `npm run check` in a scaffolded project both stop at `caveman-agent: EISDIR: illegal operation on a directory, read`. The source graph walker tries to read the directory URLs in the generated `run.ts` as source files. To build a lock today, write the project by hand and point `entry` at a module instead of a directory.
 </Note>
 
-## What it will not do
+A hand-written project gets past the loader: `package.json`, `agent.ts` default-exporting an `agent()`, one file under `evals/`, and a config whose `entry` names the module.
 
-Doctor does not spend a provider call, and a green doctor is not a lock. Observe-only is a valid run mode, not a broken install. Linking `@caveman-ai/cli` is optional; without it the SDK still calls your provider.
+```ts
+import { defineBuild } from "@caveman-ai/agent/build";
+
+export default defineBuild({
+  entry: "./agent.ts",
+  evals: "evals/*.eval.ts",
+  maxSearchCostUsd: 2,
+});
+```
+
+```text
+✗ build failed: your frozen prefix is too small for the provider to cache
+
+  frozen prefix       ≈71 tokens (local estimate)
+  provider minimum  4,096 tokens (claude-haiku-4-5)
+```
+
+`caveman-agent build caveman.config.ts` on that project, trimmed after the two figures; the command also prints why the check exists and three ways to satisfy it. The build reached the prefix check, which runs before any model-backed eval, so it spent nothing. [Evals and builds](/docs/agent-sdk/build) covers what a lock contains.
+
+## Check the machine
+
+```bash
+npx caveman-agent doctor
+```
+
+```text
+Caveman Agent 0.2.0 doctor
+
+PASS node         Node 22.22.2
+PASS optional_peers optional peers installed: @anthropic-ai/claude-agent-sdk, ws, zod
+PASS sandbox      tool sandbox containment probe passed
+WARN engine       Caveman engine not found — transforms disabled (observe-only): cave_transform_registry_unavailable: run caveman setup or set CAVEMAN_ENGINE_BIN (spawn caveman-engine ENOENT)
+PASS runtime_cli  caveman 1.3.4 (bin-v1.1.7)
+WARN gateway      gateway not reachable at http://127.0.0.1:8787 — telemetry off, runs are observe-only
+WARN project      no caveman.config.ts in current directory
+WARN provider     no provider model selected
+
+run mode: observe-only (no transforms or gateway telemetry)
+locked harnesses: none
+next: npm i -g @caveman-ai/cli && caveman start
+provider calls: 0
+provider savings: not claimed
+```
+
+All eight checks, captured in an empty directory on a machine with `@caveman-ai/cli` 1.3.4 installed but no engine binary and no gateway running. `--json` prints the same checks as a `schema_version: 1` report. Warnings are the honest state of an observe-only machine, and runs work in that state. A `FAIL` makes doctor exit non-zero.
+
+## Undo
+
+```bash
+npm uninstall @caveman-ai/agent
+```
+
+Outside your project the runtime writes durable memory under `~/.caveman/agent-memory`, or under `CAVE_AGENT_MEMORY_ROOT` when you set it, and staged sandbox copies under the system temp directory. Removing that memory directory removes every stored fact; the temp copies are per-run and go with the next reboot.
+
+## Optional peers
+
+Three peer dependencies are declared optional, so a default install downloads none of them. `@anthropic-ai/claude-agent-sdk` and `zod` back the `@caveman-ai/agent/claude` entrypoint. `ws` is imported at the point the session server accepts a WebSocket, and its absence leaves that one route off while the rest of the server runs. `doctor` reports which of the three resolve from your installation, by resolution rather than by importing them.

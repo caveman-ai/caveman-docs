@@ -4,59 +4,97 @@ export const metadata = docMetadata("sdk/compression");
 
 <DocSchema slug="sdk/compression" />
 
-For framework evaluation, use the [middleware measurement guide](/docs/sdk/middleware/measurement). Final decision reports contain no token counters.
+`cave.compress()` sends one payload to the compression endpoint on your configured service and returns the report it gets back: the smaller text, the token counts before and after, the method that produced it, and a handle for the stored original. Every figure in the report comes from the engine.
 
-`compress()` sends a string to the configured service's `/sdk/v1/compress` API and returns its compression report. It does not compress locally inside Python or JavaScript. The examples assume the `cave` client from your language quickstart.
+Want tool results compressed inside a framework you already use, with no call site to change? Use [middleware](/docs/sdk/middleware).
 
-## Compress tool output
+### TypeScript
 
 ```ts
-const original = "status=ok\n".repeat(300);
-const result = await cave.compress(original, { contentType: "log" });
-console.log(result.output);
-console.log(result.tokensBefore, result.tokensAfter, result.ratio);
-console.log(result.basis, result.tokenCountBasis, result.recoveryHandle);
+import { Cave } from "@caveman-ai/sdk";
+
+const { CAVE_API_KEY = "", CAVE_BASE_URL = "" } = process.env;
+const cave = new Cave({ apiKey: CAVE_API_KEY, baseURL: CAVE_BASE_URL, agent: "support-agent" });
+
+const payload = JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] });
+const report = await cave.compress(payload, { contentType: "json" });
+
+console.log(report.output, report.tokensBefore, report.tokensAfter, report.ratio, report.recoveryHandle);
 ```
+
+### Python
 
 ```python
-original = "status=ok\n" * 300
-result = cave.compress(original, content_type="log")
-print(result.output)
-print(result.tokens_before, result.tokens_after, result.ratio)
-print(result.basis, result.token_count_basis, result.recovery_handle)
+import json, os
+from caveman_cloud import Cave
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], base_url=os.environ["CAVE_BASE_URL"], agent="support-agent")
+
+payload = json.dumps({"rows": [{"id": 1}, {"id": 2}]})
+report = cave.compress(payload, content_type="json")
+
+print(report.output, report.tokens_before, report.tokens_after, report.ratio, report.recovery_handle)
 ```
 
-Omit the content hint to let the service detect the content. Hints include `json`, `toon`, `log`, `code`, `diff`, `search-result`, `text`, and `toolschema`. A hint is not a guarantee that a transform applies or that the output shrinks.
+The signatures differ by one thing. TypeScript takes an options object, `compress(payload, options?: CompressOptions)`. Python takes a keyword-only argument, `compress(payload, *, content_type=None)`.
 
-## Read the report
+## The report
 
-| TypeScript | Python | Meaning |
+| TypeScript | Python | What it holds |
 | --- | --- | --- |
-| `output` | `output` | Compressed string, or the exact original on pass-through. |
-| `contentType` | `content_type` | Detected or supplied content type. |
-| `tokensBefore` | `tokens_before` | Estimated original token count. Zero when unavailable. |
-| `tokensAfter` | `tokens_after` | Estimated output token count. Zero when unavailable. |
-| `ratio` | `ratio` | Fraction removed, not a percentage. `0.2` means 20% by this counter. |
-| `basis` | `basis` | Always `inferred`. |
-| `tokenCountBasis` | `token_count_basis` | Counter or estimation method, or `unavailable`. |
-| `recoveryHandle` | `recovery_handle` | Optional reference to stored original content. |
-| `method` | `method` | Optional transform name. |
-| `losslessToModel` | `lossless_to_model` | Optional report of whether the visible representation retains the full value. |
+| `output` | `output` | The compressed payload, or the original input verbatim on pass-through |
+| `contentType` | `content_type` | The type the engine detected or you declared |
+| `tokensBefore` | `tokens_before` | Estimated tokens for the input, `0` when nothing was counted |
+| `tokensAfter` | `tokens_after` | Estimated tokens for the output, `0` when nothing was counted |
+| `ratio` | `ratio` | Fraction of tokens removed, `(before - after) / before`, `0` when unchanged |
+| `basis` | `basis` | Always `"inferred"` |
+| `tokenCountBasis` | `token_count_basis` | The counter the engine used, such as `o200k_base` or `approx_chars_div_4` |
+| `recoveryHandle` | `recovery_handle` | Handle for the byte-exact original, absent when nothing was stored |
+| `method` | `method` | The compressor the engine chose, such as `toon` or `elision` |
+| `losslessToModel` | `lossless_to_model` | `true` when the model-visible output kept the full value |
 
-Optional fields may be absent in TypeScript or `None` in Python. Do not interpret a missing field as an affirmative guarantee.
+`ratio` is recomputed by the SDK from `tokensBefore` and `tokensAfter` rather than copied from the response, so it always matches the two counts beside it. `basis` is `"inferred"` on every result the client library returns: a local estimate for one payload, earned offline. [Numbers and limits](/docs/counting) defines the three words.
 
-## Failure behavior
+## Pass-through
 
-On transport failure, rejected HTTP status, or an invalid compression report, the SDK returns the original input, zero reduction, and no recovery handle. This lets your application continue with its own input instead of dropping context.
+Any transport or parse problem returns the original bytes with a ratio of `0`. That covers a connection failure, a non-200 status, a malformed body, a missing `output` field, counts outside the non-negative integers, and an `after` count larger than the `before` count.
 
-A pass-through does not explain whether the cause was an unavailable endpoint, bad credentials, an unsupported payload, or no useful reduction. The result has no comprehensive error-reason field. Diagnose the service separately; never use this method alone to verify connectivity.
+This is what a pass-through looks like, captured by pointing the client at a closed port and compressing `{"rows":[{"id":1},{"id":2}]}`:
 
-## Keep a recovery path
+```json
+{
+  "output": "{\"rows\":[{\"id\":1},{\"id\":2}]}",
+  "contentType": "json",
+  "tokensBefore": 0,
+  "tokensAfter": 0,
+  "ratio": 0,
+  "basis": "inferred",
+  "tokenCountBasis": "unavailable"
+}
+```
 
-Retain the original string in your application. A recovery handle is a reference, not the original bytes, and this API does not automatically register a retrieval tool in your model loop. Its availability depends on the service that stored it.
+Python returns the same values in a `CompressResult` dataclass, with `recovery_handle=None`, `method=None` and `lossless_to_model=None` present and empty.
 
-For tool-result compression with a registered recovery executor, use [framework middleware](/docs/sdk/middleware). For explicit JSON artifacts and reversible message checkpoints, use [context and recovery](/docs/sdk/context). Do not assume an artifact ID, checkpoint reference, and compression handle are interchangeable.
+Two fields tell a pass-through from a real result: `ratio` is `0` and `tokenCountBasis` is `"unavailable"`. A successful call always reports the counter the engine used.
 
-## What the counts prove
+## Content types
 
-These are per-payload token estimates from the reported counter. They do not establish provider input usage, a quality result, a cache hit, or money saved. Keep a negative or zero result when evaluating your workload. Installing the SDK does not install or start the [local engine](/docs/proxy/engine).
+`contentType` is a hint for the engine's detector, and the engine detects the type itself when you leave it out. The documented values are `json`, `toon`, `log`, `code`, `diff`, `search-result`, `text` and `toolschema`. The type comes back on the report, so you can check what the engine decided.
+
+`toon` is the one value that forces a choice rather than hinting at one: it selects the token-oriented JSON encoding described on [TOON](/docs/proxy/compressors/toon). [All compressors](/docs/proxy/compressors) covers what each type does to a payload.
+
+## Recovering the original
+
+When the engine stored the original, the report carries `recoveryHandle`. The handle names the stored bytes rather than carrying them.
+
+The client library has one job with that handle: give it to you. Retrieval belongs to the surface that stored the original, which is the engine behind your service. [Recovery](/docs/proxy/recoverable) covers how a handle is turned back into the original and when compression declines to run at all. When a model needs to pull the original back mid-conversation, that is what the middleware runtime's recovery tool is for, on [Middleware](/docs/sdk/middleware).
+
+<Note tone="honest" title="A saving here is one payload, measured offline">
+`tokensBefore` and `tokensAfter` are the engine's own count of one string, with the counter named in `tokenCountBasis`. They describe that one string offline, and the SDK never multiplies them into a period or a currency.
+</Note>
+
+## Limits
+
+Small payloads often come back unchanged with a real `tokenCountBasis` and a `ratio` of `0`. That is a genuine result: the engine looked and kept the payload as it was.
+
+`compress()` takes one payload per call and holds it in memory in both languages.

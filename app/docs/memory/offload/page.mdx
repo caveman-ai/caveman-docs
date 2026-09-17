@@ -4,130 +4,142 @@ export const metadata = docMetadata("memory/offload");
 
 <DocSchema slug="memory/offload" />
 
-Offloading moves recurring context out of an always-read instruction file and into local cavemem. A short pointer
-stays where the block used to be, so an agent knows how to recall the compact form and recover exact source bytes.
+A long section of a `CLAUDE.md` or an `AGENTS.md` is read into the prompt on every turn, whether or not the turn needs it. Offloading moves that section into [cavemem](/docs/memory) and leaves a pointer behind, so the agent pays for it only on the turns that ask for it.
 
-## Good candidates
+Want the whole file rewritten shorter instead of moved out? That is [`/caveman-compress`](/docs/skill/commands#caveman-compress).
 
-Offload context when all of these are true:
-
-- The same block appears across several sessions
-- It is useful for some tasks, not every turn
-- A specific recall query can find it
-- Pointer plus recall costs fewer inferred tokens than keeping the block resident
-- Removing it does not weaken a load-bearing instruction
-
-Repetition is evidence of recurring cost, not proof that content is unnecessary. Security rules, required build
-commands, repository boundaries, and other load-bearing instructions stay in place.
-
-## Measure first
+## Find the candidates
 
 ```bash
-caveman learn --json
-caveman learn apply recurring_context:<id> --dry-run
+caveman learn --plain
 ```
 
-The learn report identifies repeated blocks by local session evidence. A candidate contains a locator, expected
-token figures, and proposed pointer text. It does not contain a trusted copy of the block body.
+[caveman learn](/docs/skill/learn) reads your session history and classes a block that keeps reappearing across sessions as `recurring_context`, with the fix kind `cavemem_offload`. `caveman learn apply <sink_id> --dry-run` previews one without touching anything, and [Preview one fix](/docs/skill/learn#preview-one-fix) shows what it prints.
 
-Use the consent-gated editing flow for the full procedure:
+## Before
+
+A `CLAUDE.md` for a storefront. Two short sections of orientation, then a release runbook that a release touches and nothing else does.
+
+```text
+# acme-web
+
+Next.js storefront. Node 22, pnpm.
+
+## Commands
+
+- `pnpm dev` runs on port 3000
+- `pnpm test` runs vitest
+- `pnpm build` type-checks then builds
+
+## Style
+
+Prefer server components. No new dependencies without an ADR.
+
+## Release runbook
+
+Follow every step in order. Do not skip the soak.
+
+1. Cut a release branch from `main` named `release/<yyyy-mm-dd>`.
+2. Run `pnpm release:notes` and paste the output into the release issue.
+…
+10. After production is green, merge the release branch back into `main` with a
+    merge commit, never a squash. A squash rewrites the tag's parent and breaks
+    `git describe` for the next release.
+```
+
+46 lines, 2,081 bytes, 539 tokens counted offline. The runbook is 471 of those 539.
+
+## Store the block
+
+```bash
+cavemem remember -- "$(sed -n '/## Release runbook/,$p' CLAUDE.md)"
+```
+
+```json
+{
+  "basis": "inferred",
+  "created_at": "2026-09-16T23:23:55.86106Z",
+  "id": "mem_5523c7e6ad85d5db"
+}
+```
+
+`--` ends option parsing, which matters when the block opens with something flag-shaped such as a Markdown rule.
+
+## Check the recall path before you cut anything
+
+```bash
+cavemem recall "acme-web release runbook"
+```
+
+```json
+{
+  "hits": [
+    {
+      "id": "mem_5523c7e6ad85d5db",
+      "text": "## Release runbook\n\nFollow every step in order. Do not skip the soak.\n…",
+      "score": …,
+      "tokens_added": 471,
+      "basis": "inferred"
+    }
+  ]
+}
+```
+
+Trimmed: the real hit carries the whole runbook in `text`, and `score` is replaced with `…` because BM25 is corpus-relative and varies with the store it ran against. `tokens_added` is what a recall of it would cost, 471 tokens, which is exactly what the block cost in the file.
+
+This step comes before the edit on purpose. An empty `hits` array here means the topic you would write into the pointer does not find the memory, and cutting the section at that point would remove context with no path back to it.
+
+## After
+
+Replace the section with a pointer that names the recall path:
+
+````text
+## Release runbook
+
+Stored in cavemem. Read it before any release:
+
+```bash
+caveman mem recall "acme-web release runbook"
+```
+````
+
+21 lines, 357 bytes, 103 tokens.
+
+## The result
+
+| | Before | After |
+|---|---|---|
+| `CLAUDE.md`, every turn | 539 tokens | 103 tokens |
+| The runbook | In every turn | 471 tokens on a turn that recalls it |
+
+436 tokens leave the per-turn cost. The runbook still costs 471 tokens when it is needed, so this pays off when releases are rarer than turns, and it costs you when every turn needs the block. Both figures are `inferred`, counted offline with the same tokenizer on the same files.
+
+<Note tone="honest" title="The gate is a recount, not an estimate">
+When `caveman learn` applies this fix it recounts the edited file afterwards. If the new file is not smaller per turn than the old one, the edit is reverted. The memory is forgotten and the source restored, rather than kept with an explanation attached. That is the net-token-negative gate, and it is the reason the numbers above are two file counts rather than a projection.
+</Note>
+
+## Undo
+
+Two steps, in either order:
+
+```bash
+cavemem forget mem_5523c7e6ad85d5db
+```
+
+Then put the section back in `CLAUDE.md`. If you want the exact bytes and the memory is already gone, `cavemem recover <handle>` returns the original behind any compressed recall hit, and `git checkout` returns the file.
+
+## Do it by hand or let the agent do it
+
+The consent loop runs the same sequence with a diff in front of every step:
 
 ```bash
 caveman learn implement
 ```
 
-## Safe offload sequence
+It applies nothing without a yes, re-measures after each edit, and confirms both that the recall returns a hit and that a pointer is in place before it calls the offload done.
 
-<Steps>
-<div>
-Re-read the block from its real source file. Verify its file, session line, block index, and SHA-256 against the
-candidate locator. Stop if source changed after the scan.
-</div>
+## Limits
 
-<div>
-Store exact block text. `--` ends option parsing, so a block beginning with a rule such as `---` stays literal.
+This moves a block out of the prompt. It does not make the block smaller: a recall of it costs what it cost in the file, plus whatever the recall itself adds. What changes is how often you pay.
 
-```bash
-caveman mem remember -- "<exact block>"
-```
-</div>
-
-<div>
-Recall it with a topic query and record `tokens_added`.
-
-```bash
-caveman mem recall "<topic>"
-```
-</div>
-
-<div>
-Compare resident cost against pointer plus recall cost. If the new path is not smaller, forget the new memory and
-leave source untouched.
-
-```bash
-caveman mem forget mem_xxxxxxxx
-```
-</div>
-
-<div>
-After approval, replace source block with pointer. Confirm recall still returns a hit before finishing.
-</div>
-</Steps>
-
-## Pointer shape
-
-A useful pointer names the topic and both recovery paths:
-
-```text
-Recurring migration context lives in cavemem.
-Recall: caveman mem recall "migration context"
-Exact source: caveman mem recover <recovery_handle>
-```
-
-Do not put the removed block into the pointer. That would preserve the recurring cost under a new heading.
-
-## Recall remains bounded
-
-Normal cavemem recall returns up to five hits and packs at most 2,000 inferred tokens. The direct `cavemem` binary
-allows an explicit token budget of zero for unlimited recall:
-
-```bash
-cavemem recall "migration context" 5 0
-```
-
-Unbounded recall is opt-in. The `caveman mem recall` wrapper keeps the safe default and exposes only the result
-limit.
-
-## Exact recovery
-
-Each compressed recall hit carries a `recovery_handle` from cavemem's own store:
-
-```bash
-caveman mem recover ccr_xxxxxxxx > original.txt
-```
-
-That store lives under `~/.caveman/mem`, separate from the engine's shared CCR database. Use the memory recovery
-command for a memory handle.
-
-## Auto-recall is optional
-
-Pointer-driven recall is the default. A verified host hook can inject relevant memory on each prompt, but it is
-off until you enable it:
-
-```bash
-caveman mem hook install claude
-caveman mem hook uninstall claude
-```
-
-Only hosts with a declared live prompt hook are eligible. Injection fails open, so a recall problem does not block
-the user's prompt. Every injected hit discloses its inferred token cost.
-
-<Note tone="honest" title="Never remove before recall works">
-Safe offload has two required end states: a pointer remains in source and recall returns the stored content. If
-either is missing, restore source and delete the new memory.
-</Note>
-
-## Undo
-
-Undo requires both parts: restore original block to its source location, then remove stored memory with
-`caveman mem forget <id>`. Report both changes so the user can verify that recurring context did not disappear.
+Recall is lexical, so the pointer's wording and the block's wording have to share vocabulary. Pick the topic string by running the recall first, as above, rather than writing the pointer and hoping.

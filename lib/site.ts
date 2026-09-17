@@ -8,7 +8,7 @@ export const SITE = {
   console: "https://app.caveman.so",
   github: "https://github.com/JuliusBrussee/caveman",
   description:
-    "Documentation for the open Caveman stack: the agent skill, the local proxy and its compression engine, cavemem, and the Agent SDK. What each part does, what it costs, and how every number is counted.",
+    "Caveman makes AI coding agents cheaper: a rule file that shortens what the agent writes, a local proxy that compresses what it reads and can hand back every byte, and an SDK for building agents with a declared budget. Install, examples, how each compressor works, and every number with its source.",
 } as const;
 
 export function ogUrl(title: string, summary: string, eyebrow?: string): string {

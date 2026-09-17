@@ -4,108 +4,101 @@ export const metadata = docMetadata("provider-catalog");
 
 <DocSchema slug="provider-catalog" />
 
-The provider catalog is the public, source-backed table of model prices and operational facts. Cost calculations
-read a specific catalog version instead of scattering model prices through application code.
+The provider catalog is a YAML table of published token prices and model capabilities, one row per provider, model and region. It is data and a JSON Schema, with no runtime code, and it is MIT so you can read it, vendor it, or check a price against it. It lives at `shared/provider-catalog/` in the product repository.
 
-<Facts rows={[
-  ["Package", <code key="p">@caveman/provider-catalog</code>],
-  ["Source", <code key="s">catalog/current.yaml</code>],
-  ["Snapshots", "Immutable files named by price verification date."],
-  ["Currency", "Declared per row, currently USD rows."],
-  ["Licence", "MIT."],
-]} />
+Looking for what a local run cost you? Local tools count tokens and stop. [Numbers and limits](/docs/counting) explains why.
 
-## What a row says
+## One row
 
-One row identifies provider, model, region, currency, prices, capabilities, source links, and verification times.
-Typed fields may also describe lifecycle, aliases, historical price intervals, tokenizer support, count surface,
-and cache behaviour.
+This is the committed entry for `claude-opus-4-8`, copied whole from `catalog/current.yaml`:
 
-Support facts use three states:
-
-| State | Meaning |
-| --- | --- |
-| `supported` | Reviewed source says the capability exists. |
-| `unsupported` | Reviewed source says it does not exist. |
-| `unknown` | No reviewed fact is available. |
-
-Unknown is not false and not permission to guess.
-
-## Read generated data
-
-Build consumers use generated JSON rather than parsing YAML on a request path:
-
-```text
-generated/catalog.json
-generated/manifest.json
+```yaml
+- provider: anthropic
+  model: claude-opus-4-8
+  region: global
+  currency: USD
+  pricing:
+    input_per_million: 5.00
+    output_per_million: 25.00
+    cache_read_input_per_million: 0.50
+    cache_write_input_per_million: 6.25
+    cache_write_1h_input_per_million: 10.00
+    reasoning_output_per_million: null
+    batch_discount_fraction: 0.50
+  capabilities:
+    messages_api: true
+    effort_levels: [low, medium, high, xhigh, max]
+    count_tokens: true
+    prompt_cache: true
+    streaming: true
+    message_batches: true
+    context_editing: true
+    inference_geo_us_multiplier: 1.10
+    context_window_tokens: 1000000
+    tools: true
+    vision: true
+    json_mode: true
+  sources:
+    - https://platform.claude.com/docs/en/about-claude/pricing
+    - https://platform.claude.com/docs/en/about-claude/models/overview
+    - https://platform.claude.com/docs/en/build-with-claude/effort
+  verified_at: 2026-08-10T00:00:00Z
+  capabilities_verified_at: 2026-08-10T00:00:00Z
 ```
 
-The catalog carries a semantic digest, price-provenance digest, source digest, and content digest per entry. The
-manifest records snapshot digests and entry counts. These hashes detect drift; they do not prove that a provider
-served a request or charged a particular invoice.
+A row can also carry a YAML comment above `pricing` recording a dated changeover the drift detector must roll forward. `claude-sonnet-5` has one today.
 
-Use the generated manifest to read current counts. Do not copy a fixed model or provider count into dependent
-code, because rows change as providers publish and retire models.
+`current.yaml` today holds 50 rows: 10 OpenAI, 9 Anthropic, 2 Gemini, 25 Bedrock and 4 Vertex. Regions are provider regions, with `global` for rows that price the same everywhere.
 
-## Unknown prices fail closed
+## Reading a price
 
-An unknown provider, model, or region combination is zero-priced with `unpriced:` provenance. Callers must not
-borrow a nearby model's price or assume two regions match.
+Every rate is per million tokens in the row's `currency`. The name says which side of the call it covers.
 
-Zero in this case means no supported price entered the calculation. It does not mean the model is free.
+| Field | What it prices |
+|---|---|
+| `input_per_million` | Tokens the model read. |
+| `output_per_million` | Tokens the model wrote. |
+| `cache_read_input_per_million` | Input tokens served from the provider's prompt cache. |
+| `cache_write_input_per_million` | Input tokens written into that cache. |
+| `cache_write_1h_input_per_million` | The same, at a longer cache lifetime, where the provider sells one. |
+| `reasoning_output_per_million` | Reasoning tokens, when the provider bills them separately from output. |
+| `batch_discount_fraction` | A discount, not a multiplier. `0.50` means half off. |
+| `long_context_threshold_tokens` and its two multipliers | The point at which a provider switches to long-context rates, and what it multiplies input and output by past it. |
 
-<Note tone="honest" title="Zero plus provenance, never a guessed price">
-Any total containing an unpriced row is incomplete. Surface the `unpriced:` tag next to the total so a reader can
-distinguish missing price data from a real zero rate.
-</Note>
+A field that does not apply to a model is written as explicit `null` rather than left out, so a missing rate is a stated absence rather than an oversight.
 
-## Price provenance
+Three keys inside `capabilities` are price wearing a capability's clothes: `regional_processing_multiplier` and `inference_geo_us_multiplier` multiply the row's token rates, and `region_agnostic_pricing` decides whether a `global` row can answer a lookup for a specific region at all. Editing one of them is a price edit.
 
-`verified_at` is an RFC3339 timestamp tied to price sources. Current rows may not be future-dated or older than
-120 days.
+## Two dates that mean different things
 
-Every current row must match an immutable `catalog/YYYY-MM-DD.yaml` snapshot selected by its verification date.
-A price change adds a new dated file. It never rewrites an old snapshot.
+`verified_at` is the date this row's **pricing** was last checked against the vendor's published pricing page. It is the only input to the catalog version stamped on cost reports, so it moves only when someone re-checks prices.
 
-Sources use provider-owned HTTPS pricing or model documentation. Automated proposals carry a review marker and
-cannot pass default validation until a person confirms each changed row against its sources and removes the
-marker.
+`capabilities_verified_at` is the date the capability data this row **asserts** was last checked against the vendor's model docs. Nothing money-related reads it. A key whose value is explicit `null` asserts nothing, so it sits outside what that date covers.
 
-Capability provenance has its own timestamp. Updating a non-price capability does not pretend that price was
-re-verified on that day.
+Every current row must match the immutable dated snapshot its `verified_at` names, on the pricing-relevant columns. That is why a snapshot named by any current row is never deleted, and why a row whose price actually changed gets a new date and a new snapshot rather than reusing an old one.
+
+## How stats uses it
+
+`caveman stats` reports token counts always and a price only when it can stand behind one. The proxy records a request's tokens from its own offline counter and labels them `inferred`. To attach a price it needs all of: provider-reported usage that is complete enough to price, an exact catalog match for the provider and model and region, and a catalog version that is not the `unpriced:` form.
+
+When any of those is missing, the row keeps its token counts and the savings basis says why: `unpriced` for no price, `usage_incomplete` for usage the provider did not fully report, `counterfactual_tier_unknown` when a smaller payload might have crossed a pricing tier the local counter cannot prove. Subscription-authenticated sessions stay tokens-only regardless, with no dollar figure at all.
+
+That is the catalog's whole job here: it is the table a hosted comparison reads, and it is why the local tools can decline to guess instead of averaging something plausible.
+
+## Unknown is not false
+
+`tools`, `vision` and `json_mode` are explicitly nullable. A row writes `null` when the vendor's own docs do not state the answer, with a comment naming what was checked. Twenty Bedrock rows carry `null` for exactly this reason. A guessed `true` would route traffic to a model that may not support the feature, and a guessed `false` would delete a candidate that does.
+
+Withdrawing a claim is not a verification. Replacing an unverified value with `null` removes an assertion rather than checking one, so the capability date stays where it was.
 
 ## Validate a change
 
-From the catalog package directory:
-
 ```bash
-python3 -m pip install -r requirements-dev.txt
-python3 validate_catalog.py
-python3 -m unittest discover -s tests -p 'test_*.py'
+python shared/provider-catalog/validate_catalog.py
 ```
 
-From repository root:
-
-```bash
-pnpm --filter @caveman/provider-catalog build
-pnpm --filter @caveman/provider-catalog lint
-pnpm --filter @caveman/provider-catalog test
+```
+provider catalog valid: current rows are fresh, sourced, and snapshot-backed
 ```
 
-Validation rejects duplicate YAML keys, duplicate provider/model/region identities, unsafe identifiers, invalid
-rates, stale provenance, broken aliases, unavailable replacements, unknown fields, and price changes without a
-matching snapshot.
-
-## Lifecycle and routing
-
-Lifecycle distinguishes discovery, review, routing eligibility, and retirement. A reviewed price row is not
-automatically eligible for routing. Routing needs its own capability and evidence gates outside this data file.
-
-Aliases stay provider-local, may not collide with canonical model ids, may not form cycles, and may not resolve to
-a retired or missing model.
-
-## What this catalog does not prove
-
-The table can support list-price accounting from observed usage. It does not turn inferred local token reductions
-into saved money, prove a contract rate, or compare against an invoice. Those claims need observed traffic and the
-right accounting authority.
+The schema is `schemas/provider-catalog.schema.json`, JSON Schema draft 2020-12. Unknown YAML fields, duplicate provider and model and region rows, invalid URLs or timestamps, and unsafe prices all reject the file rather than loading partially. The `package.json` scripts in that directory only parse the schema itself, so run the validator for the catalog data.

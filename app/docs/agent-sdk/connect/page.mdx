@@ -4,7 +4,7 @@ export const metadata = docMetadata("agent-sdk/connect");
 
 <DocSchema slug="agent-sdk/connect" />
 
-Caveman Connect lets an agent read allowed provider data through one stable tool. The SDK owns configuration, bounded invocation, quality policy, and evidence. OAuth, credentials, encrypted storage, and sync execution stay in a local Connect daemon. The SDK does not bundle that daemon.
+`createConnect` gives an agent one tool that reads data from providers you have connected, page by page, under a declared completeness policy. One stable tool schema enters the prompt; the provider catalog, the sync schemas, the action schemas and the records stay outside it until the model asks for them.
 
 ```ts
 import { agent, auto, createConnect } from "@caveman-ai/agent";
@@ -26,43 +26,107 @@ export default agent({
 });
 ```
 
-Authorize once:
+Unreleased: this page documents `@caveman-ai/agent` 0.2.0 from source at commit 311be40 in caveman-ai/agent-sdk. Build it from the checkout as described on [Install](/docs/agent-sdk/install).
+
+Authorize the provider once, then start a collection from your app or a deployment job:
 
 ```bash
 caveman-agent connect github
 ```
 
-Start configured collection from the app or a job:
-
 ```ts
 await data.collect("work-github");
 ```
 
-`collect()` triggers configured syncs and returns daemon acknowledgements. It does not pretend a queued sync is finished. Poll with `connected_data` `operation: "sync_status"`, then read records. Recurring schedules are not part of the current protocol; call `collect()` from whatever scheduler you already run.
+`collect()` triggers the configured syncs and returns the daemon's acknowledgements. Those acknowledge a queued sync, so poll with `operation: "sync_status"` and read records once it reports finished.
 
-When a source omits `connectionId`, the runtime accepts exactly one active saved connection for that provider. Zero or several matches fail closed. Set the exact id to remove the ambiguity.
+## What the model sees
 
-## Why the prefix stays small
+One tool, named `connected_data` unless you rename it with `toolName`, with `effect: "external"` and a fixed input schema.
 
-One stable `connected_data` schema enters the provider-visible prefix. Provider catalog, action schemas, sync schemas, and records stay out of the prompt until the agent asks.
+| `operation` | What it does |
+|---|---|
+| `sources` | The allowlist configured above, with each source's bound keys named |
+| `connections` | Saved connections, with credential fields never projected |
+| `search_syncs`, `search_actions` | Bounded metadata for the matching entries only |
+| `collect` | Triggers an allowlisted sync |
+| `sync_status` | Whether a triggered sync has finished |
+| `records` | Exact paginated records |
+| `call_action` | Runs one allowlisted action |
 
-1. `sources` returns a tiny allowlist.
-2. `search_syncs` or `search_actions` loads bounded matching metadata.
-3. `collect` triggers an allowlisted sync.
-4. `records` reads exact paginated records.
+By default a read is a paginated fetch and nothing else, so the model spend behind one is the call that asked for it. The stable schema also keeps the provider's cache prefix intact inside a cache epoch. Turning on a second model, embeddings, a reranker or a summariser is yours to do.
 
-No retrieval model, embedding, semantic reranker, or automatic summariser runs by default. That avoids hidden model spend and keeps the provider cache prefix byte-stable inside one cache epoch.
+## Completeness, or a refusal
 
-Token reduction is still not a savings proof. Extra model turns, expensive collection, stale data, or retries after incomplete context can cost more than the prefix you saved.
+The default quality policy:
 
-## Incomplete reads fail closed
+```ts
+createConnect({
+  sources,
+  quality: { maxRecords: 100, maxPages: 5, maxResultBytes: 24 * 1024, incomplete: "refuse" },
+});
+```
 
-Paginated reads never silently summarise or skip records. Capped output returns `complete: false`, exact continuation when available, and `must_refuse: true`. The agent is supposed to refuse to answer from a partial page rather than invent the missing rows.
+`maxResultBytes` has a hard ceiling of 30 KiB, and `incomplete` accepts only `"refuse"`. Every result carries four fields the model reads:
 
-Hosts that need Connect's native tool catalog without building a second MCP client can use `ConnectRuntime` from `@caveman-ai/agent/connect`.
+| Field | Meaning |
+|---|---|
+| `complete` | Every requested page was consumed |
+| `next_cursor` | The exact continuation, when one exists |
+| `capped_by` | `records`, `pages`, or `bytes` |
+| `must_refuse` | True whenever the result cannot support a completeness claim |
 
-Default Connect timeout is 30,000 ms.
+Records arrive verbatim in cursor order, and the byte cap leaves the cursor on the last page it actually returned. The agent retries with a smaller page or names the pages it stopped at.
 
-## What it will not do
+## Actions
 
-Connect will not copy credentials into the agent process. It will not hide a truncated page as a complete answer. It will not schedule recurring syncs by itself. It will not claim that a smaller prompt saved money.
+Actions default to deny: only names listed in a source's `actions` can run. An allowlisted name still leaves every argument to the model, so bind the parts that have to stay fixed:
+
+```ts
+actions: [{ name: "post-message", bind: { channel: "C0456" } }]
+```
+
+Bound keys are applied from configuration after the model's input. Model input that sets a bound key fails with `cave_connect_action_bind_conflict` rather than being overridden quietly, so a redirect attempt fails instead of appearing to succeed somewhere else. Bind values are serializable scalars, at most 32 keys, and configuration rather than credentials. The tool description and the `sources` operation both name each bound key so the model omits it.
+
+## When something goes wrong
+
+A missing daemon binary says so and stops:
+
+```console
+$ caveman-agent connect doctor --json
+caveman-agent: cave_connect_binary_missing: set CAVE_CONNECT_BIN to cave-connectd
+```
+
+A source that omits `connectionId` resolves to exactly one active saved connection for that provider. Zero matches and two matches both stop the call, so set an exact id when a provider has more than one connection.
+
+A timeout, an abort, or a result that exceeded `maxResultBytes` leaves an action's side effect possibly applied. The runtime derives a key from the source, provider, action and the exact merged arguments, and refuses an identical repeat with `cave_connect_action_outcome_unknown`. Check whether the earlier call ran before repeating it. A different payload is a different call and still executes, and a daemon-reported failure is known to have stopped before applying, so it stays retryable. The guard is process-scoped and remembers the 256 most recent unknown outcomes.
+
+Tool discovery fails closed rather than returning a partial catalog. `listTools()` follows exact MCP `nextCursor` values and returns one frozen array only after every page passes, refusing on a malformed response, a repeated tool name, a cursor cycle, or any fixed cap: 32 pages, 1,024 tools, 1 MiB of serialized descriptors, a 4 KiB cursor, 100,000 JSON nodes, depth 64.
+
+```ts
+import { ConnectRuntime } from "@caveman-ai/agent/connect";
+
+const tools = await new ConnectRuntime().listTools();
+```
+
+## Measuring whether it helped
+
+```ts
+import { compareConnectEfficiency } from "@caveman-ai/agent/connect";
+
+const comparison = compareConnectEfficiency(baseline, connected, { maxQualityRegression: 0 });
+```
+
+Acceptance needs all of: the connected task succeeded, its data was complete, quality stayed inside the declared tolerance, provider and retrieval and collection cost evidence are all present, and the total connected cost came in lower. Total means provider model calls plus retry and follow-up calls plus retrieval plus collection, counted per task. Task success is counted separately, because the cheapest answer is only worth something once it is right.
+
+Fewer prompt tokens is one input to that comparison and never the whole of it. Retrieval can cause extra model turns, collection costs something, and stale data causes retries. The comparison stays `inferred`, defined on [Numbers and limits](/docs/counting).
+
+## Limits
+
+The SDK owns agent configuration, bounded invocation, the quality policy and the evidence. The external `cave-connectd` daemon owns provider OAuth, credentials, encrypted storage, proxying, sync execution and records. The child process gets an explicit non-secret environment allowlist, provider keys and `CAVE_CONNECT_SECRET_KEY` are stripped, and no secret enters a prompt, a tool argument, argv, or a receipt.
+
+Recurring schedules are not part of the current protocol. Call `collect()` from the scheduler you already have.
+
+Tool annotations from a provider are interoperability hints and stay plain data. The SDK never turns one into an approval, a permission, or an admission decision.
+
+The Connect runtime is kernel-owned, so a `sandbox: "required"` agent can use this tool without a host closure: [Sandbox and execution](/docs/agent-sdk/sandbox).

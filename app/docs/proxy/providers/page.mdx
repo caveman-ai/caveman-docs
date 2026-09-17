@@ -4,162 +4,218 @@ export const metadata = docMetadata("proxy/providers");
 
 <DocSchema slug="proxy/providers" />
 
-The proxy speaks the HTTP shapes your agent already uses. Change the base URL to `http://127.0.0.1:8787`
-(plus the provider prefix when the profile needs one) and keep the same request bodies. Compatibility
-here means the route and the credential mapping, not every vendor extension.
+The proxy speaks each provider's own protocol on that provider's own path, so pointing a client at it is a
+base URL change and nothing else. Anthropic, OpenAI, Gemini and Bedrock are mounted on a bare
+`caveman start`; Azure, Vertex and OpenAI-compatible upstreams mount when you give them a base URL.
 
-Credentials stay on the request or in the environment. They never belong in YAML.
+```ts
+import OpenAI from "openai";
 
-<Facts rows={[
-  ["Default listen", <code key="d">http://127.0.0.1:8787</code>],
-  ["Unknown route", "404, then nothing is forwarded."],
-  ["Inbound key", "Preserved. Environment is a fallback only."],
-  ["Price gaps", "Zero, tagged unpriced. No guessed list price."],
-]} />
+const client = new OpenAI({
+  baseURL: "http://127.0.0.1:8787/w/my-service/openai/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-## Anthropic
-
-```text
-/anthropic/v1/messages
-/anthropic/v1/messages/count_tokens
-/v1/messages
-/v1/messages/count_tokens
+const res = await client.responses.create({
+  model: "gpt-5.5",
+  input: "Why is the sky blue?",
+});
 ```
 
-Claude Pro and Max OAuth tokens pass through as `Authorization: Bearer`. Remapping those to
-`x-api-key` would 401, so the proxy does not.
+Every block below is `caveman snippets <id> --app my-service` with the base URL resolved to the local proxy.
+`/w/my-service` is the attribution slug and is optional; the same paths work without it.
 
-Environment fallback: `ANTHROPIC_API_KEY`.
+## Every route
+
+| Provider | Path | Credential it expects | Wire dialect |
+|---|---|---|---|
+| Anthropic | `/v1/messages`, `/v1/messages/count_tokens`, and both under `/anthropic/` | `x-api-key`, or `Authorization: Bearer` for a Claude Pro/Max login | Anthropic Messages |
+| OpenAI | `/v1/chat/completions`, `/v1/responses`, `/v1/responses/input_tokens`, `/v1/embeddings`, and all four under `/openai/` | `Authorization: Bearer` | OpenAI |
+| Gemini | `/v1beta/models/…`, `/v1/models/…`, and both under `/gemini/` | `x-goog-api-key`, or `?key=`, or `Authorization: Bearer` with `x-goog-user-project` | Gemini generateContent |
+| Bedrock | `/bedrock/model/…` | AWS SigV4, or `Authorization: Bearer` for a Bedrock API key | Bedrock Runtime |
+| Bedrock, Anthropic route | `/bedrock/anthropic/…`, off unless `CAVE_BEDROCK_MANTLE_ENABLED` is set | as above | Anthropic Messages |
+| Azure OpenAI | `/azure/…`, mounted by `providers.azure_openai.base_url` | `api-key`, or `Authorization: Bearer` for an Entra token | OpenAI |
+| Vertex AI | `/vertex/…`, mounted by `providers.vertex.base_url` | `Authorization: Bearer` from Application Default Credentials, or an Express API key | Vertex |
+| Named compatible mount | `/compat/<name>/…` | the variable in `compat.<name>.api_key_env` | OpenAI, or Anthropic with `wire_dialect: anthropic` |
+| Generic compatible mount | `/compat/…`, mounted by `providers.openai_compatible.base_url` | `Authorization: Bearer` | OpenAI |
+| Codex ChatGPT login | `/chatgpt/…` | the OAuth bearer the host already holds | OpenAI Responses |
+| Health and metrics | `GET /health/live`, `GET /health/ready`, `GET /metrics` | none | none |
+
+That table is the provider routes. One more path sits beside them: `/caveman/v1/middleware/` is the
+middleware runtime, which serves the SDK wrappers rather than a provider protocol. See
+[Middleware](/docs/sdk/middleware).
+
+A path that matches none of these answers `404 cave_route_not_found` rather than forwarding blind. Where an
+inbound token is configured, authentication runs before route matching, so an unauthenticated caller gets 401
+on every path and the 404 cannot be used to enumerate which providers a shared proxy serves.
 
 ## OpenAI
 
-```text
-/openai/v1/chat/completions
-/openai/v1/responses
-/openai/v1/responses/input_tokens
-/openai/v1/embeddings
-/v1/chat/completions
-/v1/responses
-/v1/responses/input_tokens
-/v1/embeddings
+### OpenAI, TypeScript
+
+```ts
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://127.0.0.1:8787/w/my-service/openai/v1",
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Chat Completions and the Responses API both route through the gateway.
+const res = await client.responses.create({
+  model: "gpt-5.5",
+  input: "Why is the sky blue?",
+});
 ```
 
-Environment fallback: `OPENAI_API_KEY`.
+### OpenAI, Python
 
-## Google Gemini
+```python
+import os
+from openai import OpenAI
 
-```text
-/gemini/v1beta/models/{model}:generateContent
-/gemini/v1beta/models/{model}:streamGenerateContent
-/gemini/v1beta/models/{model}:countTokens
+client = OpenAI(
+    base_url="http://127.0.0.1:8787/w/my-service/openai/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+)
+
+# Chat Completions and the Responses API both route through the gateway.
+res = client.responses.create(model="gpt-5.5", input="Why is the sky blue?")
 ```
 
-Both `v1beta` and `v1` are accepted. Bare model paths are also accepted when a profile uses them.
+## Anthropic
 
-Environment fallback: `GEMINI_API_KEY`.
+The SDK appends `/v1/messages` itself, so the base URL stops at the slug.
 
-## Amazon Bedrock
+### Anthropic, TypeScript
 
-```text
-/bedrock/model/{model}/invoke
-/bedrock/model/{model}/invoke-with-response-stream
-/bedrock/model/{model}/converse
-/bedrock/model/{model}/converse-stream
-/bedrock/model/{model}/count-tokens
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  baseURL: "http://127.0.0.1:8787/w/my-service",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const msg = await client.messages.create({
+  model: "claude-sonnet-4-5",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+});
 ```
 
-No raw endpoint URL is required in standalone mode. Use a bearer key or a complete IAM pair:
+### Anthropic, Python
+
+```python
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url="http://127.0.0.1:8787/w/my-service",
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+)
+
+msg = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Why is the sky blue?"}],
+)
+```
+
+A Claude Pro or Max OAuth bearer arrives in `Authorization` and is forwarded in the same header, because
+those tokens are rejected when remapped to `x-api-key`.
+
+## Gemini
+
+```python
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["GEMINI_API_KEY"],
+    http_options=types.HttpOptions(base_url="http://127.0.0.1:8787/w/my-service"),
+)
+
+res = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Why is the sky blue?",
+)
+```
+
+An OAuth bearer on a Gemini route also needs `x-goog-user-project`. The proxy refuses the request rather than
+guess a quota project, because the wrong one bills a different account.
+
+## curl
 
 ```bash
-AWS_REGION=us-east-1 AWS_BEARER_TOKEN_BEDROCK=… caveman-proxy
-AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… caveman-proxy
+# OpenAI protocol (Chat Completions, Responses, embeddings):
+curl http://127.0.0.1:8787/w/my-service/v1/chat/completions \
+  -H "authorization: Bearer $OPENAI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"Why is the sky blue?"}]}'
+
+# Anthropic protocol:
+curl http://127.0.0.1:8787/w/my-service/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-4-5","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'
 ```
 
-`AWS_SESSION_TOKEN` is honoured for temporary credentials. A partial IAM pair fails closed. The AWS default credential chain also supports workload roles, including container credentials and web identity, when no explicit credential takes precedence.
+## Bedrock
 
-Credential precedence is the inbound credential, then the Bedrock bearer token, then a complete IAM
-pair or the configured AWS role chain. Region precedence is `providers.bedrock.region` in `caveman.yaml`, then `CAVE_BEDROCK_REGION`,
-`AWS_REGION`, `AWS_DEFAULT_REGION`, then `us-east-1`.
+Bedrock Runtime works with no configuration. The proxy derives the regional endpoint from the resolved
+region, and the region comes from `providers.bedrock.region`, then `CAVE_BEDROCK_REGION`, then `AWS_REGION`,
+then `AWS_DEFAULT_REGION`, then `us-east-1`.
 
-The Mantle-style Anthropic Messages route at `/bedrock/anthropic` stays off unless
-`CAVE_BEDROCK_MANTLE_ENABLED` is set.
+```bash
+AWS_REGION=us-east-1 AWS_BEARER_TOKEN_BEDROCK=… caveman start
+```
 
-A Claude Code user agent cannot relabel paid Bedrock traffic as subscription traffic. Inbound
-`x-api-key` and bearer credentials are stamped as Bedrock API keys before that classification.
+```bash
+AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… caveman start
+```
 
-## Azure OpenAI and Vertex AI
+Point the client at `http://127.0.0.1:8787/bedrock/model/<modelId>/<action>`, where the action is `invoke`,
+`invoke-with-response-stream`, `converse`, `converse-stream` or `count-tokens`. The proxy re-signs the
+request for the resolved identity: an explicit inbound credential first, then the Bedrock bearer token, then
+a complete IAM pair. Half an IAM pair fails the request with a message naming what is missing.
+`AWS_SESSION_TOKEN` is honoured for temporary credentials.
 
-Azure mounts under `/azure/…` after you set its base URL. Vertex mounts under `/vertex/v1/projects/…`
-and accepts the public Google and Anthropic publisher route forms the adapter implements. Both are
-opt-in: the endpoint and identity are installation-specific.
+## Vertex
+
+Vertex has no universal endpoint, so it mounts only when you name one.
 
 ```yaml
+# ~/.caveman/caveman.yaml
 providers:
-  azure:
-    base_url: https://example-resource.openai.azure.com
+  vertex:
+    base_url: https://us-central1-aiplatform.googleapis.com
 ```
 
-Environment fallback for Azure: `AZURE_OPENAI_API_KEY`.
+The proxy strips the `/vertex` prefix and forwards the rest unchanged, so a client calls
+`http://127.0.0.1:8787/vertex/v1/projects/<project>/locations/<location>/publishers/google/models/<model>:generateContent`
+and Claude models on Vertex keep their `publishers/anthropic` path and `:rawPredict` method. The caller
+supplies a fresh access token per request and the proxy holds no Google credential of its own.
 
-## OpenAI-compatible mounts
+## Compatible upstreams
 
-Named compatibility mounts live at `/compat/{name}/…`. Each mount declares a `base_url` and the
-environment variable that holds its credential:
+A `compat` entry mounts any OpenAI-shaped API at `/compat/<name>/`, with its own key and its own upstream.
 
 ```yaml
+# ~/.caveman/caveman.yaml
 compat:
-  local-model:
-    base_url: http://127.0.0.1:11434/v1
-    api_key_env: LOCAL_MODEL_API_KEY
+  my-router:
+    base_url: https://router.example.com/v1
+    api_key_env: MY_ROUTER_KEY
+    forward_headers: [x-router-tier]
 ```
 
-Compatibility means HTTP shape. It does not mean every provider extension works. Private and loopback upstreams require an exact `CAVE_SSRF_ALLOWLIST` entry. Link-local and metadata destinations remain blocked even when listed. See
-[Security](/docs/proxy/security).
+The name matches `[a-z0-9][a-z0-9._-]{0,63}`, and `stub` and `openai-compatible` are reserved. `base_url` is
+required. `forward_headers` refuses routing, framing and credential headers, so a mount cannot rewrite who a
+request claims to be. Set `wire_dialect: anthropic` when the upstream answers the Anthropic Messages shape,
+which makes the usage parser read its cache counters correctly.
 
-## Applications and SDKs
-
-A wrap profile is one way to set the base URL. An application can do the same thing itself. The CLI
-prints copy-ready recipes:
-
-```bash
-caveman tools sdk
-```
-
-Recipes cover Anthropic, OpenAI, Google Gen AI, Vercel AI SDK, LangChain, LiteLLM, CrewAI, Pydantic AI,
-the OpenAI Agents SDK, and raw HTTP. The TypeScript and Python SDKs also take a `baseURL` of
-`http://127.0.0.1:8787`; see [TypeScript SDK](/docs/sdk/typescript) and [Python SDK](/docs/sdk/python).
-
-## Streaming
-
-Transforms finish before the request is dispatched. The response stays a stream. Provider streaming
-protocols and status codes are preserved. A transform never converts a streaming call into a buffered
-fake.
-
-## Pricing on the local row
-
-The [provider catalog](/docs/provider-catalog) supplies dated public list prices. An unknown provider
-or model resolves to zero with an `unpriced` marker. Provider-reported token counts stay in a different
-field from engine estimates. A displayed list-price subtotal is not an invoice.
-
-## When a route misses
-
-A 404 usually means the agent used the wrong provider prefix, or a bare path the selected adapter does
-not own. Authentication failures should be checked at the inbound header and at the environment
-fallback, without printing the secret. A blocked custom base URL almost always needs a precise
-`CAVE_SSRF_ALLOWLIST` entry, not a wider listen address.
-
-## Adapter limits and newer routes
-
-OpenAI Responses input-token counting, Bedrock CountTokens, and Vertex Google `:countTokens` use dedicated count routes. Count requests preserve request and response bytes in every mode and are not recorded as generated-model usage or spend.
-
-Vertex Express supports projectless `/vertex/v1/publishers/google/models/{model}:generateContent`, `:streamGenerateContent`, and `:countTokens`. Native Google key headers are supported; query-key handling normalizes credentials to the header. This does not make every Vertex publisher or endpoint interchangeable.
-
-Bedrock's OpenAI-compatible Runtime and Mantle protocols are not implemented by the Bedrock mount. `/bedrock/openai/v1/...` and `/bedrock/v1/...` return 404. Enabling the Anthropic Mantle route does not enable those protocols.
-
-The built-in `/compat/opencode-go/` mount forwards to `https://opencode.ai/zen/go` and reads `OPENCODE_API_KEY`. A configured mount of the same name overrides it.
-
-On a [shared proxy](/docs/proxy/shared), the inbound team token is consumed before provider authentication. Local OAuth passthrough is not a promise of shared-token OAuth compatibility. Keep the authentication and recovery limitations separate from HTTP route support.
-
-## Streaming failures and usage
-
-Native SSE, Gemini streamed JSON arrays, and AWS EventStream frames remain streaming. HTTP errors retain their status and body. A provider error arriving inside an already-started HTTP 200 stream cannot change that HTTP status; the local record marks `provider_stream_error`. A billed call may still have failed generation. Complete usage does not establish a successful answer or a saving.
+One mount ships built in: `opencode-go`, at `/compat/opencode-go/`, keyed from `OPENCODE_API_KEY`. A
+`compat` entry of the same name replaces it.

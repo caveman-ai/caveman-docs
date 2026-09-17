@@ -4,85 +4,184 @@ export const metadata = docMetadata("agent-sdk/memory");
 
 <DocSchema slug="agent-sdk/memory" />
 
-Agent memory is local, opt-in, and one turn behind on purpose. Turn N starts retrieval while the model runs. Turn N+1 consumes whatever finished, without waiting. Recalled text is injected immediately before the current user message. It never enters the frozen system prefix and never mutates append-only conversation history.
+Declaring `memory()` on an agent gives it three tools for storing and recalling facts, and a durable per-namespace file behind them, so a `ttl: "30d"` survives process restarts and reboots. Recalled text enters the current turn as a user message, never the cached prefix, so remembering something does not invalidate the prompt cache for every later request.
 
-Every injected block is labelled `inferred` and potentially stale. Current user intent, code, tools, and runtime evidence win.
+```ts
+import { agent, auto, memory } from "@caveman-ai/agent";
 
-<Facts rows={[
-  ["Default TTL", <code key="t">30d</code>],
-  ["Default recall budget", "800 tokens."],
-  ["Provenance", <code key="p">local</code>],
-  ["Consent", <code key="c">local_only</code>],
-  ["Scope", "tenant, agentId, namespace"],
-]} />
+const desk = agent({
+  id: "support-desk",
+  instructions: "Answer the customer. Use what you remember about them.",
+  model: auto(),
+  memory: memory({ namespace: "customers" }),
+  sandbox: "host",
+});
+```
 
-## Declare it
+```text
+memory({
+  namespace: string                        /^[a-z0-9][a-z0-9_-]{0,95}$/
+  provenance?: "local" | "project" | "external"     default "local"
+  ttl?: string                             default "30d", a positive m, h or d duration
+  recallBudget?: number                    default 800 tokens
+  consent?: "local_only" | "project_shared"         default "local_only"
+  ambient?: false | { extractEveryTurns?: number; driftThreshold?: number; consolidateEveryWrites?: number }
+})
+```
+
+`provenance` and `consent` are typed with the full unions above, and the shipped store accepts one value of each. Any `provenance` other than `"local"` throws `cave_memory_provenance_unsupported: only "local" memory is supported` at construction, and any `consent` other than `"local_only"` throws `cave_memory_consent_unsupported: only "local_only" consent is supported`. The store is local and single-tenant by file, and refusing the config beats discovering it halfway through a paid turn.
+
+## The three tools
+
+| Tool | What it does |
+|---|---|
+| `cave_memory_search` | Recall from the declared namespace. Returns bounded local evidence labelled `inferred`. |
+| `cave_memory_remember` | Store one explicit fact. |
+| `cave_memory_session_search` | Search bounded prior turns of this session. |
+
+They arrive with a system line telling the model that injected memory is untrusted context and that `cave_memory_remember` is for durable facts the user meant to keep.
+
+## What a recall looks like
+
+```ts
+import { createFileMemoryAdapter, createMemoryEngine, memoryTTLMilliseconds } from "@caveman-ai/agent";
+
+const engine = createMemoryEngine({
+  scope: { tenant: "_", agentId: "support-desk", namespace: "customers" },
+  storage: createFileMemoryAdapter({ root: "./.memory" }),
+  ttlMs: memoryTTLMilliseconds("30d"),
+});
+
+await engine.remember({ text: "Prefers tracking links over phone calls.", kind: "preference" });
+const recall = await engine.recall("tracking links phone calls");
+```
+
+```json
+{
+  "hits": [
+    {
+      "id": "05669ff7-…",
+      "text": "Prefers tracking links over phone calls.",
+      "kind": "preference",
+      "tags": [],
+      "score": 0.6460521237798492,
+      "confidence": 0.7,
+      "source": "vector"
+    }
+  ],
+  "basis": "inferred"
+}
+```
+
+Trimmed: the real object also carries `query` and `prompt`.
+
+```text
+<cave-memory-recall basis="inferred">
+Prior local memories may be stale or wrong. Use only when relevant; verify current code, tools, and user intent.
+- [preference; id=05669ff7-…; confidence=0.70] Prefers tracking links over phone calls.
+</cave-memory-recall>
+```
+
+Captured from one local run at source 0.2.0; the ids are shortened. `recall.prompt` is the block above, and it is what passive recall injects. Hits are fitted to `recallBudget` tokens, at most six results scoring above 0.08, with one hop through the memory graph.
+
+## When recall happens
+
+Passive recall is a two-turn pipeline, so an embedding or a sidecar model never delays the turn the user is waiting for.
+
+<Steps>
+<div>
+Turn N starts. `beginTurn` hands back whatever recall completed during the previous turn, and queues this turn's user text for processing in the background.
+</div>
+
+<div>
+The queued work embeds the turn, writes it to the session buffer, and searches memory for it. Anything it finds is held as pending for the next turn.
+</div>
+
+<div>
+Turn N+1 starts, and the pending recall is inserted as a user message immediately before that turn's prompt.
+</div>
+</Steps>
+
+That injection point is what keeps memory out of the cached prefix: the system prompt, the tool schemas and the skill index are byte-identical across turns, so the provider's prefix cache still hits, and the memory block sits in the live part of the conversation.
+
+Passive recall needs one engine that lives across turns, which means passing your own through `RunOptions.memory.engine`. A run that declares `memory()` without one still gets the three tools and the durable store, with recall on the model's request instead.
+
+Two turns against one engine, with a scripted provider so the file is runnable as it stands:
 
 ```ts
 import {
-  agent,
-  auto,
-  createMemoryEngine,
-  memory,
-  run,
+  agent, memory, run,
+  createFileMemoryAdapter, createMemoryEngine, memoryTTLMilliseconds,
 } from "@caveman-ai/agent";
+import { fauxModel, scriptedStream } from "@caveman-ai/agent/testing";
 
-const definition = agent({
-  id: "support",
-  instructions: "Resolve support requests.",
-  model: auto(),
-  memory: memory({ namespace: "support" }),
+const desk = agent({
+  id: "support-desk",
+  instructions: "Answer the customer. Use what you remember about them.",
+  model: fauxModel({ priced: true }),
+  memory: memory({ namespace: "customers" }),
+  sandbox: "host",
 });
 
 const engine = createMemoryEngine({
-  scope: { tenant: "tenant-1", agentId: "support", namespace: "support" },
-  ttlMs: 30 * 86_400_000,
+  scope: { tenant: "_", agentId: "support-desk", namespace: "customers" },
+  storage: createFileMemoryAdapter({ root: "./.memory" }),
+  ttlMs: memoryTTLMilliseconds("30d"),
 });
 
-await run(definition, "Remember that I prefer email updates.", {
-  memory: { tenant: "tenant-1", engine },
+const options = { memory: { engine, root: "./.memory", tenant: "_" }, sessionId: "ticket-8811" };
+
+const first = await run(desk, "Send me tracking links, not phone calls.", {
+  ...options,
+  streamFn: scriptedStream([
+    { toolCalls: [{ name: "cave_memory_remember", args: { text: "Prefers tracking links over phone calls.", kind: "preference" } }] },
+    { text: "Noted." },
+  ]),
 });
+await engine.flush();
+
+const second = await run(desk, "How will you tell me when it ships?", {
+  ...options,
+  streamFn: scriptedStream([
+    { toolCalls: [{ name: "cave_memory_search", args: { query: "tracking links phone calls" } }] },
+    { text: "By tracking link." },
+  ]),
+});
+
+console.log(JSON.stringify(first.receipt.tools), JSON.stringify(second.receipt.tools));
+console.log((await engine.recall("tracking links phone calls")).prompt);
 ```
 
-TTL must be a positive `m`, `h`, or `d` duration. `provenance: "project"` or `"external"`, and `consent: "project_shared"`, fail at `memory()` construction. The package does not implement a shared backend, so it refuses the config before a model call could discover that.
-
-Two agents that declare the same namespace in one process still do not see each other's rows: scope includes `agentId`. `RunOptions.memory.root` defaults to `CAVE_AGENT_MEMORY_ROOT`, else `~/.caveman/agent-memory`. `tenant` defaults to a single-tenant value.
-
-A one-shot `run()` without an engine keeps the explicit memory tools and starts no background work, so nothing is still running after return. Reuse one engine across turns. Coding sessions can pass `memory: true`, which creates one scoped engine and reuses it; `session.close()` flushes.
-
-## What the engine does
-
-`@caveman-ai/agent/memory` exposes the engine, workflow helper, and adapters.
-
-1. `beginTurn()` returns finished recall from the prior turn and queues current retrieval. Embedding latency does not block the model.
-2. `endTurn()` queues the assistant turn for session search and optional extraction.
-3. Explicit `remember`, `search`, `searchSessions`, `forget`, and `link` cover active workflows. Native agents expose remember, memory search, and session search as framework tools (`cave_memory_*`).
-4. `endSession()` flushes, extracts remaining turns, and runs optional consolidation.
-
-Default retrieval is a dependency-free sparse lexical vector plus lexical overlap. It is useful with no extra service. It is not semantic. Optional embedding adapters and bounded graph expansion (`relates_to`, `supersedes`, `contradicts`, `derived_from`, depth default 1, cap 3) exist behind `@caveman-ai/agent/memory`. An OpenAI-compatible embedding adapter uses `fetch`, takes an explicit API key, and never reads ambient key environment variables.
-
-No extra model call happens unless you supply a sidecar adapter for review, extraction, or consolidation. Consolidation is reversible: superseded records stay as inactive evidence. Sidecar output is never verified policy and never verified savings.
-
-## Storage
-
-Default persistence is per-namespace JSON with atomic temp-write plus rename. Vectors store as normalized int8 plus base64, not floating-point arrays. Expired records become inactive reversible evidence. In-process writes are serialized per file. Across processes, last writer wins on concurrent update. Deployments that need multi-writer transactions supply a storage adapter (`read` plus serialized atomic `update`).
-
-Obvious private keys, provider tokens, credential assignments, and access keys are rejected before storage, indexing, or sidecar processing.
-
-For a host agent that is not this runtime:
-
-```ts
-import { createMemoryWorkflow } from "@caveman-ai/agent/memory";
-
-const memory = createMemoryWorkflow(engine, sessionId);
-const memoryContext = memory.beforeTurn(userText);
-const answer = await callAgent({ userText, memoryContext });
-memory.afterTurn(answer);
-await memory.close();
+```text
+[{"name":"cave_memory_remember","calls":1,"errors":0}] [{"name":"cave_memory_search","calls":1,"errors":0}]
+<cave-memory-recall basis="inferred">
+Prior local memories may be stale or wrong. Use only when relevant; verify current code, tools, and user intent.
+- [fact; id=959cfa6f-…; confidence=0.71] Prefers tracking links over phone calls.
+</cave-memory-recall>
 ```
 
-`beforeTurn` returns a string or `undefined` and does not wait.
+Captured from that file at source 0.2.0; the record id varies per run and is shortened. Turn 2 reaches turn 1's fact because both runs share `options.memory.engine` and the same `sessionId`, and `engine.flush()` between them waits for turn 1's background write to land. The store records the tool's own `kind`, which is `fact` for anything written through `cave_memory_remember`.
 
-## What it will not do
+Set `ambient: false` on the definition to keep explicit tool calls only.
 
-Memory is not a saving. Recalled text is not a source of truth against current tools. Shared or project-scoped memory is not implemented. Semantic recall is not claimed for the default sparse vector. Closing the engine is your job if you created one.
+## Editing what is stored
+
+`MemoryEngine` owns the records, so the three model-facing tools are not the only way in.
+
+| Method | What it does |
+|---|---|
+| `forget(id)` | Marks one record inactive so recall stops returning it. Returns `true` when a record with that id existed, `false` when none did. |
+| `link(from, to, relation, weight = 1)` | Adds an edge between two stored records; recall follows one hop through it. An unknown relation, or a weight outside `0 < weight <= 1`, throws `cave_memory_edge_invalid`, and an id that is not stored throws `cave_memory_edge_target_missing`. |
+| `consolidate(signal?)` | Runs the consolidation pass over the active records and their edges. A second call while one is running returns immediately. |
+
+`forget()` flips a flag, so the record's text stays in the namespace file. To remove the bytes, delete that file.
+
+## Where it is stored
+
+One JSON file per `(tenant, agentId, namespace)`, written with a temp file and a rename so a crash cannot leave half a state. The default root is `CAVE_AGENT_MEMORY_ROOT`, or `~/.caveman/agent-memory`. Directories are created `0o700` and files `0o600`. `tenant` defaults to `_`, and two tenants sharing an agent id and namespace never read each other's records: the three scope components are charset-validated, so none of them can traverse out of the root.
+
+Expired records are pruned on write, along with session turns beyond the 2,000 the store keeps.
+
+## Limits
+
+The default embedding is a dependency-free sparse lexical vector, so recall matches on shared words: a query that paraphrases a stored fact without repeating any of its terms scores below the floor and returns nothing. Pass a semantic `embedding` adapter to `createMemoryEngine` to change that. Everything memory returns is labelled `inferred`, which [Numbers and limits](/docs/counting) defines, and recalled text is model-visible input that the model should verify rather than trust.

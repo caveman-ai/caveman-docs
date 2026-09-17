@@ -4,132 +4,178 @@ export const metadata = docMetadata("agent-sdk/define");
 
 <DocSchema slug="agent-sdk/define" />
 
-An agent is one frozen `AgentDefinition`. `agent()` is the constructor. Everything downstream, sandbox, Context IR, build, receipts, sees that object. There is no second hidden definition.
-
-```ts
-import { agent, auto } from "@caveman-ai/agent";
-
-export default agent({
-  id: "support",
-  instructions: "Answer from policy. Never invent policy.",
-  model: auto(),
-});
-```
-
-`id` must match `^[a-z0-9][a-z0-9_-]{0,95}$`. Duplicate tool names fail at construction. Tool names starting with `cave_` are reserved and also fail at construction.
-
-Default sandbox is `required`. Default reasoning is `low`. Options: `off`, `minimal`, `low`, `medium`, `high`.
-
-## Model selection
-
-`model` is one of: `auto()`, a `provider/model` string, or a Pi model object.
-
-`auto()` resolves in this order: `CAVE_MODEL`, then `.caveman/provider.json`, then the baseline model for the sole supported credential in the environment.
-
-| Credential | Baseline if it is the only one |
-|---|---|
-| `ANTHROPIC_API_KEY` | `anthropic/claude-haiku-4-5` |
-| `OPENAI_API_KEY` | `openai/gpt-5.4-mini` |
-| `GEMINI_API_KEY` or `GOOGLE_API_KEY` | `google/gemini-2.5-flash` |
-
-Zero credentials fail. Several credentials and no `CAVE_MODEL` fail. A pinned string must use `provider/model` form. `auto()` never classifies the task or picks between models on quality.
-
-## Context and output
-
-```ts
-import { context, file, output, schema } from "@caveman-ai/agent";
-
-const playbook = context({
-  id: "support.playbook",
-  kind: "skill",
-  source: file("./support.md"),
-  stability: "build",
-  safety: "S0",
-  priority: "required",
-});
-
-const answer = output({
-  maxTokens: 500,
-  schema: schema.object({ answer: schema.string() }),
-});
-```
-
-`context()` labels a segment. Kind, stability, safety class, priority, recovery, cache region, and privacy class are all explicit. Defaults: safety `S0`, priority `required`, recovery `none`, privacy `local_sensitive`, cache region `frozen_prefix` when stability is `build` and `live_zone` otherwise.
-
-Build-stable context enters the frozen prefix. Session and turn context stay live. Volatile data in the stable cache zone is rejected. On drift or transform failure the runtime fails open to the original provider-visible bytes.
-
-`output({ maxTokens })` is a token budget on the answer. An optional schema constrains the shape.
-
-## Filesystem layout
-
-`loadAgentDir(rootDir)` lowers a convention directory into an ordinary `agent()` call.
+`agent()` validates a definition and freezes it. Everything the runtime needs is in the object you pass: the prose, the model, the tools, the extra context segments, the output contract, and where tool code is allowed to run.
 
 ```text
-support-bot/
-├── instructions.md
-├── agent.ts
-├── .agents/skills/
-│   ├── refund-policy/SKILL.md
-│   └── shipping-claims/SKILL.md
-├── tools/
-│   └── lookup_order.ts
-├── subagents/
-└── evals/
+agent({
+  id: string
+  instructions: string | FileSource
+  model: Auto | string | Model<Api>
+  reasoning?: "off" | "minimal" | "low" | "medium" | "high"
+  tools?: ToolDefinition[]
+  contexts?: ContextDefinition[]
+  memory?: MemoryDefinition
+  output?: OutputDefinition
+  sandbox?: "required" | "fixture" | "host"
+})
 ```
 
-`agent.ts` default-exports an `AgentDirConfig`: model, optional budget, breakers, and extra context. Instructions come from `instructions.md`. Each `tools/*.ts` default-exports a `tool()`. Each `.agents/skills/<name>/SKILL.md` contributes a short description to one build-stable skill segment; the body is served later by `cave_skill` as a live-zone tool result. The model picks from descriptions. There is no embedding ranker.
+| Field | What it does |
+|---|---|
+| `id` | Required. Must match `/^[a-z0-9][a-z0-9_-]{0,95}$/`. It names the agent on the receipt, in memory scoping, and in the build lock. |
+| `instructions` | The system prompt, as a string or `file("instructions.md")`. A `file()` source is read when the context is lowered, so the file is part of the source graph a build locks. |
+| `model` | `auto()`, a pinned `"provider/model"` string, or a model object from the catalog. A string without a slash throws. |
+| `reasoning` | Thinking level passed to the provider. Defaults to `"low"`. |
+| `tools` | Tool definitions. Two tools with the same name throw, and any name starting with `cave_` throws because that prefix belongs to framework tools. |
+| `contexts` | Extra prompt segments built with `context()`, each declaring its own stability, safety class and cache region. |
+| `memory` | A `memory()` definition. Adds the three `cave_memory_*` tools and a durable per-namespace store. See [Memory](/docs/agent-sdk/memory). |
+| `output` | `output({ maxTokens, schema? })`. The schema is rendered into the prompt and the final message is parsed against it. |
+| `sandbox` | Where tool closures execute. Defaults to `"required"`. |
 
-The loader writes a generated module entry at `.caveman/agent-dir-entry.mjs`. Directory-loaded runs print a receipt by default, because stdout is yours. `run()` from a hand-built definition does not, because stdout may be a protocol channel.
+## Output that arrives typed
+
+The schema you declare types `result.output` through the definition's type parameter, so there is no cast at the call site.
+
+```ts
+import { agent, auto, output, run, schema } from "@caveman-ai/agent";
+
+const finding = schema.object({
+  severity: schema.string(),
+  evidence: schema.array(schema.string()),
+});
+
+const investigator = agent({
+  id: "investigator",
+  instructions: "Find the failure mechanism. Cite what you read.",
+  model: auto(),
+  output: output({ maxTokens: 800, schema: finding }),
+});
+
+const result = await run(investigator, "Why did trace t-9 fail?");
+result.output;   // { severity: string; evidence: string[] }
+```
+
+```json
+{ "severity": "high", "evidence": ["trace t-9 ended in error"] }
+```
+
+Captured from `result.output` on this definition, answered by a scripted stream from `@caveman-ai/agent/testing` so the run made no provider call. `output` is absent when no schema is declared, and absent when the run stopped before a final message: read `stopReason` when it is missing.
+
+`schema` builds TypeBox schemas: `object`, `array`, `string`, `number`, `integer`, `boolean`, `literal`, `union`, `optional`, `null`, `any`.
+
+## Where tool code runs
+
+`sandbox` is the containment posture for tool closures, and it is the one field whose default changes with how you run.
+
+| Value | What happens |
+|---|---|
+| `"required"` | Default. Closures run in network-denied Node workers imported from an immutable staged copy of the source graph, so `RunOptions.entryPath` is mandatory. |
+| `"fixture"` | Closures run in the host process and `effect: "write"` tools are blocked before they execute. For trusted tests. |
+| `"host"` | Closures run in the host process with real access, and write tools do execute. A host-mode agent is never lock-eligible: `compile` refuses it with `cave_host_sandbox_lock_ineligible`. |
+
+A definition that never names a posture and is run without an `entryPath` is downgraded to `"host"`, once per definition, with a line on stderr:
+
+```text
+cave: reviewer host execution — tools are not isolated
+```
+
+An explicit `sandbox: "required"` is never reinterpreted: without an `entryPath` it fails with `cave_tool_sandbox_entry_required`. [Sandbox and execution](/docs/agent-sdk/sandbox) covers the worker, the egress policy and remote backends.
 
 ## Subagents
 
-```ts
-import { agent, auto, subagent } from "@caveman-ai/agent";
+`subagent()` returns a tool. The child is a full agent with its own wallet, carved out of the parent's remaining budget when it is spawned and returned unspent when it finishes. Its calls land on the parent's receipt under `subagents`.
 
-const researcher = agent({
-  id: "researcher",
-  instructions: "Search, then return sources.",
-  model: auto(),
+```ts
+subagent({
+  name: "refund_reviewer",
+  description: "Independent second opinion on a refund amount.",
+  agent: refundReviewer,
+  maxCalls: 1,
+  maxCostUsd: 0.02,
+  maxContextTokens: 16_000,
+})
+```
+
+| Option | Default |
+|---|---|
+| `maxCalls` | `1` |
+| `maxCostUsd` | `1` |
+| `maxTokens` | none. A token-metered run cannot fund a subagent that declares no token wallet. |
+| `maxContextTokens` | `128_000` |
+| `maxInputChars` | `32_768` |
+| `timeoutMs` | unset, so the tool default of 30,000 ms applies |
+
+Depth defaults to two levels from the root and is capped at eight. `RunOptions.maxSubagentInvocations` and `maxConcurrentSubagents` add tree-wide ceilings.
+
+## Load an agent directory
+
+`loadAgentDir(rootDir)` scans a directory and calls `agent()` once with what it finds. The rules it enforces:
+
+- `instructions.md` is required, and its absence names the fix.
+- `agent.ts` is required and default-exports `{ model, budget?, breakers?, context? }`.
+- `tools/<name>.ts` default-exports a `tool()` whose `name` equals the filename without `.ts`.
+- `subagents/<name>/` is the same shape again, nesting at most eight deep. Two sibling directories that slug to one id throw, naming both.
+- `.agents/skills/<name>/SKILL.md` is loaded as a project skill.
+
+```ts
+import { loadAgentDir, run } from "@caveman-ai/agent";
+
+const definition = await loadAgentDir(import.meta.dirname);
+const result = await run(definition, input, { rootDir: import.meta.dirname });
+```
+
+`budget` and `breakers` from `agent.ts` become run defaults that an explicit `RunOptions` field overrides, and the loader writes a generated module entry at `.caveman/agent-dir-entry.mjs` so a sandboxed run can stage the whole source graph from static imports. `AGENT_DIR_ENTRY` is that path as a constant.
+
+`composeAgentDir({ id, instructions, config, tools, subagents })` is the same lowering with the modules already in hand. The generated entry calls it, which is how a staged copy recomposes a definition with an identical digest.
+
+Context entries in `agent.ts` default to `stability: "build"`, which puts them in the frozen prefix. Declare `stability: "turn"` for a value that varies per run, or the build's volatile-prefix check will name it.
+
+## A definition that uses most of it
+
+```ts
+import { agent, auto, file, memory, output, schema, subagent, tool } from "@caveman-ai/agent";
+
+const readTrace = tool({
+  name: "read_trace",
+  description: "Read one trace by id.",
+  effect: "read",
+  input: schema.object({ id: schema.string() }),
+  output: schema.object({ id: schema.string(), status: schema.string() }),
+  execute: async ({ id }) => ({ id, status: "error" }),
 });
 
-const root = agent({
-  id: "support",
-  instructions: "Delegate research. Answer from policy.",
+const reviewer = agent({
+  id: "finding-reviewer",
+  instructions: file("reviewer.md"),
+  model: "anthropic/claude-haiku-4-5",
+  reasoning: "off",
+  sandbox: "host",
+});
+
+export const investigator = agent({
+  id: "investigator",
+  instructions: file("instructions.md"),
   model: auto(),
   tools: [
+    readTrace,
     subagent({
-      name: "research",
-      description: "Look up one question.",
-      agent: researcher,
+      name: "review_finding",
+      description: "Second opinion on a severity call. Pass the trace and the proposed severity.",
+      agent: reviewer,
+      maxCalls: 1,
+      maxCostUsd: 0.02,
     }),
   ],
+  memory: memory({ namespace: "incidents" }),
+  output: output({
+    maxTokens: 800,
+    schema: schema.object({
+      severity: schema.string(),
+      evidence: schema.array(schema.string()),
+    }),
+  }),
+  sandbox: "host",
 });
 ```
 
-Defaults: `maxInputChars` 32,768, `maxCalls` 1, `maxCostUsd` 1, `maxContextTokens` 128,000. Under a USD-metered parent the child's wallet is carved from the remaining budget and unused remainder returns. A token-metered parent cannot fund a child that declares no `maxTokens`. A host-mode child is refused under a `sandbox: "required"` parent.
-
-## Optional workspace files
-
-The core runtime does not search the repository. Products that want `AGENTS.md`, Agent Skills, Agent Plugins v1, or Vercel OpenPlugin can opt in:
-
-```ts
-import { agent } from "@caveman-ai/agent";
-import {
-  applyAgentEnvironment,
-  loadAgentEnvironment,
-} from "@caveman-ai/agent/plugins";
-
-const environment = await loadAgentEnvironment({ cwd: process.cwd() });
-const reviewer = applyAgentEnvironment(agent({
-  id: "reviewer",
-  instructions: "Review requested changes.",
-  model: "openai/gpt-5.4",
-  sandbox: "host",
-}), environment);
-```
-
-Metadata enters the stable prefix. Full skill bodies and command markdown enter only after activation. Plugin MCP, hooks, custom agents, and plugin subprocesses are reported and not launched. Ambient secrets are not inherited.
-
-## What it will not do
-
-`agent()` does not start a process, open a network connection, or look for files. Shared-memory provenance is refused here, at construction, not after a model call. A definition with `sandbox: "host"` cannot produce a Cave Build lock.
+`sandbox: "host"` is what makes this runnable with no `entryPath`, and it means tool code runs uncontained in this process.

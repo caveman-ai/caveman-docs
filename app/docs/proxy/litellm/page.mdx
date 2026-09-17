@@ -4,34 +4,13 @@ export const metadata = docMetadata("proxy/litellm");
 
 <DocSchema slug="proxy/litellm" />
 
-LiteLLM and the proxy take different seats. LiteLLM holds provider keys, translates provider APIs, and
-enforces budgets per virtual key. The proxy shrinks what an agent rereads and keeps the originals
-recoverable. Put the proxy where the bytes are largest, which is between the agent and LiteLLM, or behind
-LiteLLM as a deployment's `api_base`.
+LiteLLM and the caveman proxy both speak the OpenAI wire protocol, so either can sit in front of the other.
+Put LiteLLM in front when it already owns your keys, your fallbacks and your model aliases. Put caveman in
+front when you want one entry point whose compression applies to every model LiteLLM can reach.
 
-<Facts rows={[
-  ["Per call", <span key="a"><code>api_base</code> on <code>litellm.completion</code></span>],
-  ["Fleet-wide", <span key="b"><code>api_base</code> on a <code>model_list</code> entry in the LiteLLM proxy config</span>],
-  ["In front of LiteLLM", <span key="c">A <code>compat</code> mount whose <code>base_url</code> is the LiteLLM host</span>],
-  ["Model decisions", <span key="d">The <code>caveman-router</code> LiteLLM callback</span>],
-  ["Reports", <code key="r">inferred</code>],
-]} />
+## LiteLLM in front
 
-## Before either path
-
-A bare `caveman start` resolves to record mode so an unattended listener does not transform traffic. Set
-compression first, then start.
-
-```bash
-caveman tools config set think.mode compress
-caveman start
-```
-
-The listener is `http://127.0.0.1:8787`. A non-loopback bind requires inbound token authentication; see [Shared proxy](/docs/proxy/shared).
-
-## Per call
-
-Point one call at the proxy. The provider key travels on the request and the proxy forwards it.
+One argument per call, `api_base`.
 
 ```python
 import os
@@ -39,103 +18,85 @@ import litellm
 
 res = litellm.completion(
     model="openai/gpt-5.5",
-    api_base="http://127.0.0.1:8787/openai/v1",
+    api_base="http://127.0.0.1:8787/w/my-service/openai/v1",
     api_key=os.environ["OPENAI_API_KEY"],
     messages=[{"role": "user", "content": "Why is the sky blue?"}],
 )
 ```
 
-Anthropic models use the `/anthropic/v1` mount and Gemini `/gemini/v1beta`. Every route is on
-[Providers](/docs/proxy/providers). The CLI prints this snippet with the right mount:
+Printed by `caveman snippets litellm --app my-service`. `/w/my-service` is the attribution slug, so every row
+the proxy records for this deployment carries that name.
 
-```bash
-caveman snippets litellm
-```
-
-## Fleet-wide, behind LiteLLM
-
-Every client behind a LiteLLM proxy inherits what a deployment declares. Point the deployment at the
-proxy instead of the provider.
+For the LiteLLM proxy, the same change goes in `config.yaml` once per model:
 
 ```yaml
 model_list:
   - model_name: gpt-5.5
     litellm_params:
       model: openai/gpt-5.5
-      api_base: http://127.0.0.1:8787/openai/v1
+      api_base: http://127.0.0.1:8787/w/my-service/openai/v1
       api_key: os.environ/OPENAI_API_KEY
 ```
 
-Loopback works when both processes share a host or pod. A separate private-network proxy requires its inbound token in addition to the upstream provider credential.
+LiteLLM keeps the provider key, the retries and the routing. Requests for that model leave LiteLLM, reach the
+caveman proxy, get compressed if the mode allows it, and go upstream to OpenAI.
 
-<Note tone="honest" title="Recovery on this path">
-A client on another machine has no Caveman MCP tool, so it cannot recover an original itself. On this
-path the proxy compresses only where it can handle recovery on its own side, which today means
-non-streaming API-key requests on adapters that support it. Streaming sessions pass through unchanged.
-The rule is on [Wrap an agent](/docs/proxy/wrap).
-</Note>
+## caveman in front
 
-LiteLLM records what the provider reported, which is the compressed request. Its spend view reflects its configured accounting; it is not an invoice reconciliation. `caveman stats` shows what was removed, labelled `inferred`, and the two are never added.
-
-## In front of LiteLLM
-
-For an agent that runs where the proxy runs, put the proxy first and let LiteLLM stay the thing that talks
-to providers. Declare LiteLLM as a compatibility mount and allow it as an upstream.
+A `compat` mount points a caveman route at a running LiteLLM proxy. Your application talks to caveman only.
 
 ```yaml
 # ~/.caveman/caveman.yaml
+mode: compress
 compat:
   litellm:
-    base_url: http://litellm.internal:4000
-    api_key_env: LITELLM_VIRTUAL_KEY
+    base_url: http://127.0.0.1:4000/v1
+    api_key_env: LITELLM_MASTER_KEY
+```
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://127.0.0.1:8787/compat/litellm",
+    api_key=os.environ["LITELLM_MASTER_KEY"],
+)
+
+res = client.chat.completions.create(
+    model="gpt-5.5",
+    messages=[{"role": "user", "content": "Why is the sky blue?"}],
+)
 ```
 
 ```bash
-caveman tools mcp install claude --server caveman
-CAVE_SSRF_ALLOWLIST=litellm.internal caveman start
-ANTHROPIC_BASE_URL=http://127.0.0.1:8787/compat/litellm claude
+CAVE_SSRF_ALLOWLIST=localhost:4000 caveman start
 ```
 
-A compat mount serves two wire protocols from one upstream. A request to `/compat/litellm/v1/messages`
-carries the key in `x-api-key`; every other path carries `Authorization: Bearer`. Claude Code appends
-`/v1/messages`, so it lands on LiteLLM's Anthropic-format endpoint. Private and loopback upstreams are
-blocked until the exact host is in `CAVE_SSRF_ALLOWLIST`; see [Security](/docs/proxy/security).
+The proxy blocks loopback and private-range destinations at dial time, so a LiteLLM instance on the same
+machine needs that host in `CAVE_SSRF_ALLOWLIST`. Leave it out and the mount answers 502 with nothing added
+to `proxy.log`:
 
-A Claude Pro or Max login cannot cross LiteLLM. This path needs an API-key backed virtual key. For
-subscription auth, drop LiteLLM and run `caveman claude`.
-
-`cache_control` markers a client sent are forwarded unchanged. Compression changes tool-result bodies, which
-sit after the cached prefix in a normal agent request.
-
-## Model decisions: caveman-router
-
-`caveman-router` is an MIT Python package that registers as a LiteLLM callback. On each chat request it asks
-for a deployment alias and changes only that. Keys, inference, streaming and retries stay with LiteLLM.
-
-```bash
-python -m pip install .            # from the package directory, in LiteLLM's environment
-export CAVE_API_KEY='project key with router:write'
-caveman-router setup --config config.yaml
-caveman-router check --config config.caveman.yaml
-litellm --config config.caveman.yaml
+```json
+{"error":{"type":"cave_gateway_error","code":"cave_upstream_unavailable","message":"Upstream service error.","request_id":"…"}}
 ```
 
-`setup` writes `config.caveman.yaml` beside the original, puts the callback first in
-`litellm_settings.callbacks`, and refuses fewer than two distinct chat models.
+Captured from caveman-proxy bin-v1.1.7 against a compat mount pointed at a loopback upstream, with
+`request_id` replaced by `…`. [Where the proxy dials](/docs/proxy/security#where-the-proxy-dials) has the
+grammar of an allowlist entry and what no entry can reach.
 
-The callback leaves a request as sent when it carries `tools`, `response_format`, `reasoning_effort`,
-`thinking`, audio, `logit_bias`, a `previous_response_id`, or any provider pin such as `api_base` or an
-Azure, Bedrock or Vertex field. It intersects candidates with the virtual key's allowed models before
-asking and re-runs LiteLLM's authorization check on the answer. The decision has a wall-clock deadline of
-150 milliseconds by default. On timeout, HTTP error or an invalid answer the requested model is kept and
-one warning is logged. At most 8 KB of prompt text leaves; tool results, headers and tenant identifiers do
-not.
+The mount is named, so the path carries the name: `/compat/litellm/chat/completions`. Everything under
+[Modes](/docs/proxy/modes) applies to it, and compression runs before the bytes reach LiteLLM.
 
-The decision endpoint is part of Caveman Cloud. The package and its conformance tests against a real
-LiteLLM server are public; the first three sections need no account.
+## The callback
 
-## Measured
+A third placement would leave inference with LiteLLM and ask Caveman only which deployment alias to use: the
+registry lists a LiteLLM callback package, `caveman-router`, as a public capability. Its source mirror has
+not shipped, so the package is on neither PyPI nor the public repository today.
 
-Direct Claude Code against the wrapped proxy on six tool-heavy tasks, three runs each: 885,793 to 591,673
-provider-reported input tokens, a 33.2 percent reduction, 18 of 18 exact answers, one HTML case at
-minus 9.9 percent. Basis `benchmark_counterfactual`. The gateway hop changes neither number.
+## Which one to pick
+
+| You want | Placement |
+|---|---|
+| Compression, with LiteLLM keeping keys and fallbacks | LiteLLM in front |
+| Compression, with one entry point for every model | caveman in front |
