@@ -15,8 +15,7 @@ import { SITE } from "@/lib/site";
  * ======================================================================== */
 
 const SPDX: Record<string, string> = {
-  MIT: "https://spdx.org/licenses/MIT.html",
-  "BSL-1.1": "https://spdx.org/licenses/BUSL-1.1.html",
+  "Apache-2.0": "https://spdx.org/licenses/Apache-2.0.html",
 };
 
 export function DocSchema({ slug, glossary = false }: { slug: string; glossary?: boolean }) {

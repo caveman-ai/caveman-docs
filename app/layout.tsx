@@ -78,7 +78,7 @@ const siteJsonLd = {
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS, Linux, Windows",
       description:
-        "An efficiency stack for AI agents: an MIT skill that shortens agent output, a local proxy that compresses eligible context with byte-exact recovery, cavemem for context that should not be resent, and an Agent SDK that returns a receipt per run.",
+        "An efficiency stack for AI agents: an Apache-2.0 skill that shortens agent output, a local proxy that compresses eligible context with byte-exact recovery, cavemem for context that should not be resent, and an Agent SDK that returns a receipt per run.",
       softwareHelp: { "@type": "CreativeWork", url: SITE.url },
       codeRepository: SITE.github,
       publisher: { "@id": `${SITE.app}#organization` },

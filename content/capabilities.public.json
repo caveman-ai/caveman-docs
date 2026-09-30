@@ -6,7 +6,7 @@
       "name": "Native agent profile registry",
       "path": "public/agents",
       "language": "js",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -22,7 +22,7 @@
       "name": "Shared binary installer",
       "path": "public/shared/binary-installer",
       "language": "js",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -30,7 +30,7 @@
       "name": "caveman-browse",
       "path": "public/browse",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -38,7 +38,7 @@
       "name": "Caveman CLI",
       "path": "public/cli",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -54,7 +54,7 @@
       "name": "Wire Contracts",
       "path": "public/shared/contracts",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -70,7 +70,7 @@
       "name": "Caveman Engine",
       "path": "public/engine",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -78,7 +78,7 @@
       "name": "Eval Graders",
       "path": "public/evals",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -86,7 +86,7 @@
       "name": "Framework integration recipe registry",
       "path": "public/integrations",
       "language": "js",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -94,7 +94,7 @@
       "name": "Caveman LiteLLM connector",
       "path": "public/integrations/litellm",
       "language": "python",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -102,7 +102,7 @@
       "name": "Caveman MCP Server",
       "path": "public/mcp",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -110,7 +110,7 @@
       "name": "cavemem",
       "path": "public/mem",
       "language": "mixed",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -118,7 +118,7 @@
       "name": "Platform (Go shared libs)",
       "path": "public/shared/platform",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -126,7 +126,7 @@
       "name": "Provider Catalog",
       "path": "public/shared/provider-catalog",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -134,7 +134,7 @@
       "name": "Aged-zone reflection rewriter",
       "path": "public/rewriter",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -142,7 +142,7 @@
       "name": "Caveman SDK (Python)",
       "path": "public/sdk/python",
       "language": "python",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -150,7 +150,7 @@
       "name": "Caveman SDK (TypeScript)",
       "path": "public/sdk/typescript",
       "language": "ts",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -158,7 +158,7 @@
       "name": "caveman-shrink",
       "path": "public/shrink",
       "language": "go",
-      "license": "BSL-1.1",
+      "license": "Apache-2.0",
       "status": "partial"
     },
     {
@@ -166,7 +166,7 @@
       "name": "Caveman Skill",
       "path": "external:JuliusBrussee/caveman",
       "language": "md",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -174,7 +174,7 @@
       "name": "caveman-explore skill",
       "path": "public/skills/caveman-explore",
       "language": "md",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "live"
     },
     {
@@ -182,7 +182,7 @@
       "name": "caveman-learn skill",
       "path": "public/skills/caveman-learn",
       "language": "md",
-      "license": "MIT",
+      "license": "Apache-2.0",
       "status": "partial"
     }
   ],
