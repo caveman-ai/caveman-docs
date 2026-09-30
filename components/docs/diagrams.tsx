@@ -17,10 +17,9 @@ import { cn } from "@/lib/cn";
  * ======================================================================== */
 
 const LICENSE_BY_LAYER: Record<string, string> = {
-  skill: "MIT",
-  proxy: "BSL 1.1",
-  // cavemem is split: the Go core is BSL 1.1, the JS and Python clients are MIT.
-  memory: "BSL 1.1",
+  skill: "Apache-2.0",
+  proxy: "Apache-2.0",
+  memory: "Apache-2.0",
   cloud: "Commercial",
 };
 
@@ -253,35 +252,37 @@ export function ProxyPath() {
 }
 
 /**
- * The open-core line, drawn as three columns because that is what it is: a
- * licence per surface, not a single product with a free tier.
+ * The open-core line, drawn as two columns because that is what it is: the
+ * code you run is Apache-2.0, the hosted service is commercial.
  */
 export function OpenCoreBoundary() {
   const cols: { license: string; rule: string; parts: string[] }[] = [
     {
-      license: "MIT",
-      rule: "Adoption and interop surfaces. Use them anywhere, including inside a commercial product.",
+      license: "Apache-2.0",
+      rule: "Everything in the caveman repository from 3.0.0, plus the Agent SDK. Use it, change it and ship it, including inside a commercial product or a hosted service.",
       parts: [
         "The skill",
         "CLI",
         "TypeScript SDK",
         "Python SDK",
-        "cavemem JS and Python clients",
+        "Compression engine",
+        "Local proxy",
+        "cavemem",
+        "caveman-shrink",
+        "MCP server",
+        "caveman-browse",
         "Eval graders",
         "Provider catalog",
         "Wire contracts",
-        "Extension shell",
+        "Extension",
+        "Shared platform libraries",
+        "Agent SDK",
+        "Initializer",
+        "React hooks",
+        "Framework adapters",
+        "Coding agent",
+        "Public protocol",
       ],
-    },
-    {
-      license: "BSL 1.1",
-      rule: "Source available. Run it for your own traffic, including in production. Offering it to third parties as a hosted service needs a commercial licence. Each release converts to Apache 2.0 after four years.",
-      parts: ["Compression engine", "Local proxy", "cavemem core", "caveman-shrink core", "MCP server core", "caveman-browse", "Shared platform libraries"],
-    },
-    {
-      license: "Apache-2.0",
-      rule: "Current standalone Agent SDK source. Check the licence shipped with an older release.",
-      parts: ["Agent SDK", "Initializer", "React hooks", "Framework adapters", "Coding agent", "Public protocol"],
     },
     {
       license: "Commercial",
@@ -307,7 +308,7 @@ export function OpenCoreBoundary() {
         ))}
       </div>
       <figcaption className="mt-2 text-xs text-muted-foreground">
-        Three licences, one per surface. Nothing here changes licence based on how much you use it.
+        Two licences, one per surface. Nothing here changes licence based on how much you use it.
       </figcaption>
     </figure>
   );

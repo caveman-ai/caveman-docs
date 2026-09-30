@@ -4,64 +4,55 @@ export const metadata = docMetadata("licensing");
 
 <DocSchema slug="licensing" />
 
-Caveman ships under a split licence. The skill and everything you adopt it with are MIT, the compression engine and the Go binaries that embed it are BSL 1.1, and the Agent SDK is a separate repository under Apache-2.0. Which licence applies is decided by the path a file lives in, and `LICENSING.md` in the product repository is the source of truth.
+From Caveman 3.0.0, everything in the caveman repository is licensed under the Apache License, Version 2.0. That is the skill, the CLI, both client SDKs, the middleware, the browser extension, and the whole local runtime: the engine, the proxy, the rewriter, `caveman-browse`, the MCP server, `caveman-shrink`, cavemem and the shared Go platform. There is no longer a split by directory. The first releases under these terms are Caveman 3.0.0, the runtime binaries at `bin-v2.0.0` and the CLI at 2.0.0.
 
-Three files carry the text:
+The [Agent SDK](/docs/agent-sdk) lives in its own repository, `caveman-ai/agent-sdk`, and is also Apache-2.0. The standalone `caveman-browse` repository is moving to Apache-2.0 as well. Caveman Cloud, the hosted service, is separate commercial software; its source is not in these repositories and none of this covers it.
+
+`LICENSING.md` in the product repository is the source of truth. If it and this page ever disagree, it wins.
+
+## What Apache-2.0 lets you do
+
+In plain words, with no payment and no agreement to sign, you may:
+
+- use Caveman for any purpose, including at work and in production
+- change it, fork it, and keep your changes private if you want
+- ship it inside your own product, free or paid, open or closed
+- run it as a hosted or managed service for other people
+- rely on a patent licence from everyone who contributed code, covering their contributions
+
+In return, when you pass Caveman or a modified copy on to someone else:
+
+- include a copy of the licence
+- keep the copyright notices and the `NOTICE` file
+- say in the files you changed that you changed them
+
+Two limits come with it. The licence gives no rights to the Caveman name or logos (see [Trademarks](#trademarks)). And if you sue anyone claiming Caveman infringes your patent, the patent licence you received ends. The code comes with no warranty.
+
+## The files
 
 ```text
-LICENSE       MIT, with a scope note pointing engine-linked directories at LICENSE.BSL
-LICENSE.BSL   Business Source License 1.1 for engine-linked code
-LICENSING.md  the per-directory table, which wins over any summary including this one
+LICENSE       the Apache License 2.0, verbatim
+NOTICE        the copyright line and the third-party attributions
+LICENSE-MIT   the MIT text that covered parts of the repository before 3.0.0
+LICENSING.md  the summary, which wins over any other one including this page
 ```
 
-## Path by path
+Every package or module that ships its own `LICENSE` (the npm and PyPI packages, the npm launchers, the Go modules) carries an identical copy of the root one. Copyright is held by Julius Brussee.
 
-| Path | Licence | What you may do |
-|---|---|---|
-| `skills/` | MIT | Anything, including shipping it inside a commercial product. |
-| `packages/cli/` | MIT | Anything. It launches the BSL binaries but contains no engine code. |
-| `packages/sdk/typescript/`, `packages/sdk/python/` | MIT | Anything. Thin clients. |
-| `packages/agent/`, `packages/create-caveman-agent/` | MIT | Anything. Agent runtime, build compiler and initializer. |
-| `packages/subagent-tax/` | MIT | Anything. Local measurement tool, no provider call. |
-| `packages/shared/contracts/` | MIT | Anything. Public wire schemas. |
-| `shared/provider-catalog/` | MIT | Anything. Model and price metadata. |
-| `mem/js/`, `mem/py/` | MIT | Anything. Thin cavemem clients. |
-| `evals/` | MIT | Anything. The skill's own benchmark harness. |
-| `extension/` | MIT shell | The manifest, popup, content scripts and UI are MIT. The bundled `engine.wasm` is BSL 1.1, so any artifact that embeds it carries BSL terms for that combined work. |
-| `engine/` | BSL 1.1 | Read it, fork it, run it for your own traffic including in production. |
-| `proxy/` | BSL 1.1 | Same. Standalone gateway and provider adapters. |
-| `rewriter/` | BSL 1.1 | Same. Reflection rewriter and recovery gates. |
-| `browse/`, `mcp/`, `shrink/` | BSL 1.1 | Same. Go binaries that embed the engine. |
-| `mem/` Go core | BSL 1.1 | Same. The clients under it stay MIT. |
-| `shared/platform/` | BSL 1.1 | Same. Statically linked into the BSL binaries. |
+## Earlier releases
 
-A new module that imports, links, embeds or ships as part of the engine-linked runtime is BSL 1.1 by default, unless a later decision classifies it as an MIT adoption surface.
+A release keeps the licence it shipped with. Anything published before 3.0.0 stays under its original terms, and the Apache licence applies to 3.0.0 and later. Before 3.0.0 the repository was split:
 
-The [Agent SDK](/docs/agent-sdk) lives in its own repository, `caveman-ai/agent-sdk`, and its current source is Apache-2.0. The same package name exists in both places: `packages/agent/` in `JuliusBrussee/caveman` is MIT and is what the published `@caveman-ai/agent` 0.1.0 on npm ships from, while `packages/agent/` in `caveman-ai/agent-sdk` is Apache-2.0 at 0.2.0 and is where the work continues. Check the licence shipped with the release you install.
+- The skill and everything you adopt it with (the CLI, the SDKs, the middleware, the wire contracts, the provider catalog, the extension shell and the cavemem clients) were MIT.
+- The compression engine and the Go binaries built on it (`engine/`, `proxy/`, `rewriter/`, `browse/`, `mcp/`, `shrink/`, the cavemem Go core, `shared/platform/`, and the extension's bundled `engine.wasm`) were Business Source License 1.1.
 
-## The additional use grant, in plain words
-
-BSL 1.1 is source-available rather than open source until its change date. The grant attached to this one permits, with no payment and no agreement:
-
-- internal evaluation
-- local development
-- CI testing
-- integration with your own systems
-- self-hosted use for your own first-party traffic, production included
-
-It does not permit offering the licensed work, or its functionality, to third parties as a hosted, managed or embedded service. That is the boundary, and crossing it needs a commercial licence from Julius Brussee. Named commercial and OEM partners can receive a separate signed carve-out for the specific hosted or embedded use that agreement covers.
-
-The practical test is who the traffic belongs to. Running the proxy for your own company's agents is covered. Running it as a product other companies send their traffic to is not.
-
-## Change date
-
-Each BSL version converts to the Apache License, Version 2.0 on the earlier of two dates: `2030-06-21`, or the fourth anniversary of that version's first public distribution under BSL. Whichever comes first applies, so a version shipped today converts four years from today rather than waiting for 2030.
+If you are on an older release and want the Apache terms, upgrade to 3.0.0 or later. The `@caveman-ai/agent` 0.1.0 package on npm was published from the caveman repository before the Agent SDK moved out, and it is MIT. Check the licence file shipped with whatever release you install.
 
 ## Contributions and third-party code
 
-MIT areas are inbound equals outbound MIT. BSL areas require a DCO sign-off and a relicence grant to Julius Brussee, so that commercial and OEM licences can include community contributions.
+Contributions are inbound equals outbound: you license your change under Apache-2.0, the same terms as the rest of the repository. Commits carry a DCO sign-off. Code that outside contributors wrote under MIT before 3.0.0 stays available under MIT too, which is why `LICENSE-MIT` is kept and referenced from `NOTICE`.
 
-`engine/pixel/` is a Go port of [pxpipe](https://github.com/teamchong/pxpipe) (MIT) with glyph atlases derived from Spleen 5x8 (BSD-2-Clause) and GNU Unifont (OFL-1.1 or GPLv2 with the font-embedding exception). BSL 1.1 applies to the combined work, and the upstream notices travel with that source in `engine/pixel/NOTICE`. `browse/` vendors MIT-licensed chromedp modules; see `browse/NOTICE`.
+`engine/pixel/` is a Go port of [pxpipe](https://github.com/teamchong/pxpipe) (MIT) with glyph atlases derived from Spleen 5x8 (BSD-2-Clause) and GNU Unifont (OFL-1.1 or GPLv2 with the font-embedding exception). The upstream notices travel with that source in `engine/pixel/NOTICE`. `browse/` links MIT-licensed chromedp modules; see `browse/NOTICE`. The runtime binaries ship the licence texts of the Go modules they link as `THIRD_PARTY_GO_LICENSES.tar.gz` with every release.
 
 ## Trademarks
 

@@ -195,7 +195,7 @@ const { id } = await remember("the deploy key lives in vault under ops/deploy");
 const { hits } = await recall("where is the deploy key", 5, 2000);
 ```
 
-It is MIT and exports `remember`, `recall`, `supersede`, `history`, `forget` and `MEMORY_TOO_LARGE_EXIT_CODE`.
+It is Apache-2.0 and exports `remember`, `recall`, `supersede`, `history`, `forget` and `MEMORY_TOO_LARGE_EXIT_CODE`.
 
 ### Python
 
@@ -208,10 +208,10 @@ stored = cavemem.remember("the deploy key lives in vault under ops/deploy")
 hits = cavemem.recall("where is the deploy key", limit=5, token_budget=2000)
 ```
 
-It is MIT, uses the standard library only, and mirrors the TypeScript surface.
+It is Apache-2.0, uses the standard library only, and mirrors the TypeScript surface.
 
 ## Limits
 
 Recall is lexical, so it finds a memory by the words in it. A question phrased entirely in synonyms can miss it. Read the `score` on any hit you are about to act on.
 
-Every number `cavemem` prints is `inferred`, a local estimate from an offline counter. [Numbers and limits](/docs/counting#inferred) defines the word. The Go core is BSL 1.1 and the two clients are MIT; [Licensing](/docs/licensing) has the boundary.
+Every number `cavemem` prints is `inferred`, a local estimate from an offline counter. [Numbers and limits](/docs/counting#inferred) defines the word. The Go core and both clients are Apache-2.0; [Licensing](/docs/licensing) has the details.

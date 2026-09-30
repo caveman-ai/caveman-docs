@@ -4,7 +4,7 @@
 const VISUAL_ONLY: Record<string, string> = {
   StackDiagram: "[Diagram: the four layers of the stack, bottom to top: Skill, Engine, Memory, Cloud.]",
   RequestPath: "[Diagram: one request, from your agent through the skill and the engine to the provider, with a recovery path back.]",
-  OpenCoreBoundary: "[Diagram: the licence split across MIT, Apache-2.0, BSL 1.1 and Commercial surfaces.]",
+  OpenCoreBoundary: "[Diagram: the licence split: Apache-2.0 for the caveman repository and the Agent SDK, Commercial for Caveman Cloud.]",
   ProxyPath: "[Diagram: one request through the local proxy, from your agent to the engine to the provider, with recovery back from the CCR store.]",
 };
 

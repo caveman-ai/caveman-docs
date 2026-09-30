@@ -18,7 +18,7 @@ export const metadata = docMetadata("mcp");
 }
 ```
 
-That goes in `.mcp.json` for Claude Code, and in the equivalent block for Codex. The npm launcher is MIT: on first run it downloads the matching binary, verifies a key-signed checksum manifest and the artifact's SHA-256, and caches it under `~/.caveman/bin`. No Go toolchain and no global install are needed.
+That goes in `.mcp.json` for Claude Code, and in the equivalent block for Codex. The npm launcher is Apache-2.0: on first run it downloads the matching binary, verifies a key-signed checksum manifest and the artifact's SHA-256, and caches it under `~/.caveman/bin`. No Go toolchain and no global install are needed.
 
 To point at a binary you already reviewed:
 
@@ -126,4 +126,4 @@ Retrieval is exempt from the server's result-size cap, so an original larger tha
 
 The five tools cost tool-schema tokens on every request that carries them, which is the trade for having recovery available to the model at all. [Numbers and limits](/docs/counting) has the accounting and the meaning of `inferred`; [Recovery](/docs/proxy/recoverable) covers the store behind the handles.
 
-The npm launcher is MIT. The binary it downloads is BSL 1.1, under the terms named in the package's `BINARY_LICENSE.md` and on [Licensing](/docs/licensing).
+The npm launcher and the binary it downloads are both Apache-2.0, as the package's `BINARY_LICENSE.md` says. [Licensing](/docs/licensing) has the details.
