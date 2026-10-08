@@ -1,0 +1,188 @@
+---
+title: "Build and run evals on your workloads"
+sidebarTitle: "Evals"
+description: "Create datasets, evaluators, and workbenches to grade your workload outputs. Run comparisons, interpret verdicts, and gate CI on complete quality evidence."
+---
+
+Caveman Cloud gives you a complete evaluation surface to prove quality before you change production policy. You build reusable datasets, bind evaluators and targets into workbenches, run frozen comparisons, and read paired verdicts. This guide walks through creating your first eval from real traffic, running it, and using the result in CI.
+
+## Choose the right evaluation shape
+
+Caveman Cloud supports four evaluation patterns. Pick the one that matches what you need to prove.
+
+| Need | Surface | What it proves |
+| --- | --- | --- |
+| Grade recorded outputs against fixed expectations | Strict suite and fixture baseline | Quality of those supplied outputs |
+| Compare prompts, models, HTTP targets, or recorded outputs | Evals workbench | Quality on the frozen dataset and target configuration |
+| Test ordered tools, state changes, or conversations | Scenarios | Behavior of the configured execution adapter |
+| Qualify a judge or monitor | Quality controls | Independent calibration on the specified population |
+
+<Note>
+  Optimizer experiments are a different lifecycle: they use evidence to evaluate an optimization. Creating an evaluation workbench does not publish a runtime policy.
+</Note>
+
+## Build a reusable dataset
+
+Open **Evals → Library** in the console, or discover the `datasets.create` operation with the Cloud CLI.
+
+A dataset has columns for input, expected output, and metadata. Rows carry stable `row_key` identities. Preserve trace IDs or fixture source references so you can trace a row back to the traffic that produced it. Label synthetic cases separately from real traffic. A trace draft contains observations, not independently correct answers, so supply expectations from your task contract or review process.
+
+<Steps>
+  <Step title="Discover the create schema">
+    ```bash
+    cvm tools describe datasets.create
+    ```
+  </Step>
+  <Step title="Build a manifest">
+    A manifest contains `schema_version: 1`, `kind: "datasets"`, and `spec` matching the discovered create input.
+
+    ```json
+    {
+      "schema_version": 1,
+      "kind": "datasets",
+      "spec": {
+        "name": "support-reply-v1",
+        "columns": [
+          {"name": "ticket_id", "type": "string"},
+          {"name": "customer_message", "type": "string"},
+          {"name": "expected_tone", "type": "string"},
+          {"name": "must_include", "type": "string"}
+        ],
+        "rows": []
+      }
+    }
+    ```
+  </Step>
+  <Step title="Import rows">
+    Use `--rows rows.jsonl` to import rows into a manifest with empty `document.rows`. Each JSONL line must carry its explicit row identity.
+
+    ```bash
+    cvm datasets validate --file dataset.json
+    cvm datasets push --file dataset.json
+    cvm datasets push --file dataset.json --rows rows.jsonl
+    ```
+  </Step>
+  <Step title="Save the returned manifest and revision">
+    For updates, pull the current version, edit, validate, diff, then push again. A stale revision rejects the write.
+
+    ```bash
+    cvm datasets pull DATASET_UUID --out dataset.json
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Captured payload access remains permission and retention controlled. Missing payloads cannot be recovered from token counts or trace metadata. Keep secrets and sensitive captures out of source control.
+</Warning>
+
+## Save evaluators and bind targets
+
+Create reusable evaluators in **Evals → Library**, or use `evaluators.create`. Start with deterministic constraints: exact expected answers, output schema, forbidden content, ordered tools. A model judge needs an explicit rubric and independent examples of correct and incorrect behavior. Saved configuration is not qualification.
+
+Use `evals.create` to bind datasets, target definitions, evaluator references or inline graders, input mappings, and run settings.
+
+<Steps>
+  <Step title="Discover schemas before writing nested documents">
+    ```bash
+    cvm tools describe evaluators.create
+    cvm tools describe evals.create
+    ```
+  </Step>
+  <Step title="Push the evaluator">
+    ```bash
+    cvm evaluators push --file evaluator.json
+    ```
+  </Step>
+  <Step title="Push the workbench">
+    ```bash
+    cvm evals push --file workbench.json
+    ```
+  </Step>
+  <Step title="List targets for the workbench">
+    ```bash
+    cvm targets list WORKBENCH_UUID
+    ```
+  </Step>
+</Steps>
+
+Target types have different prerequisites:
+
+- **HTTP target**: requires a reachable authorized endpoint.
+- **Recorded-output target**: grades stored values and does not invoke live agent code.
+- **Provider target**: needs configured credentials and supported models. Missing access is a failed prerequisite.
+
+## Run, inspect, and compare
+
+Submit a run, wait for completion, and read the result.
+
+```bash
+cvm evals run WORKBENCH_UUID --idempotency-key REQUEST_KEY --wait
+cvm evals wait WORKBENCH_UUID RUN_UUID
+cvm evals result WORKBENCH_UUID RUN_UUID
+```
+
+Use the same idempotency key only for an identical retry. Save the accepted run ID; waiting can reconnect without submitting another paid job. `--timeout` bounds one request and `--wait-timeout` bounds polling. Interrupting the waiter does not cancel remote work. Cancellation is an explicit `evals.cancel` operation.
+
+### Read the verdict
+
+A judgment is one criterion answered on one unit. It carries a verdict, confidence, the grader that produced it, failing steps by reference, and its cost basis. The ultimate verdict on a change comes from the statistics kernel over paired cases: **Ship**, **Don't ship**, or **Need more data**.
+
+In CI, the three verdicts map to: **Pass**, **Regress**, or **Need more data**.
+
+### CLI exit codes for CI
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Passing quality after a wait |
+| 5 | Failed quality |
+| 6 | Incomplete evidence or a wait timeout |
+
+A queued or completed job alone is not a pass. For CI, preserve the command's exit status and archive the JSON result.
+
+### Compare compatible runs
+
+```bash
+cvm evals compare WORKBENCH_UUID BASELINE_RUN_UUID CANDIDATE_RUN_UUID
+```
+
+Use distinct runs over compatible frozen rows, graders, and target definitions. The comparison reports paired sample count, exclusions, sample floor, confidence or uncertainty, quality regressions, latency, and cost basis. Missing cost remains unknown; a lower token count is not verified savings. Insufficient or confounded comparisons do not establish a winner. Changing cases or grading rules requires a new baseline.
+
+## Strict suites and CI checks on pull requests
+
+Strict suites have named cases with inline `fixture` objects containing `candidate` and `reference`, plus supported graders. Their baseline grades recorded outputs.
+
+```bash
+cvm tools describe evals.add_case
+cvm evals create_suite --file suite.json
+cvm evals add_case --file case.json
+cvm evals list_cases SUITE_UUID
+cvm evals run_baseline SUITE_UUID
+```
+
+Read the returned experiment with `experiments.get` and `experiments.results`. `replace_cases` replaces the whole population; keep every intended case in that request. A new suite version needs a compatible baseline.
+
+<Note>
+  Neither fixture baselines nor ordinary workbench results grant S3 approval or certify production savings. They are quality evidence, not rollout authorization.
+</Note>
+
+## Qualify a judge and monitor live traffic
+
+A saved evaluator, a passing run, and an active monitor represent different evidence and authority.
+
+### Qualify an evaluator
+
+Open **Evals → Qualification**, or inspect `qualifications.sets` and `evaluators.calibrate` through operation discovery. Select an independent reference set that predates the evaluator and fits the intended population. Preserve the labels, source lineage, evaluator version, rubric, and provider configuration. Do not write holdout labels to make the current evaluator pass.
+
+Run calibration within its cost budget and inspect agreement, sample adequacy, errors, and missing evidence. Activation uses `qualifications.activate` and requires its own delegated scope. A pending, stale, failed, or absent qualification must not be presented as active monitoring coverage.
+
+### Monitor live traffic
+
+Open **Evals → Monitors**. Configure the population, evaluator, sampling, thresholds, and delivery target with an authorized operator. Live activation depends on current qualification, project capabilities, budgets, and provider access.
+
+Agents may read monitor state and use the granted `monitors.set_status` pause or resume operation. A pause stops future monitoring; it does not erase past evidence. Inspect sampled population size, exclusions, errors, and verdicts alongside cost. No recent samples means unknown current coverage, not a perfect score.
+
+## Next steps
+
+- [Query eval results with SQL](/guides/query-with-sql)
+- [See how eval gates protect each rollout stage](/concepts/rollout-safety)
+- [Build improvements from eval evidence](/guides/improvements)

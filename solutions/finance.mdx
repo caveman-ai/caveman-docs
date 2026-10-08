@@ -1,0 +1,167 @@
+---
+title: "Caveman for CFOs and finance: AI spend you can defend"
+sidebarTitle: "Finance"
+description: "Govern AI spend with measured costs, verified savings, budget caps, and chargeback-ready reporting. Caveman gives finance leaders numbers they can explain to the board."
+---
+
+Caveman Cloud gives finance leaders a clear, defensible view of AI spend across teams, agents, and workflows. It measures cost from provider-reported usage and public catalog prices, separates real verified savings from estimates, and enforces budgets with alerts. This page explains how to read Caveman's numbers, govern spend with soft and hard caps, run chargeback and showback reports, and spot inflated claims from any AI cost vendor.
+
+## Why AI spend is hard to govern
+
+AI workloads differ from traditional software costs in three ways that make them difficult to budget and report:
+
+- **Usage-priced, not seat-priced.** You pay per token, and usage can spike unpredictably when an agent retries, a workflow loops, or a model is upgraded.
+- **Spread across teams.** Engineering, support, and operations may each run agents with different keys, models, and contract terms. Without unified telemetry, no one sees the total.
+- **Vendor savings claims are inflated.** Many vendors report "up to" figures from benchmarks, project them to a full month, or count correlation as causation. Those numbers rarely survive audit.
+
+Caveman addresses each of these by measuring spend at the request level, labeling every savings figure with its evidence quality, and enforcing caps before traffic reaches the provider.
+
+## How Caveman measures spend
+
+Caveman calculates **measured spend** by multiplying provider-reported token counts by public catalog list prices. This happens automatically for every request that passes through the gateway.
+
+| What is included | What is not included |
+| --- | --- |
+| Provider-reported input, output, and cache tokens | Your negotiated rate or enterprise discount |
+| Failed requests and retries (priced at \$0) | Tax, platform fees, or subscription charges |
+| Every model with a known catalog price | Models without a catalog entry (priced at \$0) |
+
+<Warning>
+  Measured spend is a **list-price subtotal**, not an invoice. It is accurate for relative trends and team allocations, but it will differ from your provider bill if you have negotiated rates or non-standard pricing.
+</Warning>
+
+When a model has no catalog entry, Caveman prices it at **\$0** and labels it `unpriced`. This lowers coverage rather than guessing a price. Coverage is the share of your traffic that carries complete, catalog-priced telemetry. Low coverage does not mean Caveman is broken; it means some traffic uses unknown models or failed to report usage. The console shows coverage per workload so you can decide whether to register missing models or investigate failures.
+
+## The four evidence labels
+
+Caveman groups every cost and savings figure into one of four labels. Each label answers a different question and belongs in a different part of a budget or board deck.
+
+| Label | What it means | How to use it in reporting |
+| --- | --- | --- |
+| **Measured** | Provider-reported tokens times public catalog price | This is your baseline. Use it for spend tracking, chargeback, and trend analysis. |
+| **Inferred** | A modeled per-day rate of dollars that could be recovered | This is pipeline and headroom. Useful for prioritization, never for booked savings. |
+| **Tested** | A proposed change replayed against recorded work and your evals | This is a proposal. It shows what _might_ work, not what has happened in production. |
+| **Verified** | Savings counted from production traffic backed by provider data | This is the only label that belongs in realized savings. It requires one of three specific methods (see below). |
+
+<Note>
+  Caveman never multiplies a per-day inferred rate into a monthly projection. Inferred headroom is reported as a daily rate only.
+</Note>
+
+Overlapping detectors collapse into **mutex families** so headroom is never double-counted. If two optimizations could apply to the same request, Caveman groups them into one family and caps the combined estimate. This keeps inferred numbers conservative and honest.
+
+### What verified requires today
+
+Verified savings is the only per-request causal number. It requires a proven method that connects a specific Caveman transform to a provider-measured delta on that exact request. Three methods exist today:
+
+| Method | Provider | Transform | What it proves |
+| --- | --- | --- | --- |
+| `provider_causal_cache` | Anthropic (direct) | Cache breakpoints Caveman placed | The provider billed a cache read or write that Caveman caused |
+| `provider_causal_cache_bedrock` | Bedrock (Anthropic Claude on Runtime) | Cache points Caveman placed | The provider billed a cache read or write that Caveman caused |
+| `provider_counted_baseline_delta` | Anthropic, OpenAI, Bedrock | Compression Caveman applied | A side call counted the original body; the provider counted the optimized body; the delta is the saving |
+
+Each method is enforced by an exact provider and optimizer tuple. A PR or passing eval is a proposal, never a saving. Verified savings stay zero when the evidence is absent, and they can be negative when cache-write premiums exceed read savings so far.
+
+## Budgets and caps with alerts
+
+Caveman provides two types of spend controls in **Governance → Budgets**:
+
+- **Hard caps** block traffic at the gateway when settled spend plus live reservations would exceed the limit. The gateway returns HTTP 429 with `cave_budget_exceeded`.
+- **Soft spend alerts** notify you when thresholds are crossed but do not block traffic. They remain advisory and fail open.
+
+When a cap is crossed, Caveman files an **Inbox** item and emails the organization's active owners and admins. This happens once per scope, cap, and period. You can configure budgets per project and per key.
+
+<Steps>
+  <Step title="Open Governance → Budgets">
+    Navigate to the Budgets page in your project.
+  </Step>
+  <Step title="Set a hard cap or soft alert">
+    Choose the scope (project or key), the limit, and whether it blocks traffic or only alerts.
+  </Step>
+  <Step title="Choose notification recipients">
+    Owners and admins receive Inbox items and emails automatically. Review the alert history in the Inbox.
+  </Step>
+</Steps>
+
+Hard caps reserve a conservative maximum before the upstream call using public catalog list prices. A delivered response whose usage never arrives is charged its reservation. An unreachable budget store fails closed for hard caps and open for soft alerts.
+
+## Chargeback and showback by team, agent, and workflow
+
+Caveman attributes every request to dimensions you can use for internal billing or cost transparency:
+
+- **Team / member** (requires `billing:read` permission)
+- **Agent** (via `x-cave-agent` header)
+- **Workflow** (via `x-cave-workflow` header)
+- **API key**
+- **Model and provider**
+
+The **Spend** page in the console breaks down measured spend by any of these axes. The default axis is workflow; switch to member, model, or key to answer different questions.
+
+Per-person columns need the `billing:read` permission. Users with the **billing** role can view usage and spend figures but cannot modify keys, guardrails, or team membership. Owners and admins can manage budgets and guardrails. See [Team and Admin](/guides/team-and-admin) for role details.
+
+### What to ask your engineering team for
+
+If you are setting up chargeback or showback for the first time, ask your engineering team to:
+
+1. **Send agent and workflow headers on every request.** The `x-cave-agent` and `x-cave-workflow` headers label traffic automatically in traces and spend reports.
+2. **Use separate API keys per team or environment.** This makes key-level budgeting and attribution straightforward.
+3. **Grant billing:read to finance users.** Add finance stakeholders with the billing role so they can view spend breakdowns without administrative access.
+4. **Review coverage gaps.** Ask which models show as `unpriced` and whether they should be registered in the catalog or investigated for missing usage.
+
+## Signed receipts
+
+Caveman supports **Ed25519 receipt export** for verified savings. Receipts are hash-chained, take exact 1e-10 USD units, and include the day's distinct `cave_savings_method` tags. They verify included hashes and signatures, but they do not attest to omitted tails or scopes.
+
+<Warning>
+  Automatic signing is intentionally disabled. Receipts can be exported manually, but automatic daily signing is not enabled because the managed telemetry path lacks a durable producer-complete closed-day watermark.
+</Warning>
+
+To request a receipt export, contact your Caveman account representative or email [contact@caveman.so](mailto:contact@caveman.so).
+
+## Red flags in AI cost vendor claims
+
+When evaluating any AI efficiency vendor, including Caveman, watch for these warning signs:
+
+| Red flag | Why it matters | Caveman's approach |
+| --- | --- | --- |
+| "Up to X%" or "Up to 20x" savings | Benchmark extremes are not production guarantees | Caveman reports benchmark figures as inferred, never verified |
+| Monthly projections from a one-day sample | Per-day rates extrapolated to a month overstate impact | Caveman reports inferred headroom as a per-day rate only, never re-projected |
+| Correlation reported as causation | Before/after comparisons ignore confounding variables | Verified savings requires per-request causal proof, not population correlation |
+| Savings without a labeled evidence basis | You cannot audit what you cannot categorize | Every figure carries a label: measured, inferred, tested, or verified |
+| Negative savings floored to zero | This hides losses from cache writes or failed optimizations | Caveman reports signed deltas as-is, including negative days |
+| No coverage metric | You do not know how much traffic the claim applies to | Coverage is shown per workload and per method |
+
+## Fit and honest expectations
+
+Caveman pays off when **input is much larger than output and the input is repetitive or bloated**. Strong fits include RAG systems, agents with large system prompts and tool schemas, tool- or log-heavy pipelines, and high-volume support bots with long preambles.
+
+Weak fits include short prompts with long outputs, already-lean prompts, and quality-critical work that cannot be evaluated. In those cases, Caveman stays byte-safe: on parse errors or unsupported inputs, the gateway forwards the original bytes unchanged.
+
+The benchmark envelope for moderate compression on input-heavy workloads is approximately **24-28% potential input-cost reduction**. This is an inferred estimate, not an invoice or verified claim. Your actual verified savings depend on your traffic shape, model mix, and which verified methods apply.
+
+## Data and trust
+
+Hosted Caveman Cloud runs on GCP in europe-west4 with ClickHouse Cloud in the same region, behind Cloudflare. Request and response bodies are kept by default, envelope-encrypted with AES-256-GCM per object and wrapped by Cloud KMS, so traffic can be replayed to prove a fix. You can switch raw payload storage off to keep metadata only. Any request can send `x-cave-retention: metadata` or `x-cave-retention: zdr` to refuse content storage.
+
+Enterprise and customer installs never share data for training. No training runs in production today. Subprocessors are listed at [caveman.so/legal/subprocessors](https://caveman.so/legal/subprocessors). Legal documents, including the DPA, are drafts; request current versions from [contact@caveman.so](mailto:contact@caveman.so).
+
+Caveman is not SOC 2 certified. Do not claim SOC 2, HIPAA, or any certification on Caveman's behalf.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Reporting Savings" icon="chart-bar" href="/solutions/reporting-savings">
+    A monthly reporting playbook with SQL queries, CSV exports, and board-deck phrasing.
+  </Card>
+
+  <Card title="Savings Evidence" icon="shield-check" href="/concepts/savings-evidence">
+    The full technical contract for measured, inferred, and verified savings.
+  </Card>
+
+  <Card title="Team and Admin" icon="users" href="/guides/team-and-admin">
+    Configure projects, invite team members, set roles, and manage billing access.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Write ClickHouse SQL against requests, spend, and savings columns.
+  </Card>
+</CardGroup>

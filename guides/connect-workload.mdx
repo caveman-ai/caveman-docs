@@ -1,0 +1,164 @@
+---
+title: "Connect your workload to Caveman Gateway"
+sidebarTitle: "Connect Workload"
+description: "Route an existing app's LLM calls through the Caveman gateway in minutes: swap the base URL, set headers, send a test request, and confirm the trace."
+---
+
+Send your provider's native requests to the Caveman gateway with a base-URL swap. The gateway authenticates your traffic, logs telemetry, applies eligible optimizations, and forwards upstream to the model provider. This tutorial walks through the full setup end to end, from creating an API key to confirming the first trace.
+
+## Prerequisites
+
+- An existing project that makes LLM calls through a provider SDK or `curl`.
+- A Caveman Cloud account with access to the console and at least one project.
+
+## Step 1: Create a Cave key
+
+The Cave key is what your app sends to authenticate with the gateway. It is separate from any upstream provider key.
+
+<Steps>
+  <Step title="Open the console">
+    Sign in to your Caveman Cloud console and open **Gateway → Keys**.
+  </Step>
+  <Step title="Generate a key">
+    Click **New key**, choose a name, and copy the value. This is your `CAVE_API_KEY`.
+  </Step>
+  <Step title="Store it safely">
+    Treat it like a password. Export it in your environment:
+
+    ```bash
+    export CAVE_API_KEY="cave_live_…"
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  A project key with `sql:read` can query its own project only. For organization-level access, use a member key with broader scopes.
+</Note>
+
+## Step 2: Set the gateway URL
+
+Your installation has a gateway origin. Set `CAVE_GATEWAY_URL` to that origin without a trailing slash. For Caveman Cloud hosted, this is typically `https://gateway.caveman.so`. If you are unsure, check your console or ask your administrator.
+
+```bash
+export CAVE_GATEWAY_URL="https://gateway.caveman.so"
+```
+
+## Step 3: Add provider paths
+
+The gateway speaks the provider wire protocols on their native paths. Append the provider path to `CAVE_GATEWAY_URL`:
+
+| Provider | Request path |
+| --- | --- |
+| OpenAI | `${CAVE_GATEWAY_URL}/openai/v1` |
+| Anthropic | `${CAVE_GATEWAY_URL}/anthropic` |
+| Google / HTTP | `${CAVE_GATEWAY_URL}/google` or the generic proxy path your admin configured |
+
+<CodeGroup>
+
+```ts TypeScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.CAVE_API_KEY,
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
+  defaultHeaders: {
+    "x-cave-upstream-key": process.env.OPENAI_API_KEY!,
+    "x-cave-agent": "support-agent",
+    "x-cave-workflow": "resolve-ticket",
+  },
+});
+```
+
+```python Python
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key="unused",
+    base_url=f"{os.environ['CAVE_GATEWAY_URL']}/anthropic",
+    default_headers={
+        "authorization": f"Bearer {os.environ['CAVE_API_KEY']}",
+        "x-cave-agent": "support-agent",
+        "x-cave-workflow": "resolve-ticket",
+        "x-cave-upstream-key": os.environ["ANTHROPIC_API_KEY"],
+    },
+)
+```
+
+```bash curl
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
+  -H "x-cave-agent: support-agent" \
+  -H "x-cave-workflow: resolve-ticket" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+```
+
+</CodeGroup>
+
+<Note>
+  Both SDKs build the header map for you, so a hand-written client and a Caveman SDK client put identical bytes on the wire. The `gatewayConfig` helper in the TypeScript and Python SDKs sets the same headers.
+</Note>
+
+## Step 4: Provide an upstream key or use a stored connection
+
+The gateway needs a way to authenticate upstream. There are two patterns:
+
+1. **Header on every request**: Send `x-cave-upstream-key` as shown above. Use this when your project has no stored provider key in the gateway.
+2. **Stored connection**: Open **Gateway → Connections** in the console, add your provider key once, and then drop `x-cave-upstream-key` from requests. The gateway uses the stored connection automatically.
+
+## Step 5: Label traffic with agent and workflow
+
+The `x-cave-agent` and `x-cave-workflow` headers identify traffic for reporting and workload grouping. They do not grant access or change authorization. Choose values that match your application structure so traces group logically in the console.
+
+| Header | Purpose | Example |
+| --- | --- | --- |
+| `x-cave-agent` | Names the application component sending the request | `support-agent` |
+| `x-cave-workflow` | Names the task or flow being executed | `resolve-ticket` |
+
+<Warning>
+  Labels are case-sensitive in traces but case-insensitive in some console joins. Use consistent casing.
+</Warning>
+
+## Step 6: Send a test request
+
+Run one request from your application:
+
+<CodeGroup>
+
+```ts TypeScript
+const completion = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello from Caveman" }],
+});
+console.log(completion.choices[0].message.content);
+```
+
+```python Python
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello from Caveman"}],
+)
+print(message.content)
+```
+
+</CodeGroup>
+
+## Step 7: Confirm the trace in the console
+
+Open **Traces** in the console, choose the right project and window, and look for a row matching your agent and workflow labels. Click the trace to inspect spans, cost, latency, and request details.
+
+If you do not see a trace within a minute, check:
+
+- The `authorization` header uses `Bearer` and the full `CAVE_API_KEY`.
+- `CAVE_GATEWAY_URL` has no trailing slash.
+- The provider path matches the provider you are calling (`/openai/v1`, `/anthropic`, etc.).
+- `x-cave-upstream-key` is present or a stored connection is configured.
+
+## Next steps
+
+- [Control what the gateway does per request](/guides/control-optimizations)
+- [Inspect traces, spend, and analytics](/guides/traces-and-spend)
+- [Query your telemetry with SQL](/guides/query-with-sql)

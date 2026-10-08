@@ -1,0 +1,105 @@
+---
+title: "Governance and cost control for AI traffic in Caveman"
+sidebarTitle: "Overview"
+description: "How Caveman Cloud governs AI spend: API keys, project access, budgets, spend-rate quotas, roles, cost allocation, and billing limits in one layered model."
+---
+
+Caveman Cloud puts every model request behind the gateway, so governance and spend control happen in one place: who can send traffic, which models they can reach, how fast they can spend, and who pays for it. This section explains each control and how they stack, from a single API key up to your organization's bill.
+
+## Two kinds of money
+
+Keep these separate. They are configured in different places and answer different questions.
+
+|  | Model spend | Caveman bill |
+| --- | --- | --- |
+| **What it is** | What your traffic costs at model providers (OpenAI, Anthropic, Google, and so on) | What you pay Caveman for its own products: observability events, agent runs, and routing decisions |
+| **Where you control it** | **Governance → Budgets**, per-key limits, spend-rate quotas | **Billing**, with a limit per product |
+| **How it is priced** | Provider-reported tokens times public catalog list prices | Caveman's graduated tiers past a free monthly allowance |
+| **Who you pay** | Your provider, on your provider's invoice | Caveman |
+
+<Note>
+  Gateway spend figures are catalog list-price estimates, not your provider invoice. Negotiated discounts, credits, and provider-side adjustments are not reflected.
+</Note>
+
+## How the controls stack
+
+Each layer can only narrow what the layer above allows, never widen it. A request must pass every layer that is configured.
+
+| Layer | Where | What it limits |
+| --- | --- | --- |
+| **Project access** | **Governance → Access** | Allowed providers and models, project-wide requests per minute, parallel requests, max request size |
+| **Project budget** | **Governance → Budgets** | Monthly soft cap (alert) and hard cap (stop traffic) on gateway spend |
+| **Spend-rate quotas** | **Governance → Budgets** | Dollars per rolling window, per API key and per workflow |
+| **API key limits** | **Governance → Keys** | Allowed models, requests and tokens per minute, parallel requests, soft and hard budgets, expiry, allowed IPs |
+| **Guardrails** | **Governance → Guardrails** | Request and response content: secrets, PII, patterns, external checks |
+| **Billing limits** | **Billing** | A dollar ceiling per Caveman product |
+
+## Roles and permissions
+
+Caveman Cloud has five organization roles. This table shows the governance and financial permissions each one holds.
+
+| Capability | Owner | Admin | Engineer | Viewer | Billing |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| Create, edit, rotate, and revoke project keys | ✓ | ✓ | ✓ |  |  |
+| Use a personal key for your own traffic | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Edit budgets, access policy, and guardrails | ✓ | ✓ | ✓ |  |  |
+| Manage provider connections | ✓ | ✓ |  |  |  |
+| Invite members, assign roles, bind keys to a person | ✓ | ✓ |  |  |  |
+| Configure SSO | ✓ |  |  |  |  |
+| Read billing and per-person spend | ✓ | ✓ |  |  | ✓ |
+| Add a card, set billing limits, change packages | ✓ |  |  |  | ✓ |
+| Read the audit log | ✓ | ✓ |  |  |  |
+
+<Tip>
+  Give your finance contact the **Billing** role. They can read usage and manage payment without being able to change keys, policies, or traffic.
+</Tip>
+
+Credential lifecycle, identity administration, and consent changes are human-only. Coding agents connected through MCP can read governance posture but cannot create or rotate keys or change identity settings.
+
+## A recommended setup
+
+<Steps>
+  <Step title="Give every person and app its own key">
+    Issue personal keys for people and shared keys for services, so every request is attributed. See [API keys](/governance/api-keys).
+  </Step>
+  <Step title="Restrict models at the project level">
+    Allow only the providers and models the project needs in **Governance → Access**. Keys can narrow this list further.
+  </Step>
+  <Step title="Set a project budget">
+    Start with a soft cap to learn your baseline, then add a hard cap once you know normal spend.
+  </Step>
+  <Step title="Add per-key and spend-rate limits">
+    Give high-risk keys (CI, experiments, autonomous agents) their own hard budgets and spend-rate quotas so a runaway loop cannot drain the project budget.
+  </Step>
+  <Step title="Label keys for reporting">
+    Add team, environment, and cost-center labels so Finance can break spend down without asking engineering.
+  </Step>
+</Steps>
+
+## Explore this section
+
+<CardGroup cols={2}>
+  <Card title="API Keys" icon="key" href="/governance/api-keys">
+    Create personal and shared keys, set scopes and per-key limits, rotate, block, and revoke.
+  </Card>
+
+  <Card title="Access and Limits" icon="shield-check" href="/governance/access-and-limits">
+    Restrict providers and models, set project rate limits, and add guardrails.
+  </Card>
+
+  <Card title="Budgets" icon="gauge" href="/governance/budgets">
+    Configure soft and hard caps, spend-rate quotas, and handle budget errors.
+  </Card>
+
+  <Card title="Cost Allocation" icon="chart-pie" href="/governance/cost-allocation">
+    Attribute spend to people, teams, workflows, and customers for chargeback.
+  </Card>
+
+  <Card title="Billing" icon="credit-card" href="/governance/billing">
+    Understand plans, metered products, packages, and billing limits.
+  </Card>
+
+  <Card title="Import Gateway Config" icon="file-import" href="/governance/import-gateway-config">
+    Bring keys, budgets, and teams over from LiteLLM or Kong AI Gateway.
+  </Card>
+</CardGroup>

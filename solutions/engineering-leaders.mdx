@@ -1,0 +1,188 @@
+---
+title: "Caveman for CTOs and platform leaders: govern AI spend at scale"
+sidebarTitle: "Engineering Leaders"
+description: "Govern AI spend across teams, agents, and workflows with measured, inferred, and verified savings. Explore governance, risk controls, vendor neutrality, and a pilot evaluation checklist."
+---
+
+Caveman Cloud is built for the person who must defend the AI budget to a CFO, a board, or a customer. It gives you spend per developer, team, agent, and workflow; ties coding sessions to merged pull requests so each PR shows its cost; and counts a saving only after production traffic proves it. This page covers the problem, the controls, the governance model, and the evaluation checklist for a pilot.
+
+## The problem: an ungoverned AI spend line item
+
+AI spend is now a real budget line, but few teams can answer the basic questions:
+
+- How much did we spend last month, and on what?
+- Which team, agent, or workflow drove the increase?
+- Did that compression or routing change actually save money, or did it just look good in a dashboard?
+- If the CEO asks for proof, what can we show?
+
+Caveman Cloud answers every question with a labeled evidence rung: measured (what the provider reported), inferred (a modeled daily rate), tested (a replayed candidate), or verified (a provider-measured delta). No number is presented without its source.
+
+## What you get org-wide
+
+### Spend per developer, team, agent, and workflow
+
+The gateway records every request with its agent and workflow labels, so you slice spend by any dimension. Coding sessions (Claude Code, Codex, Gemini CLI, OpenCode) link to their branch and to the change that merged, so each pull request shows the sessions behind it and what they cost. The console surfaces this under **Traces**, **Workloads**, and **Developers**.
+
+### Cave Plan: ranked moves with daily dollar figures
+
+Caveman reads your traffic for repeated work, bloated context, and the wrong model for the job. Each finding becomes a brief: what was found, the proposed change, and how to verify it. The brief carries an inferred daily dollar figure, a sample size, and a confidence. You choose what to act on. See [Improvements](/guides/improvements) for how to review proposals and [Built-in AI](/concepts/built-in-ai) for how the system generates them.
+
+### Evidence ladder: four labeled rungs
+
+Every claim is labeled so you know what you are looking at:
+
+| Rung | What it means |
+| --- | --- |
+| **Measured** | Spend at public catalog prices from provider-reported usage. Failures and retries included. Unknown models stay unpriced at \$0. |
+| **Inferred** | A modeled daily rate with a range, sample size, and confidence. This is a proposal, not a saving. |
+| **Tested** | A proposed change replayed against recorded traffic and your scorers, with an Evidence report. |
+| **Verified** | A provider-counted delta on a Caveman transform on production traffic. Starts at \$0 and moves only with qualifying evidence. |
+
+Verified savings today require one of three provider-causal methods: Anthropic-direct cache breakpoints Caveman placed, Bedrock Anthropic Claude cache points, or provider-counted baseline delta on counted transformed requests. A passing eval or a merged PR is a proposal, never a verified saving. See [Savings Evidence](/concepts/savings-evidence) for the full contract.
+
+## Risk model: byte-safe defaults and staged rollout
+
+Caveman does not guess about quality. The default is byte-safe pass-through, and every optimization climbs a safety class before it can run on production traffic.
+
+### Byte-safe default
+
+The gateway forwards your request byte-identical unless you ask for an optimization. Compression runs only when the request carries `x-cave-optimize: compress`. On any parse problem, unsupported input, or output that is not smaller, the gateway passes the original unchanged. Originals are recoverable byte-exact under a content-addressed handle. Record mode skips every transform.
+
+### Safety classes and eval gates
+
+Optimizers are gated by safety class:
+
+| Class | Behavior |
+| --- | --- |
+| S0 (Record) | No transform. Traffic is observed only. |
+| S1 (Passive) | Hints added without changing model-visible bytes. Only S1 can run without a workload-specific eval. |
+| S2 (Moderate) | Lossless or eval-cleared transforms. Must pass a workload-specific eval before activation. |
+| S3 (Aggressive) | Higher compression or structural changes. Requires eval proof and owner/admin approval to publish. |
+
+### Staged rollout with auto-rollback
+
+An optimizer rolls out through record, replay, shadow, canary, and active stages. Each stage has a gate, and live quality monitors sample production traffic. If a monitor detects regression, the system auto-rolls back to the prior state. The rollback is automatic; the re-activation is human. See [Rollout Safety](/concepts/rollout-safety) for the stage definitions.
+
+### Reviewable PRs, never silent auto-merges
+
+When the Cave Agent proposes a code change, it holds the change and its evidence in the Inbox. A person with repository connect permission chooses **Publish**, and only then does Caveman's GitHub App push the branch and open a draft PR. An agent session cannot choose Publish. Your team reviews, merges, and releases. We recommend enabling GitHub Workflow Execution Protections and leaving Caveman's GitHub App off the allowed list, so a person on your team starts CI.
+
+### Who can approve what
+
+Five roles control what each person can do:
+
+| Role | Scope |
+| --- | --- |
+| **Owner** | Full access, including billing, deletion, and role changes. Only an owner can modify owner access. |
+| **Admin** | Can manage projects, keys, budgets, guardrails, SSO, and policies. Cannot mint or modify owner access. Admin can publish S2/S3 policies and approve S3 experiments. |
+| **Engineer** | Can send traffic, read traces, run evals, and review improvements. Cannot change budgets or publish aggressive policies. |
+| **Viewer** | Read-only access to traces, dashboards, and reports. |
+| **Billing** | Can view usage and manage payment methods. Cannot access traces or keys. |
+
+Sensitive scopes are narrowed: raw payload read is owner/admin only; publishing aggressive (S2/S3) policies and approving S3 experiments is owner/admin; connecting a repo is owner/admin. An admin cannot mint or modify owner access.
+
+## Governance
+
+### SSO
+
+Sign in via email and password, Google, GitHub, or OIDC/SAML single sign-on. SAML signature verification runs in the identity service with no external auth vendor. See [Team and Admin](/guides/team-and-admin) for setup steps.
+
+### RBAC and scoped tokens
+
+Five roles define the authorization boundary. Scoped access tokens narrow an integration to a subset of the caller's role permissions. Authorization is the intersection of role and scope: a scope never grants authority the role lacks. The scope catalogue is published in the OpenAPI specification.
+
+### Budgets and rate limits
+
+Set soft and hard caps per project. A hard cap blocks traffic; a soft cap sends an Inbox item and an email. Rate limits apply per key and per workflow. See [Budgets and Guardrails](/guides/budgets-and-guardrails) for configuration.
+
+### Guardrails
+
+Guardrails mask or block sensitive content in prompts and responses. Project-level rules layer over the built-in floor. Test a guardrail before publishing a policy change. See [Control Optimizations](/guides/control-optimizations) for how guardrails interact with optimization headers.
+
+### Audit log
+
+An append-only audit log records changes to budgets, guardrails, keys, roles, and policies. Inspect actor, resource, time, and outcome for every change. The log is tamper-evident within the tenant boundary.
+
+## Vendor neutrality and BYOK
+
+Caveman Cloud is bring-your-own-key. You configure your own provider credentials; we transmit requests to those providers with your credentials, as your instruction. Your relationship with the model provider is your own.
+
+### No lock-in
+
+- Swap the base URL back to the provider to remove Caveman from the path.
+- Local tools (`caveman <agent>`) need no account and keep working if Cloud is unreachable.
+- Coding-agent traffic goes straight to your provider with your key. Caveman gets a routing ask, not the request.
+- Enterprise runs in your VPC, on your KMS and storage, with content sharing locked off.
+
+### Scoped access tokens
+
+Scoped tokens let you give an integration only the permissions it needs, narrowed from the caller's role. This is useful for CI pipelines, third-party agents, or departmental projects.
+
+## Build vs buy
+
+If you were to build what Caveman provides, you would need at least:
+
+- A provider-complete pricing catalog that stays current as models and prices change.
+- A causal savings accounting system that starts at \$0 and requires provider-measured proof before minting a dollar.
+- A replay pipeline that runs recorded traffic against candidate changes with your scorers.
+- An eval gating system that blocks transforms until quality is proven unchanged.
+- Row-level tenant isolation, envelope encryption, and a retention worker with audit logging.
+- A staged rollout controller with shadow, canary, and auto-rollback.
+
+Caveman ships these as one Helm chart with a signed release. Hosted Cloud runs them for you; customer-owned installs run them in your VPC.
+
+## Evaluation checklist for a pilot
+
+Use this checklist to evaluate Caveman Cloud against your requirements.
+
+| Question | Caveman answer | How to verify |
+| --- | --- | --- |
+| Can we see spend per team, agent, and workflow? | Yes. Labels on every request: `x-cave-agent`, `x-cave-workflow`, `x-cave-project`. | Route traffic for one week and inspect **Traces** and **Workloads**. |
+| Can we link coding sessions to merged PRs? | Yes. Sessions link to branch and merged change. | Connect a coding agent and inspect **Developers > Sessions**. |
+| Can we set spend caps that block traffic? | Yes. Hard budgets per project. | Set a low hard cap and send traffic until it blocks. |
+| Can we prove a saving actually happened? | Yes, via verified methods on production traffic. | Enable a verified-eligible optimizer and wait for provider-counted rows. |
+| Can we run this in our own cloud account? | Yes. AWS or GCP via Terraform and one Helm chart. | Review [Deployment Options](/solutions/deployment-options). |
+| Can we keep provider keys in our control? | Yes. BYOK, with per-request `x-cave-upstream-key` or stored keys under your KMS. | Inspect provider connection settings in the console. |
+| Can we remove Caveman without changing provider relationships? | Yes. Swap base URL back. | Revert the base URL and confirm traffic flows directly. |
+| Can we audit who changed budgets, keys, or policies? | Yes. Append-only audit log. | Open **Governance > Audit**. |
+| Can we enforce SSO before anyone sees spend data? | Yes. SAML and OIDC SSO with group mappings. | Configure SSO and require it for the domain. |
+| Is our data used to train Caveman's models? | No, on Enterprise and customer installs. Free and pay-as-you-go have tier-conditioned defaults. | Review **Governance > Data** and the [Data and Privacy](/concepts/data-and-privacy) page. |
+
+## KPIs to track
+
+Run the pilot for at least two billing cycles and track these numbers:
+
+- **Spend per merged change**: total model spend divided by merged PRs in the window. This tells you if coding agents are getting more or less expensive per unit of shipped work.
+- **Cost per task**: for agentic workflows, divide spend by completed task count.
+- **Verified savings rate**: verified savings divided by measured spend on eligible traffic. A negative number is valid and honest.
+- **Coverage**: the share of traffic that carries complete, catalog-priced telemetry. Low coverage means some models are unpriced or some requests failed.
+- **Inferred headroom per day**: the modeled daily opportunity from Cave Plan. Compare it to the cost of the proving budget and the engineering time to review proposals.
+- **Proposals reviewed vs merged**: the ratio of improvement attempts that reached a PR to those that shipped. This measures your team's velocity, not Caveman's.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Options" icon="server" href="/solutions/deployment-options">
+    Hosted Cloud, your VPC on AWS or GCP, or on-prem.
+  </Card>
+
+  <Card title="Security Review" icon="shield-halved" href="/solutions/security-review">
+    Architecture, encryption, tenant isolation, and compliance posture.
+  </Card>
+
+  <Card title="Savings Evidence" icon="chart-line" href="/concepts/savings-evidence">
+    How measured, inferred, and verified numbers are produced and labeled.
+  </Card>
+
+  <Card title="Team and Admin" icon="users" href="/guides/team-and-admin">
+    Projects, roles, SSO, keys, budgets, and guardrails.
+  </Card>
+
+  <Card title="Improvements" icon="wand-magic-sparkles" href="/guides/improvements">
+    Prepare workloads, review Evidence reports, and merge proposed changes.
+  </Card>
+
+  <Card title="Budgets and Guardrails" icon="sliders" href="/guides/budgets-and-guardrails">
+    Set soft and hard caps, rate limits, and content guardrails.
+  </Card>
+</CardGroup>

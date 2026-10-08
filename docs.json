@@ -1,0 +1,146 @@
+{
+  "theme": "luma",
+  "name": "Caveman Cloud",
+  "colors": {
+    "primary": "#1f9a4e",
+    "light": "#4ade80",
+    "dark": "#1f9a4e"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "index",
+              "why-caveman",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Self-Driving AI",
+            "pages": [
+              "concepts/built-in-ai",
+              "guides/connect-coding-agent",
+              "guides/ai-setup",
+              "guides/improvements",
+              "guides/automation",
+              "guides/decision-models"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/workloads",
+              "concepts/savings-evidence",
+              "concepts/optimizations",
+              "concepts/rollout-safety",
+              "concepts/data-and-privacy"
+            ]
+          },
+          {
+            "group": "Tutorials",
+            "pages": [
+              "guides/connect-workload",
+              "guides/control-optimizations",
+              "guides/model-routing",
+              "guides/traces-and-spend",
+              "guides/query-with-sql",
+              "guides/budgets-and-guardrails",
+              "guides/evals",
+              "guides/team-and-admin"
+            ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "analytics/overview",
+              "analytics/coding-agents",
+              "analytics/team-analytics",
+              "analytics/apps",
+              "analytics/custom-dashboards"
+            ]
+          },
+          {
+            "group": "Governance & Billing",
+            "pages": [
+              "governance/overview",
+              "governance/api-keys",
+              "governance/access-and-limits",
+              "governance/budgets",
+              "governance/cost-allocation",
+              "governance/billing",
+              "governance/import-gateway-config"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "reference/troubleshooting",
+              "reference/faq",
+              "reference/glossary"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides"
+      },
+      {
+        "tab": "Solutions",
+        "groups": [
+          {
+            "group": "By Role",
+            "pages": [
+              "solutions/developers",
+              "solutions/engineering-leaders",
+              "solutions/finance"
+            ]
+          },
+          {
+            "group": "Evaluate and Adopt",
+            "pages": [
+              "solutions/adoption-playbook",
+              "solutions/reporting-savings",
+              "solutions/security-review",
+              "solutions/deployment-options"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations & SDKs",
+        "groups": [
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/openai",
+              "integrations/anthropic",
+              "integrations/google-and-http",
+              "integrations/frameworks",
+              "integrations/litellm"
+            ]
+          },
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks/typescript",
+              "sdks/python"
+            ]
+          },
+          {
+            "group": "CLI & MCP",
+            "pages": [
+              "cli/cvm",
+              "cli/mcp"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+---
+title: "Use Improvements and Ask Caveman to upgrade workloads"
+sidebarTitle: "Improvements"
+description: "Prepare improvement attempts, evaluate them with test cases and Evidence reports, and review proposals in the Inbox before merging. Ask Caveman helps you investigate."
+---
+
+Caveman Cloud can propose concrete changes to your workloads: prompt edits, tool adjustments, and routing changes. Each proposal is prepared, evaluated, and delivered as a reviewable pull request with an Evidence report. You decide what to merge. This guide explains how the improvement loop works, how to use Ask Caveman for investigation, and what to review before you approve anything.
+
+## How an improvement attempt works
+
+The product loop is **Observe → Diagnose → Generate → Evaluate → Deploy → Learn**. An improvement attempt is one lap of that loop focused on a single workload.
+
+<Steps>
+  <Step title="Prepare the workload">
+    Register a workload under **Workloads** and connect its repository using your operator's authorized installation. Repository discovery, observed traffic, registered identity, and executable bindings are separate facts. A workload row alone does not prove that code can run.
+  </Step>
+  <Step title="Approve test cases">
+    Scenarios run as the baseline and comparison trials of an improvement case, not on their own. Approve a scenario in an agent's acceptance criterion under **Agents**, then start an improvement attempt.
+  </Step>
+  <Step title="Proving runs">
+    The system generates a candidate change, screens it, replays it against recorded traffic, and runs evals. The cost of proving is printed on the card.
+  </Step>
+  <Step title="Evidence report">
+    The result is a reviewable PR with an Evidence report attached. The report contains one claim, the approach that produced it, a physics proof column and a judged proof column, evidence links, its proving cost, and one recommended action.
+  </Step>
+  <Step title="Inbox decision">
+    The proposal enters your **Inbox**, the org-scoped decision queue. You review the evidence and choose to approve, reject, or request more data.
+  </Step>
+</Steps>
+
+<Warning>
+  Acceptance is not execution; execution is not a merged fix; a merged fix is not verified savings. Report each boundary using actual evidence. Verified savings stays at zero without qualifying evidence.
+</Warning>
+
+## Ask Caveman for investigation
+
+**Ask Caveman** is the agent-assisted investigation surface. Open `/ask` from the console and ask one question about a time window.
+
+### Ask a question
+
+Captured payloads require their own access. The answer can read the project's repository when you hold repository access and the project has exactly one connected repository.
+
+```bash
+cvm tools describe agent.run
+cvm agent run --file turn.json --wait
+cvm runs wait RUN_UUID
+```
+
+A turn has this shape:
+
+```json
+{
+  "request_id": "…",
+  "input": {
+    "question": "…",
+    "window": {"from": "…", "to": "…"}
+  }
+}
+```
+
+Send a new `request_id` per question and repeat one only to retry the same question. Add `parent_run_id` to follow up on your previous answer in the same conversation. Preserve the run ID and result reference. A refusal names the rule it applies; it is a blocker, not permission to switch identities.
+
+Inspect the run with:
+
+```bash
+cvm runs get RUN_UUID
+cvm runs events RUN_UUID
+cvm runs result RUN_UUID
+```
+
+Waiting reconnects to durable work; interrupting a waiter leaves the job running. `runs.cancel` is explicit. An incomplete, cancelled, stale, or missing result cannot establish success.
+
+<Note>
+  Automatic repair investigations are switched off by default. A turn with `"fix": true` and the automation operations are refused with the reason until the installation's operator switches them on.
+</Note>
+
+## Review an Evidence report before merging
+
+Every improvement attempt that surfaces as a PR carries an Evidence report. Review these elements before you merge.
+
+### One claim
+
+What exactly the change claims to improve. It should be specific and bounded.
+
+### The approach
+
+How the change was produced: which files were modified, which prompts or tools were changed, and what the reasoning was.
+
+### Physics proof column
+
+Arithmetic or structural evidence that the change is sound: token counts, latency measurements, or schema checks that do not depend on a model's opinion.
+
+### Judged proof column
+
+Eval results from test cases and criteria. This includes verdicts from fixed-code assertions, output graders, sandboxed code, or qualified judges.
+
+### Evidence links
+
+Trace IDs, run IDs, and scenario results you can inspect independently. Follow them and confirm the evidence exists and matches the claim.
+
+### Proving cost
+
+What the attempt cost to generate and evaluate. Factor this into your decision, especially for low-frequency workloads.
+
+### One recommended action
+
+Ship, don't ship, or need more data. This is a recommendation, not an auto-merge.
+
+<Warning>
+  PRs are proposals, never auto-merged. The Inbox decision queue keeps human control over every change.
+</Warning>
+
+## Historical records
+
+You can inspect past improvement attempts and their outcomes. Use complete operation prefixes when sharing commands so your team reads the same surface.
+
+Top-level `caveman agent list` addresses the historical proposal lane. History remains inspectable without claiming that retired execution paths are available.
+
+## Next steps
+
+- [Set up Automation for continuous improvement proposals](/guides/automation)
+- [Run evals to build the test cases that judge improvements](/guides/evals)
+- [Query traces and spend to find workloads worth improving](/guides/traces-and-spend)

@@ -1,0 +1,130 @@
+---
+title: "Connect a decision model to judge Compare and rollouts"
+sidebarTitle: "Decision Models"
+description: "Connect a dedicated decision model to judge quality in Compare runs, route rollouts, and eval drafting. Learn how Caveman picks a judge and what self-checks run before scores appear."
+---
+
+A decision model is a dedicated judge connection you add in the Caveman Cloud console alongside your traffic providers. It never carries your application's traffic and never counts as a traffic provider. Instead, it judges Compare runs, measured route rollouts, and eval drafting by evaluating saved requests and candidate answers for quality.
+
+## When you need a decision model
+
+You need a connected decision model when you want Caveman to judge quality comparisons using a specialized judge rather than relying on cross-family LLM judges alone. The console's provider setup lists it as **Decision model: Judge for Compare, TypeSafe or custom**.
+
+A decision model helps when:
+
+- You want a calibrated, purpose-built judge for quality comparisons
+- Your compared models come from unrecognized families that standard LLM judges cannot evaluate
+- You want a primary judge with a cross-family LLM as a second opinion for uncertain pairs
+
+<Note>
+  A decision model always needs a stored API key. On deployments that do not store provider keys, the option is hidden and connecting one fails with: "This deployment doesn't store keys, so a decision model can't be connected."
+</Note>
+
+## Steps to connect a decision model
+
+<Steps>
+  <Step title="Open provider setup">
+    In the Caveman Cloud console, navigate to **Gateway → Providers** in your project.
+  </Step>
+  <Step title="Select Decision model">
+    Find **Decision model: Judge for Compare, TypeSafe or custom** in the provider grid and select it.
+  </Step>
+  <Step title="Choose a vendor">
+    Select **TypeSafe** or **Custom endpoint**:
+
+    - **TypeSafe**: Caveman sends requests and candidate answers to TypeSafe for judgment
+    - **Custom endpoint**: Provide your own API base URL for a judge endpoint you operate
+  </Step>
+  <Step title="Paste your API key">
+    Enter the API key for your chosen vendor. The key is stored in a scope-bound encrypted envelope and injected at request time. Caveman uses it to send saved requests and candidate answers to judge quality.
+  </Step>
+  <Step title="Verify the connection">
+    On connect, Caveman verifies the decision model by asking one small test question with the stored key. The connection shows as active once verification passes.
+  </Step>
+</Steps>
+
+<Warning>
+  Connecting a decision model requires the `provider:manage` permission. If you do not see the option, ask your project owner or admin to connect it.
+</Warning>
+
+## How Caveman picks a judge
+
+For each Compare run, route rollout, or eval drafting session, Caveman resolves the judge in this order:
+
+1. **Project's decision model**: If the connected decision model fits (its family is known and differs from every compared model's family), it becomes the primary judge.
+2. **Cross-family LLM judge**: If no decision model fits, Caveman looks for an LLM judge on one of your stored provider keys from a different model family than the compared models.
+3. **Installation judge**: If the project has no fitting judge, Caveman checks whether your deployment has an installation-level judge configured.
+4. **Same-family LLM judge**: If nothing cross-family fits, Caveman may use a same-family LLM judge that is none of the compared models. Verdicts from this judge are labeled "same-family."
+5. **Refusal**: If no judge can be resolved, the Compare is refused with a reason. Common refusal reasons include:
+   - "no decision model is connected, and no provider key is stored that could judge"
+   - "every key shares a compared model's family"
+   - A compared model from an unrecognized family that only a decision model can judge
+
+### Second opinions
+
+When a decision model is the primary judge and a cross-family LLM key is also available, that LLM serves as a second opinion for pairs where the decision model is unsure. The second opinion only escalates when the primary's verdict does not stand on its calibrated threshold.
+
+<Note>
+  A compared model from an unrecognized family can only be judged by a decision model. Standard LLM judges cannot evaluate models from families they do not recognize.
+</Note>
+
+## Self-checks before scores show
+
+Before any Compare score is shown, the judge must pass two self-checks:
+
+- **A/A check**: Identical answers (the current model re-run against its own recorded output) must score within 3 points. This confirms the judge is consistent and not biased by trivial differences.
+- **Planted regression detection**: The judge must catch planted regressions (deliberately degraded answers) in at least 90% of cases. One regression is the recorded answer cut short; another is a length-matched answer from a different request, which a judge that only rewards length cannot tell apart.
+
+If either self-check fails, the Compare refuses with a reason such as "A/A check off by X pts" or "planted regression caught in Y% of cases."
+
+## Data handling
+
+<Note>
+  The consent screen's "Where requests go" line names replays on your stored keys and the judge. Specifically: "Replays: [your stored providers], on your keys. Judge: [your decision model or fallback rule]."
+</Note>
+
+Caveman sends saved requests and candidate answers to your connected decision model (TypeSafe or your custom endpoint) to judge quality. The traffic never flows through the decision model as a production provider. It is used only for evaluation and comparison purposes.
+
+## Troubleshooting refusals
+
+<AccordionGroup>
+  <Accordion title="Compare refused: no decision model is connected, and no provider key is stored that could judge">
+    Connect at least one provider key (for LLM judging) or a decision model in **Gateway → Providers**. If your deployment does not store keys, you cannot connect a decision model; ask your operator about key storage policy.
+  </Accordion>
+
+  <Accordion title="Compare refused: every key shares a compared model's family">
+    The compared models span families that conflict with every stored provider key. Add a provider key from a different model family, or connect a decision model that fits.
+  </Accordion>
+
+  <Accordion title="Compare refused: a compared model is from an unrecognized family">
+    A model from a family Caveman does not recognize can only be judged by a decision model. Connect a decision model that does not share the model's family.
+  </Accordion>
+
+  <Accordion title="Decision model connection fails on verify">
+    On connect, Caveman asks one small test question. If the model does not answer, refuses, or returns probabilities that do not stand, the connection fails. Check your API key, endpoint URL (for custom), and that the service is reachable.
+  </Accordion>
+
+  <Accordion title="The autopilot header prompts me to connect a judge">
+    The optimization autopilot header shows this prompt when the newest Compare was refused. Connect a decision model or an additional provider key from a different family. You need `provider:manage` permission.
+  </Accordion>
+</AccordionGroup>
+
+## Rotate or remove a decision model
+
+From **Gateway → Providers**, find your decision model connection and select an action:
+
+- **Verify**: Re-test the connection with the stored key
+- **Rotate key**: Paste a new API key and verify
+- **Remove**: Delete the connection. Removing it does not erase past Compare evidence, but future Compares that depended on it may refuse until another fitting judge is connected.
+
+<Warning>
+  Removing a decision model does not cancel in-flight Compare runs. Those runs resolved their judge at start time and will complete with the judge they picked.
+</Warning>
+
+## Next steps
+
+- [Control optimizations per request and read receipt headers](/guides/control-optimizations)
+- [Build evals and run comparisons](/guides/evals)
+- [Understand savings evidence and quality proof](/concepts/savings-evidence)
+- [Explore built-in AI and automation concepts](/concepts/built-in-ai)
+- [Manage team permissions](/guides/team-and-admin)

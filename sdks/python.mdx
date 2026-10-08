@@ -1,0 +1,334 @@
+---
+title: "Python SDK: Install, Trace, and Control LLM Traffic"
+sidebarTitle: "Python"
+description: "Install caveman-sdk, configure the gateway client, trace workflows, control per-request optimizations, parse receipts, and manage Cloud resources with typed resources."
+---
+
+The `caveman-sdk` distribution provides a stdlib-only Python client for Caveman Cloud. The import package is `caveman_cloud`. It uses only the standard library (no `requests`, no `httpx`) and wraps the gateway's `/sdk/v1/*` contract so you can trace agent workflows, delegate compression, search tool catalogs, proxy provider calls, and export OpenTelemetry spans without adding third-party dependencies.
+
+This page covers installation, configuration, per-request controls, receipt parsing, Cloud control-plane resources, and error handling for the Python SDK.
+
+## Install
+
+Install the package from PyPI. It requires Python 3.13 or newer.
+
+```bash
+python -m pip install caveman-sdk
+```
+
+Import the `Cave` client and the types you need:
+
+```python
+from caveman_cloud import Cave, CompressResult, ToolSearchResult
+```
+
+<Tip>
+  The import package is always `caveman_cloud`, regardless of how you install it. The distribution name on PyPI is `caveman-sdk`.
+</Tip>
+
+## Configure the client
+
+Create a `Cave` instance with your API key, gateway base URL, and an agent slug. The agent slug labels every span and trace the SDK records. Optionally set a `default_workflow` so every traced unit of work is tagged to a workflow unless you override it per call.
+
+```python
+import os
+from caveman_cloud import Cave
+
+cave = Cave(
+    api_key=os.environ["CAVE_API_KEY"],
+    base_url=os.environ["CAVE_GATEWAY_URL"],
+    agent="support-agent",
+    default_workflow="invoice-flow",
+)
+```
+
+The constructor raises if `api_key`, `base_url`, or `agent` is missing. The `base_url` should not have a trailing slash. For example, if your gateway URL is `https://gateway.example.com`, OpenAI calls go to `https://gateway.example.com/openai/v1`.
+
+## Trace workflows
+
+Use `cave.trace()` as a context manager to wrap a unit of work. It yields a `Trace` with helpers for tools, model calls, artifacts, and checkpoints. The SDK POSTs telemetry to the gateway and swallows transport failures so they never break your agent.
+
+```python
+with cave.trace("refund-flow", {"tier": "pro"}) as trace:
+    order = trace.tool("lookup_order", {"read_only": True}, lambda: db_find(order_id))
+
+    reply = trace.model["openai"].responses.create(
+        {"model": "gpt-5.4-mini", "input": f"Summarize order {order_id}"}
+    )
+```
+
+### Checkpoints
+
+Offload conversation context to the gateway and retrieve it later with a reversible `source_ref`.
+
+```python
+cp = trace.checkpoint(messages, {"reason": "pre-summarization"})
+# later, or in a peer step
+restored = trace.expand(cp["source_ref"])
+```
+
+### Context packing
+
+Send caller-owned context fragments to the gateway and get back the subset that fits under a token budget, plus the exact IDs of everything deferred.
+
+```python
+from caveman_cloud import ContextPackItem, ContextPackOptions
+
+packed = cave.context.pack(
+    "why did deploy fail?",
+    [
+        ContextPackItem(id="system", text=system_prompt, pin=True),
+        ContextPackItem(id="deploy-log", text=deploy_log),
+        ContextPackItem(id="old-notes", text=old_notes),
+    ],
+    ContextPackOptions(max_tokens=8_000, reserve_tokens=1_000),
+)
+
+send_to_model(packed.items)
+queue_for_later(packed.deferred_ids)
+```
+
+<Tip>
+  Packing is a lossy selector, not a compressor. `basis` is always `"inferred"` and omitted items are named in `deferred_ids` so your application can re-supply them.
+</Tip>
+
+### Artifacts
+
+Page a large payload to gateway storage and return a compact stub the model can expand on demand.
+
+```python
+stub = trace.artifacts.page(
+    big_search_result,
+    {"source": "vector-search", "content_type": "application/json", "strategy": "json-index"},
+)
+```
+
+## Per-request control
+
+Optimizations are a project-level setting, but a single request can ask for or disable specific optimizations. The gateway checks the project policy, capability, and evidence gate before applying anything; a request never grants itself permission.
+
+```python
+# Pass this one request through byte-identical
+cave.openai().responses.create(body, optimize="off")
+
+# Disable individual optimizations
+cave.openai().responses.create(
+    body, optimize={"compress": False, "cache_hints": False}
+)
+```
+
+Unknown tokens are rejected with 400 `cave_invalid_optimize_override`. Read the response receipt to see whether an optimization was applied or denied.
+
+## Model routing
+
+Send `model="cave-auto"` and let the project's router pick the model on every request. A named model is kept as-is. If the project has no provider connection or baseline model configured, the gateway returns 400 `cave_routing_not_enabled`.
+
+```python
+out = cave.openai().responses.create(
+    {"model": "cave-auto", "input": "Summarize the last quarter"}
+)
+```
+
+## Receipts
+
+Every gateway response carries per-call disclosure headers. Use `parse_receipt` to read them. Headers the gateway did not send stay `None`, never defaulted.
+
+```python
+from caveman_cloud import parse_receipt
+
+response = cave.openai().raw("/v1/responses", body)
+receipt = parse_receipt(response.headers)
+# Receipt(mode, optimizations, cache_status, request_id,
+#         compression_ratio, tokens_before, tokens_after, recovery_handle)
+```
+
+`tokens_before` and `tokens_after` are inferred estimates from the compressor, not provider counts. If `recovery_handle` is present, you can retrieve the byte-exact original.
+
+## Provider clients
+
+`cave.openai()`, `cave.anthropic()`, `cave.gemini()`, and `cave.vertex()` return `Provider` objects proxied through the gateway. Each exposes a `.raw(path, body)` escape hatch for native provider paths.
+
+```python
+openai = cave.openai(upstream_key=os.environ["OPENAI_API_KEY"])
+out = openai.responses.create({"model": "gpt-5.4-mini", "input": "hello"})
+
+vertex = cave.vertex(upstream_key=gcloud_access_token())
+native = vertex.raw(
+    "/v1/projects/p/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent",
+    body,
+)
+```
+
+You can pass a `latency_class` (`"interactive"`, `"background"`, or `"offline"`) to any request. Anything other than `"interactive"` sets the `x-cave-async` header so the gateway can defer it.
+
+## Compression
+
+`cave.compress()` POSTs a payload to the gateway and returns the Engine report. The SDK delegates all compression decisions; it never reimplements a compressor client-side.
+
+```python
+result: CompressResult = cave.compress(big_json, content_type="json")
+print(result.ratio, result.basis)  # e.g. 0.93, "inferred"
+```
+
+If anything goes wrong during transport or parsing, the SDK passes the original through unchanged: `ratio` is `0.0`, `recovery_handle` is `None`, and `basis` is `"inferred"`.
+
+## Tool search
+
+`cave.tools()` returns a handle with the full catalog, a deferred initial subset, and a `.search()` method that queries the gateway.
+
+```python
+from caveman_cloud import CaveTool
+
+catalog = [CaveTool(name="refund", description="Refund a charge", input_schema={...})]
+tools = cave.tools(catalog, strategy="deferred")
+# send tools.initial on the first turn
+
+found: ToolSearchResult = tools.search("refund a charge", max_tools=5, ranker="bm25")
+print(found.tools, found.saved_tokens, found.reduction_pct)
+```
+
+The gateway honors `"embeddings"` only when it has an embedding provider wired. `cave.tool_search()` is the flat variant when you manage the catalog yourself.
+
+## The OTel exporter
+
+`cave.exporter()` returns an `OTelExporter` that builds OTLP/JSON by hand and POSTs to the gateway's `/v1/traces` endpoint. No external OpenTelemetry SDK or collector is required.
+
+```python
+otel = cave.exporter(service_name="billing-agent")
+root = otel.record_span(
+    "chat.completion",
+    provider="openai",
+    model="gpt-5.4-mini",
+    input_tokens=1200,
+    output_tokens=340,
+    status="ok",
+)
+otel.record_span("tool.call", tool_name="lookup_order", parent_span_id=root.span_id)
+otel.export()  # → {"ok": ..., "spans_accepted": ..., "spans_total": ...}
+```
+
+## Retry-loop breaker
+
+Interrupt an agent that is stuck re-issuing the same tool call.
+
+```python
+from caveman_cloud import RetryLoopError
+
+breaker = cave.retry_loop_breaker(3)
+try:
+    breaker.guard("search", {"q": "refund"}, lambda: run_search("refund"))
+except RetryLoopError:
+    # the agent was looping, so break out and re-plan
+    pass
+```
+
+## Shared context
+
+Hand context between agents in the same project. Keys are tenant-scoped, so a peer in another project cannot read them.
+
+```python
+import json
+
+cave.shared_context.put("triage-42", json.dumps(handoff))
+# ... a peer agent in the same project ...
+back = cave.shared_context.get("triage-42")
+```
+
+## Prompt snippets
+
+Build deterministic internal brevity instructions for system prompts.
+
+```python
+snippet = cave.prompts.internal_brevity(
+    style="technical-concise",
+    preserve_errors_verbatim=True,
+)
+```
+
+## Cloud control-plane resources
+
+Import `Cloud` from `caveman_cloud` to work with Caveman Cloud control-plane resources. Use a Cloud access token, separate from gateway inference keys.
+
+```python
+import os
+from caveman_cloud import Cloud
+
+cloud = Cloud(
+    control_url=os.environ["CAVE_CONTROL_URL"],
+    access_token=os.environ["CAVE_ACCESS_TOKEN"],
+    project_id=os.environ["CAVE_PROJECT_ID"],
+)
+
+suites = cloud.scenario_suites.list()
+result = cloud.evals.result({
+    "workbench_id": os.environ["WORKBENCH_ID"],
+    "run_id": os.environ["RUN_ID"],
+})
+if result["data"]["quality"]["status"] != "passed":
+    raise RuntimeError("Evaluation did not pass")
+```
+
+Receipted writes require an explicit `idempotency_key`. The client does not automatically retry writes. Accepted work is not a passing result: always read the persisted result or use the CLI wait workflows.
+
+## Error handling
+
+The SDK raises descriptive errors for common gateway and local failure modes:
+
+| Error | Meaning | What to do |
+| --- | --- | --- |
+| `cave_invalid_optimize_override` | Unknown optimization token in per-request control | Fix the token and retry |
+| `cave_routing_not_enabled` | Project has no provider connection or baseline for `cave-auto` | Add a provider connection or baseline model in the console |
+| `cave_async_jobs_unavailable` | Async jobs surface is reserved but not yet available | Use eval, scenario, or native-run resources instead |
+| `RetryLoopError` | Same tool call signature repeated past threshold | Break out of the loop and re-plan |
+
+On network or parse errors, compression and other delegated operations fall back safely. The SDK never rewrites bytes itself and never reports a saving the engine did not hand back.
+
+## Examples
+
+### Export OTel spans
+
+The bundled exporter example records a chat completion span and a child tool span, then ships them to the gateway.
+
+```python
+import os
+from caveman_cloud import Cave
+
+cave = Cave(
+    api_key=os.environ.get("CAVE_API_KEY"),
+    base_url=os.environ.get("CAVE_GATEWAY_URL", "http://localhost:8787"),
+    agent=os.environ.get("CAVE_AGENT", "py-sdk-agent"),
+    default_workflow="invoice-flow",
+)
+
+exporter = cave.exporter()
+trace = exporter.new_trace_id()
+
+chat = exporter.record_span(
+    "chat gpt-5.5",
+    trace_id=trace,
+    provider="openai",
+    model="gpt-5.5",
+    operation="chat",
+    input_tokens=1200,
+    output_tokens=350,
+    cached_tokens=800,
+    cost_usd=0.0145,
+)
+
+exporter.record_span(
+    "tool_call fetch_invoice",
+    trace_id=trace,
+    parent_span_id=chat.span_id,
+    operation="tool_call",
+    tool_name="fetch_invoice",
+)
+
+result = exporter.export()
+print("Exported:", result)
+```
+
+## Next steps
+
+- [TypeScript SDK](/sdks/typescript) for the same gateway contract in TypeScript
+- [CLI](/cli/cvm) for running workloads, managing resources, and CI workflows
+- [Gateway](/integrations/openai) for provider integration guides

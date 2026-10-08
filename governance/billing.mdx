@@ -1,0 +1,122 @@
+---
+title: "Caveman Cloud billing: plans, usage pricing, and limits"
+sidebarTitle: "Billing"
+description: "How Caveman Cloud bills: plans, free monthly allowances, graduated usage tiers for events, agent runs, and routing, packages, billing limits, and included AI credits."
+---
+
+Caveman Cloud bills for usage of its own products, not for seats or for your model traffic. Each metered product has a free monthly allowance, graduated prices past it, and an optional billing limit so you never pay more than you choose. Manage everything on the **Billing** page.
+
+<Note>
+  Your model provider bill (OpenAI, Anthropic, Google, and others) is separate and paid to the provider. Control that spend with [Budgets](/governance/budgets) and [per-key limits](/governance/api-keys#per-key-limits).
+</Note>
+
+## Plans
+
+| Plan | Card required | Usage beyond the free allowance |
+| --- | --- | --- |
+| **Free** | No | Not available. Each product stops at its free allowance until the month resets. |
+| **Pay-as-you-go** | Yes | Billed monthly on graduated tiers, up to the billing limit you set |
+| **Enterprise** | No | Billed by contract. The Billing page shows usage only. |
+
+There is no per-seat charge. Usage resets on the first of each month, UTC.
+
+## Metered products
+
+| Product | Unit | Free each month |
+| --- | --- | --- |
+| **LLM observability** | Event | 100,000 events |
+| **Agent runs** | Minute | 600 minutes |
+| **Routing** | Decision | 100,000 decisions |
+
+Pricing is graduated: each unit is priced at the rate of the tier it falls in, so only usage above a threshold gets that tier's price.
+
+<AccordionGroup>
+  <Accordion title="LLM observability (per event)">
+    | Events per month | Price per event |
+    | --- | --- |
+    | First 100,000 | Free |
+    | 100,001 to 150,000 | \$0.00035 |
+    | 150,001 to 250,000 | \$0.000175 |
+    | 250,001 to 500,000 | \$0.0001 |
+    | 500,001 to 1,000,000 | \$0.00008 |
+    | 1,000,001 to 10,000,000 | \$0.00007 |
+    | 10,000,001 to 50,000,000 | \$0.000065 |
+    | Above 50,000,000 | \$0.00006 |
+  </Accordion>
+
+  <Accordion title="Agent runs (per minute)">
+    | Minutes per month | Price per minute |
+    | --- | --- |
+    | First 600 | Free |
+    | 601 to 10,000 | \$0.012 |
+    | 10,001 to 100,000 | \$0.01 |
+    | Above 100,000 | \$0.008 |
+  </Accordion>
+
+  <Accordion title="Routing (per decision)">
+    | Decisions per month | Price per decision |
+    | --- | --- |
+    | First 100,000 | Free |
+    | 100,001 to 2,000,000 | \$0.0001 |
+    | 2,000,001 to 10,000,000 | \$0.000045 |
+    | 10,000,001 to 50,000,000 | \$0.000025 |
+    | Above 50,000,000 | \$0.00001 |
+  </Accordion>
+</AccordionGroup>
+
+The Billing page always shows the current tier table for each product, so treat it as the source of truth if these figures change.
+
+## Read your usage
+
+On Pay-as-you-go, the top of the page shows:
+
+- **This month**: charges so far in the current period.
+- **Projected**: this month's usage carried to month end at the same pace, priced on each product's tiers.
+
+Each product card shows usage against its free allowance, this month's and projected charges, its billing limit, and its tier table.
+
+## Set billing limits
+
+A billing limit is a dollar ceiling per product for the month.
+
+<Steps>
+  <Step title="Open Billing">
+    Find the product card you want to cap.
+  </Step>
+  <Step title="Edit the billing limit">
+    Enter a dollar amount, or choose no limit. Agent runs start with a default limit of \$150.
+  </Step>
+  <Step title="Save">
+    Save the limit. The card shows the new ceiling immediately.
+  </Step>
+</Steps>
+
+When a product reaches its limit, that product pauses until the period resets: **Recording paused** for LLM observability, **New runs paused** for agent runs. Raise the limit to resume sooner. On the Free plan, each product stops at its free allowance.
+
+<Warning>
+  Pausing observability means new traffic is not recorded, which also affects spend reports and savings evidence for that period. Set observability limits with headroom.
+</Warning>
+
+## Packages
+
+Packages add governance and identity features on top of your plan.
+
+| Package | Price | Adds |
+| --- | --- | --- |
+| **Boost** | \$250 / month | Project access control, audit log export |
+| **Scale** | \$750 / month | Everything in Boost, plus SSO (OIDC and SAML), Require SSO, IdP group mappings |
+| **Enterprise** | Contract | Everything in Scale, plus SCIM provisioning |
+
+Add or remove Boost and Scale on the Billing page. If you remove a package, controls you already configured stay in place, but you cannot create new ones that need the package. For Enterprise, contact Caveman from the Billing page.
+
+## Your included AI
+
+Every user gets a monthly AI credit allowance (currently \$10) for Caveman's built-in agents and automatic model decisions. It is personal and shared across all organizations you belong to, valued at catalog list prices, and renews monthly.
+
+- **AI credits remaining** and **AI credits used** show your balance. In-flight requests reserve credits until their cost is known.
+- Caveman uses Luna for routine work and Sol for complex tasks.
+- When credits run out, Caveman's AI work pauses. Your own application traffic is unaffected and keeps using your provider billing.
+
+## Who can manage billing
+
+Owners, Admins, and Billing contacts can read billing. Only **Owners** and **Billing** contacts can add a card, open **Manage billing**, set limits, or change packages. If a payment fails, the Billing page shows a past-due notice while the charge is retried; update the card in **Manage billing** before the subscription cancels.

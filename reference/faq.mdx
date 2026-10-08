@@ -1,0 +1,235 @@
+---
+title: "Caveman Cloud frequently asked questions for every team"
+sidebarTitle: "FAQ"
+description: "Frequently asked questions organized by audience: developers, engineering leaders, and finance and procurement. Grounded answers about latency, reliability, data handling, pricing, and deployment."
+---
+
+Caveman Cloud makes every AI agent think, remember, and execute on a fraction of the cost, and proves it. These questions come up most often from the three teams that evaluate, adopt, and govern the product. Each answer links to the relevant documentation for deeper reading.
+
+<Note>
+  Where the honest answer is "not yet" or "it depends," we say so. We do not claim controls or outcomes we do not have.
+</Note>
+
+## For developers
+
+<AccordionGroup>
+  <Accordion title="Does Caveman add latency to provider calls?">
+    No. Compression through a proxy is net-negative on latency; we never promise faster. What we promise is cheaper, with proof. Caveman routes your request to the provider and returns the response unchanged. When an optimization like compression runs, the transform happens inline; when the cache store is unreachable, the request forwards upstream normally, costing you the miss but never the call.
+
+    See [How It Works](/concepts/how-it-works) for the full request lifecycle.
+  </Accordion>
+
+  <Accordion title="What happens if Caveman is down?">
+    Local tools (`caveman start`, `caveman wrap`) need no account and keep working if Cloud is unreachable. For hosted gateway traffic, if the provider is unreachable, the gateway returns its own error with a Caveman request ID so you can trace it. Cache outages cost you the hit, never the call. If an optimization fails during processing, the gateway falls back to the original request and continues.
+
+    See [Troubleshooting](/reference/troubleshooting) for exit codes and diagnosis steps.
+  </Accordion>
+
+  <Accordion title="Can Caveman change my model output?">
+    The gateway changes the bytes the model sees only when the request asks for it. Prompt-cache hints run on every request and never change model-visible text. Compression runs only when a request asks for it with `x-cave-optimize: compress`, and then rewrites tool output the model sees, losslessly or with an encrypted original for recovery. `record` mode is always pure pass-through. Unknown modes fail closed to the most conservative handling.
+
+    See [Rollout Safety](/concepts/rollout-safety) for how changes are gated before they reach production.
+  </Accordion>
+
+  <Accordion title="Do you store my prompts and responses?">
+    By default we keep the redacted prompt and response text until you delete it or set a window, envelope-encrypted in private object storage, so your traffic can be replayed to prove a fix before it ships. You can switch **Raw payload storage** off in the console to store metadata only: spans, token counts, cost, latency, and salted hashes. On Free, payload storage cannot be switched off. Send `x-cave-retention: metadata` or `x-cave-retention: zdr` on any request to override per-call.
+
+    See [Data and Privacy](/concepts/data-and-privacy) for the full consent and retention model.
+  </Accordion>
+
+  <Accordion title="Do you train on my data?">
+    It depends on your plan. On Free, training use is a disclosed condition of the plan and may not be switched off. On Pay-as-you-go, training use is opt-in and off by default. On Enterprise and customer installs, training use cannot be turned on; the control API refuses. No plan's data is used for training in production today.
+
+    See [Data and Privacy](/concepts/data-and-privacy) for the plan-conditioned policy.
+  </Accordion>
+
+  <Accordion title="Which providers and SDKs do you support?">
+    Caveman works with OpenAI, Anthropic, Google, Azure, and OpenAI-compatible endpoints. You can use the OpenAI SDK, Anthropic SDK, Vercel AI SDK, LangChain, or LiteLLM. For coding agents, Claude Code, Codex, Gemini CLI, and OpenCode are supported.
+
+    See the integrations for [OpenAI](/integrations/openai), [Anthropic](/integrations/anthropic), [Google and HTTP](/integrations/google-and-http), [Frameworks](/integrations/frameworks), and [LiteLLM](/integrations/litellm).
+  </Accordion>
+
+  <Accordion title="How do I remove Caveman from my stack?">
+    Caveman is a base-URL swap. Change your client back to the provider's native base URL and remove the `x-cave-upstream-key` header if you were using per-request keys. If you stored provider keys in Caveman, rotate them at your provider after removal. No code changes are required beyond the configuration revert.
+
+    See [Quickstart](/quickstart) for the original one-line integration pattern.
+  </Accordion>
+
+  <Accordion title="What is the difference between measured, inferred, and verified savings?">
+    **Measured spend** is observed usage priced at public catalog list prices. **Inferred** is an estimate from the engine's local counterfactual; it is not a guaranteed invoice reduction. **Verified** is reserved for per-request causal proof where a Caveman transform caused a provider-measured delta, backed by one of three supported methods.
+
+    See [Savings Evidence](/concepts/savings-evidence) for the full contract.
+  </Accordion>
+
+  <Accordion title="Why do my verified savings show zero?">
+    Verified savings can be zero for honest reasons: the request used `record` mode (pass-through), the provider or model is not on the allow-list for verified methods, a blocker such as `output-shape` prevented count-baseline verification, the model is unpriced in the catalog, the call failed, or it was a cache hit with no counterfactual provider response to compare.
+
+    See [Troubleshooting](/reference/troubleshooting) for the complete list.
+  </Accordion>
+
+  <Accordion title="How do I control which optimizations run?">
+    Use request headers: `x-cave-optimize: off` for pass-through, `x-cave-optimize: compress` to ask for compression, `x-cave-cache: semantic,ttl=900` for semantic cache with a 15-minute lifetime. Unrecognized values return 400 with a clear error code.
+
+    See [Control Optimizations](/guides/control-optimizations) for the full header catalog.
+  </Accordion>
+
+  <Accordion title="What permissions does my API key need?">
+    Your Cave API key authenticates you to Caveman Cloud and determines your tenant scope. For metadata reads (traces, reports), you need `trace:read_metadata`. For billing columns, you need `billing:read`. For payload reads, you need `payload:read` plus `trace:read_payload`.
+
+    See [Authentication](/authentication) for key types and scopes.
+  </Accordion>
+
+  <Accordion title="Can I run SQL against my telemetry?">
+    Yes. Run read-only ClickHouse SELECT over your project's requests, spans, tool events, and evaluations. Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. Human queries get up to 10,000 rows, 8 MiB, and 30 seconds.
+
+    See [Query with SQL](/guides/query-with-sql) for schema details and examples.
+  </Accordion>
+</AccordionGroup>
+
+## For engineering leaders
+
+<AccordionGroup>
+  <Accordion title="How does Caveman fit with our existing stack?">
+    Caveman is a one-line integration: swap the base URL and keep your provider key. It works with agents your team already runs (Claude Code, Codex, Gemini CLI, OpenCode) and agents you ship (OpenAI SDK, Anthropic SDK, Vercel AI SDK, LangChain). If you already run LiteLLM, its OpenTelemetry exporter sends traces to Caveman directly or through your OTel Collector; provider credentials stay in LiteLLM.
+
+    See [Connect a Workload](/guides/connect-workload) and [Connect a Coding Agent](/guides/connect-coding-agent).
+  </Accordion>
+
+  <Accordion title="When does Caveman actually save money, and when does it not?">
+    Caveman pays off when input is much larger than output and the input is repetitive or bloated: RAG with fat retrieved chunks, agents re-sending big system prompts and tool schemas, tool and log-heavy pipelines, and high-volume support bots with long preambles. It is a weaker fit for short prompts with long outputs, already-lean prompts, and quality-critical work that cannot be evaluated.
+
+    The benchmark envelope is roughly 20 to 30 percent potential input-cost reduction on input-heavy workloads. This is not a verified claim or invoice guarantee.
+
+    See [Optimization Catalog](/concepts/optimizations) for what each optimizer does and how it is gated.
+  </Accordion>
+
+  <Accordion title="How do we govern spend and prevent runaway costs?">
+    Caveman provides soft and hard caps per project, with an Inbox item and email when a soft cap is crossed. Rate limits apply per key and per workflow. Positive hard budgets block traffic at admission: the gateway reserves a conservative maximum before the upstream call and refuses when settled spend plus live reservations would exceed the cap. Monthly soft spend alerts remain advisory and fail open.
+
+    See [Budgets and Guardrails](/guides/budgets-and-guardrails) for setup and policy configuration.
+  </Accordion>
+
+  <Accordion title="What governance and audit capabilities do we get?">
+    Five roles (owner, admin, engineer, viewer, billing) with explicit permission tables. Sensitive scopes are narrowed: raw payload read is owner/admin only, publishing aggressive policies is owner/admin only, and connecting a repo is owner/admin only. An admin cannot mint or modify owner access. SSO via OIDC and SAML is supported. An append-only audit log records administrative and security-relevant actions inside the same transaction as the change.
+
+    See [Team and Admin](/guides/team-and-admin) for role details and SSO setup.
+  </Accordion>
+
+  <Accordion title="Can we run Caveman in our own cloud or on-prem?">
+    Yes. For enterprise deployments, Caveman runs in your VPC on AWS or GCP via Terraform and Helm, using your KMS and storage, with content sharing locked off. A local, single-tenant option (`caveman start` / `wrap`) also runs on your own machine with no account required, though it stays inference-only with no verified-savings claims.
+
+    See [Deployment Options](/solutions/deployment-options) for hosted, your cloud, and local deployment paths.
+  </Accordion>
+
+  <Accordion title="How does tenant isolation work?">
+    Every query carries an explicit organization filter from verified auth, never from the request body. Postgres has row-level security enabled and forced on all tenant tables. Storage uses organization-scoped prefixes, tenant-bound AEAD encryption, and composite foreign keys. Cross-tenant access is denied and tested at every layer.
+
+    See [Security Review](/solutions/security-review) for the full isolation architecture.
+  </Accordion>
+
+  <Accordion title="What is the rollout safety model?">
+    Every candidate change runs through an evaluation suite before it can be proposed. Evaluations check quality, cost, and behavior against test cases drawn from your traffic. A change that does not pass stays out of production. Approved changes roll out through the gateway with traffic-share controls and safety criteria you configure.
+
+    See [Rollout Safety](/concepts/rollout-safety) and [Evals](/guides/evals) for the gating process.
+  </Accordion>
+
+  <Accordion title="Can we self-host without sending anything to Caveman's cloud?">
+    The local proxy (`caveman start` / `wrap`) sends usage telemetry to Caveman by default, but you can opt out with `caveman telemetry off`, `CAVEMAN_TELEMETRY=0`, or `DO_NOT_TRACK=1`. The CLI telemetry includes an install ID and client IP, but never prompts, responses, code, or file paths. Customer-owned cloud deployments keep operational telemetry in your own ClickHouse instance.
+
+    See [Deployment Options](/solutions/deployment-options) for air-gapped and customer-cloud details.
+  </Accordion>
+
+  <Accordion title="How do we evaluate Caveman before committing?">
+    Start with the local proxy on your own machine to see inferred estimates on your actual traffic without routing production through a managed gateway. When you are ready, connect a non-production workload to the hosted gateway and run evaluations against your test cases. Every improvement is proposal-only until your team approves it.
+
+    See [Adoption Playbook](/solutions/adoption-playbook) for a phased evaluation plan.
+  </Accordion>
+
+  <Accordion title="What happens to our data if we stop using Caveman?">
+    You control deletion. Set retention windows to auto-delete old data, switch Raw payload storage off to purge all captured bodies, or delete the organization to remove everything. Backups roll off over about 30 to 32 days after the purge, so total removal from every copy takes up to about 62 days.
+
+    See [Data and Privacy](/concepts/data-and-privacy) for retention and deletion controls.
+  </Accordion>
+</AccordionGroup>
+
+## For finance and procurement
+
+<AccordionGroup>
+  <Accordion title="How is Caveman priced?">
+    Caveman is a platform fee plus usage-based compute. We do not publish prices in documentation. Contact [contact@caveman.so](mailto:contact@caveman.so) to discuss pricing for your workload, or book a conversation at [cal.com/caveman/chat](https://cal.com/caveman/chat).
+
+    See [Reporting Savings](/solutions/reporting-savings) for how savings are tracked and reported internally.
+  </Accordion>
+
+  <Accordion title="What spend numbers can we trust for reporting?">
+    Caveman keeps three numbers separate. **Measured spend** is observed usage at public catalog list prices; it is not your provider invoice. **Inferred** is an estimate with a daily range and confidence, never re-projected to a month. **Verified** is a per-request causal delta backed by provider-reported usage, counted only on eligible providers and models where the causal contract is proven.
+
+    Verified savings can be negative on write-heavy days; the ledger stores signed values without flooring to zero.
+
+    See [Savings Evidence](/concepts/savings-evidence) for the full accounting contract.
+  </Accordion>
+
+  <Accordion title="Why are our verified savings zero?">
+    Verified savings start at the honest zero. They require a supported accounting method (provider causal cache, provider causal cache on Bedrock, or provider-counted baseline delta), a priced model in the catalog, provider-complete usage, and a qualifying request. Many workloads spend days or weeks accumulating before the first verified figure appears. This is expected and honest, not a bug.
+
+    See [Troubleshooting](/reference/troubleshooting) for the detailed breakdown.
+  </Accordion>
+
+  <Accordion title="How do we report savings to stakeholders?">
+    Use the Evidence reports in the console, which label every figure with its basis: measured, inferred, or verified. Verified savings are the only per-request causal number and the only one suitable for audit. Inferred headroom is useful for internal prioritization but should not be reported as realized savings. Measured spend gives you a catalog-price subtotal for cost tracking.
+
+    See [Reporting Savings](/solutions/reporting-savings) for report types and export options.
+  </Accordion>
+
+  <Accordion title="What is the total cost of ownership?">
+    Caveman replaces no existing vendor. It sits between your applications and your model providers, adding telemetry, governance, and optimization layers. You keep your provider relationships and keys. The platform fee is predictable, and compute usage scales with your traffic. No gainshare or savings-linked billing mechanics exist today.
+
+    See [How It Works](/concepts/how-it-works) for where Caveman sits in your stack.
+  </Accordion>
+
+  <Accordion title="What legal documents and certifications are available?">
+    Caveman holds no SOC 2, ISO 27001, HIPAA, or equivalent certifications today. Both SOC 2 Type II and ISO 27001 appear in internal roadmap planning as future intent, but no certification timeline is committed. A GDPR Article 28 DPA template, subprocessor list, and SLA template exist but are drafts pending counsel review. Request current versions from [contact@caveman.so](mailto:contact@caveman.so).
+
+    See [Security Review](/solutions/security-review) for the full compliance posture.
+  </Accordion>
+
+  <Accordion title="Who are the subprocessors, and where is data hosted?">
+    Hosted Caveman Cloud runs on GCP in `europe-west4` with ClickHouse Cloud in the same region. Subprocessors include Google Cloud, ClickHouse Cloud, Cloudflare, Resend, PostHog, Stripe, Supabase, Vercel, Google Workspace, Cal.com, and GitHub. Your upstream model providers reached via BYOK are your own processors, not Caveman subprocessors.
+
+    See [Security Review](/solutions/security-review) for the complete subprocessor table and region details.
+  </Accordion>
+
+  <Accordion title="Can we negotiate custom terms?">
+    Enterprise deployments run under a separate agreement that defines region, access, backups, and deletion responsibilities. For custom terms, contact [contact@caveman.so](mailto:contact@caveman.so).
+
+    See [Deployment Options](/solutions/deployment-options) for enterprise and customer-cloud details.
+  </Accordion>
+
+  <Accordion title="How do we handle procurement security questionnaires?">
+    This FAQ and the [Security Review](/solutions/security-review) page are designed to answer the questions that show up on vendor security questionnaires. For questions not covered here, or for the latest legal documents, email [contact@caveman.so](mailto:contact@caveman.so).
+  </Accordion>
+
+  <Accordion title="Is there a demo with fictional data we can share internally?">
+    Yes. View the interactive demo with fictional data at [caveman.so/demo](https://caveman.so/demo).
+  </Accordion>
+</AccordionGroup>
+
+## Still have questions?
+
+<CardGroup cols={2}>
+  <Card title="Security Review" icon="shield-halved" href="/solutions/security-review">
+    Deep architectural and compliance review for InfoSec and procurement teams.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/reference/troubleshooting">
+    Fix common issues with authentication, traces, gateway URLs, and savings labels.
+  </Card>
+
+  <Card title="Contact Us" icon="envelope" href="mailto:contact@caveman.so">
+    Email [contact@caveman.so](mailto:contact@caveman.so) for questions not covered here.
+  </Card>
+
+  <Card title="Book a Call" icon="calendar" href="https://cal.com/caveman/chat">
+    Schedule a conversation to discuss your workload and requirements.
+  </Card>
+</CardGroup>

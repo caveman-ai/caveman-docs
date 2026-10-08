@@ -1,0 +1,87 @@
+---
+title: "Set up Automation for workload improvements"
+sidebarTitle: "Automation"
+description: "Enable automatic investigations, repository scans, and pull-request reviews so Caveman can propose improvements continuously. Operator-gated and off by default."
+---
+
+Caveman Cloud Automation lets the system run continuous scans, investigations, and improvement attempts against your workloads. It is operator-gated and switched off by default. This guide explains what Automation can do, how to enable it, and how to manage the proposals it generates.
+
+## What Automation does
+
+Automation covers four kinds of automatic work:
+
+- **Repository scans**: read connected repositories to find improvement opportunities.
+- **Production investigations**: analyze live traffic patterns to detect regressions or waste.
+- **Pull-request reviews**: comment on your team's PRs with quality checks and recommendations.
+- **Repair pull requests**: generate proposed fixes and open them as reviewable PRs.
+
+<Warning>
+  All four are switched off by default. A turn with `"fix": true` and the automation operations are refused with the reason until the installation's operator switches them on.
+</Warning>
+
+## Enable Automation on your installation
+
+The installation's operator decides which models agent sessions may use and whether Ask Caveman, fixes, and improvement cases are switched on. Hosted Cloud and customer-owned installs use the same service contracts.
+
+<Steps>
+  <Step title="Open the installation settings">
+    Navigate to the operator console for your installation. The exact path depends on whether you use Hosted Cloud or a customer-owned deployment.
+  </Step>
+  <Step title="Switch on the desired automations">
+    Enable repository scans, production investigations, pull-request reviews, and repair pull requests independently. A deployment that has not switched a kind of work on refuses it and says what is missing.
+  </Step>
+  <Step title="Configure model access">
+    The operator decides which models agent sessions may use for automation work. Set the model policy before enabling automatic investigations.
+  </Step>
+  <Step title="Connect the repository">
+    Register a workload under **Workloads** and connect its repository using the operator's authorized installation. Verify the connection is active before expecting scans or PRs.
+  </Step>
+</Steps>
+
+## How proposals enter the Inbox
+
+When Automation is on, generated proposals enter your **Inbox** as typed actions with attached evidence. The Inbox is an org-scoped feed that shows what Caveman noticed, what it did, and what it needs you to decide. It links into the Improvements list, but it is not the list itself.
+
+Each Inbox item carries:
+
+- The workload and subject it relates to
+- The type of action: review, approve, reject, or request more data
+- An Evidence report with claim, approach, proof columns, and cost
+- Links to the underlying traces and eval runs
+
+## Review and act on proposals
+
+Automation never auto-merges. Every repair pull request is a proposal that waits for human review.
+
+### What to check
+
+1. **Claim specificity**: does the proposal state exactly what it improves?
+2. **Evidence links**: can you open the traces and eval runs and see the same numbers?
+3. **Physics proof**: is there arithmetic or structural evidence independent of model judgment?
+4. **Judged proof**: did the evals pass with trusted, qualified criteria?
+5. **Proving cost**: does the benefit justify the cost of the attempt?
+6. **Verdict**: does the statistics kernel recommend Ship, Don't ship, or Need more data?
+
+### Actions you can take
+
+- **Approve**: the proposal moves toward rollout.
+- **Reject**: the proposal closes with a reason.
+- **Request more data**: the system gathers additional evidence before resurfacing.
+
+## Disable or pause Automation
+
+You can pause individual automation kinds or turn them off entirely from the installation settings. Pausing stops future work; it does not erase past evidence or close open PRs.
+
+## Keep the boundary clear
+
+- Acceptance is not execution.
+- Execution is not a merged fix.
+- A merged fix is not verified savings.
+
+Report each boundary using actual evidence. Verified savings stays at zero without qualifying evidence.
+
+## Next steps
+
+- [Review improvement attempts and Evidence reports](/guides/improvements)
+- [Build evals that judge automation proposals](/guides/evals)
+- [Manage team access and governance](/guides/team-and-admin)

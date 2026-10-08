@@ -1,0 +1,298 @@
+---
+title: "Caveman Cloud security review guide for procurement teams"
+sidebarTitle: "Security Review"
+description: "A security review guide covering Caveman Cloud architecture, encryption, tenant isolation, access control, data retention, BYOK key custody, subprocessors, and compliance status for procurement and InfoSec teams."
+---
+
+Caveman Cloud is a bring-your-own-key LLM gateway that routes your agent traffic to the model providers you configure, records telemetry, and applies optimizations you choose per request. This guide is designed for security reviewers and procurement teams who need to assess risk, map data flows, and validate controls before adoption. It covers architecture, encryption, tenant isolation, access control, data handling, and compliance status, all grounded in the product's current engineering reality.
+
+<Note>
+  Where the honest answer is "not yet," we say so. We do not claim certifications or controls we do not have. For current legal documents, request the latest versions from [contact@caveman.so](mailto:contact@caveman.so).
+</Note>
+
+## Architecture at a glance
+
+Caveman Cloud is five backend services plus a web application, running over four data planes. Hosted production runs on Google Cloud Platform in `europe-west4`, behind Cloudflare.
+
+### Services
+
+| Service | Language | Role |
+| --- | --- | --- |
+| Gateway | Go | Stateless reverse proxy: authenticate, route, apply byte-safe transforms, call your provider, emit telemetry |
+| Control API | Go | Control plane: organizations, users, projects, API keys, provider connections, policies, budgets, RBAC, audit logs |
+| Worker | Go | Consumes Valkey streams: aggregation, detectors, experiment grading, auto-rollback, retention, and deletion |
+| Optimizer | Python | Evaluation grader and Cave Score service; fail-closed graders |
+| Identity | Node (Better Auth 1.7.6) | Accounts, sign-in, sessions, MFA, passkeys, and SSO |
+| Web | Next.js | Authenticated operator dashboard and documentation |
+
+### Data planes
+
+| Plane | Technology | Holds |
+| --- | --- | --- |
+| Tenant state | Postgres (Cloud SQL) | Organizations, users, projects, keys, provider connections, policies, budgets, and audit logs |
+| Telemetry | ClickHouse Cloud | Usage spans, token counts, cost, latency, status, cache fields, and salted payload hashes |
+| Cache and streams | Valkey (Memorystore) | API-key hash cache, rate limits, job streams, locks, exact response cache, and SDK shared contexts |
+| Object storage | GCS or S3-compatible | Redacted request and response bodies (on by default), compression recovery originals, and agent artifacts |
+
+Your agent sends a request to the gateway with your Caveman API key and your provider key. The gateway authenticates you, checks scope and the provider allowlist, applies any optimization the request asks for, forwards to your configured provider endpoint, and returns the response unchanged. It then writes metadata telemetry to ClickHouse and, by default, keeps the redacted prompt and response bytes in encrypted object storage so traffic can be replayed to prove a fix.
+
+## Data flow of one request
+
+<Steps>
+  <Step title="Inbound authentication">
+    The gateway reads your Caveman API key from the `Authorization: Bearer` header or the `x-cave-api-key` header. It resolves the key to an organization and project context, verifies RBAC scope, and checks the provider allowlist.
+  </Step>
+  <Step title="Provider credential resolution">
+    If your project stores a provider key, the gateway retrieves it from the encrypted credential store. If you send `x-cave-upstream-key`, that key is used for this request only and is never stored.
+  </Step>
+  <Step title="Policy and optimization check">
+    The gateway checks your project's runtime policy, budget limits, and rate controls. It then inspects request headers to determine which optimizations may run. A request can ask for specific behavior through headers like `x-cave-optimize` and `x-cave-cache`.
+  </Step>
+  <Step title="Provider call">
+    The gateway forwards the prepared request to the model provider endpoint you configured. It records the full interaction: request shape, provider response, token counts, latency, and any cache or routing outcomes.
+  </Step>
+  <Step title="Telemetry write">
+    The gateway writes a metadata telemetry row to ClickHouse via a Valkey stream. By default, it also stores the redacted request and response bytes in object storage, envelope-encrypted under your organization's prefix.
+  </Step>
+  <Step title="Response return">
+    The response reaches your application with disclosure headers describing what happened: optimizations applied or denied, cache hit status, and request identifiers.
+  </Step>
+</Steps>
+
+## BYOK key custody
+
+Caveman Cloud is strictly bring-your-own-key. You configure your own provider credentials, and Caveman transmits your requests to those providers with your credentials, as your instruction. Your relationship with the model providers is your own.
+
+There are two credential paths:
+
+<AccordionGroup>
+  <Accordion title="Stored team keys">
+    Hosted Caveman Cloud stores team provider keys, sealed under a dedicated Cloud KMS key (`provider_credentials`). The ciphertext lives in Postgres, encrypted with **AES-256-GCM**. Local development uses a base64 32-byte local encryption key, but **production refuses to boot with a local key for secrets**. Customer installations keep stored keys off unless the operator explicitly enables them.
+  </Accordion>
+
+  <Accordion title="Per-request keys">
+    A key passed in the `x-cave-upstream-key` header is used for that request only and is **not stored** (credential mode `ephemeral_header`). The mode is derived solely from the credential, never from a request-body field, so a forged body cannot downgrade the handling of a fragile token.
+  </Accordion>
+</AccordionGroup>
+
+Provider secrets are never returned to clients, never logged in plaintext, and redaction rules scrub `sk-` keys, bearer tokens, DSNs, and PEM blocks. An SSRF guard validates any custom provider base URL before it is persisted.
+
+## Encryption
+
+### In transit
+
+TLS is used from clients to Cloudflare, mutual TLS from Cloudflare to the origin, verify-full TLS to Cloud SQL, and TLS to ClickHouse and model providers. Calls between services inside the cluster use plain HTTP on Google's VPC network. The gateway enforces a header-size limit on the upstream credential and rejects oversized requests.
+
+### At rest
+
+**Payloads and artifacts** use envelope encryption. Each stored object is encrypted with a freshly generated 256-bit AES-256-GCM data key. That data key is then wrapped by a master key, and only the wrapped key is persisted. The plaintext data key is never stored.
+
+Consequences of this design:
+
+- Master-key rotation re-wraps without re-encrypting bodies
+- A leaked stored object is useless without the master key
+- Provider secrets and payload objects use **separate keys** to limit blast radius
+
+**Small secrets** (OIDC client secrets, webhook signing secrets, and provider credentials) are sealed with the same AES-256-GCM scheme, routed through Cloud KMS in production. Unknown ciphertext schemes fail closed.
+
+## Tenant isolation
+
+The active, enforced boundary is application-level organization scoping. Every query carries an explicit `organization_id = $N` filter, where the ID comes from verified auth (the session or API key) and **never** from the request body.
+
+<AccordionGroup>
+  <Accordion title="Postgres row-level security">
+    Every tenant table has row-level security enabled and forced (`FORCE ROW LEVEL SECURITY` on all baseline tables). Runtime database connections refuse owner, superuser, and BYPASSRLS identities. Cross-tenant resolver functions run as seven bounded NOLOGIN owner roles. Explicit organization filters remain on every query.
+  </Accordion>
+
+  <Accordion title="Storage-native boundaries">
+    - **Postgres**: Composite organization/project foreign keys plus RLS
+    - **Valkey**: Organization-scoped keys plus ACL users
+    - **ClickHouse**: Explicit organization/project predicates on every query
+    - **Object storage**: Organization-prefixed buckets with tenant-bound AEAD
+  </Accordion>
+
+  <Accordion title="Encryption binds ciphertext to tenant">
+    Envelope-encrypted objects bind the ciphertext to the organization, project, and data kind. A ciphertext moved to another tenant cannot be decrypted.
+  </Accordion>
+</AccordionGroup>
+
+Cross-tenant access is denied and tested. Handlers never scope from a client-supplied organization or project ID, and never return a synthesized object: they read real organization-scoped rows or return 404.
+
+## Access control
+
+### Authentication methods
+
+- Email and password (scrypt hashes for new passwords; Argon2id for imported passwords)
+- Google OAuth
+- GitHub OAuth
+- OIDC and SAML single sign-on
+
+Dashboard sessions use an HttpOnly session cookie, Secure over HTTPS, lasting 7 days and renewing while in use. Cloudflare Turnstile checks hosted sign-ups, and sign-ups are rate-limited per client address.
+
+### Multi-factor authentication
+
+TOTP multi-factor authentication and passkeys are available through the identity service.
+
+### Role-based access control
+
+Five roles exist with an explicit permission table:
+
+| Role | Scope |
+| --- | --- |
+| Owner | Full access plus ability to delete the organization |
+| Admin | Most administrative actions; cannot mint or modify owner access |
+| Engineer | Standard operational access |
+| Viewer | Read-only access |
+| Billing | Billing and invoice access only |
+
+Sensitive scopes are narrowed:
+
+- **Raw payload read** is owner/admin only
+- **Publishing aggressive (S2/S3) policies** and approving S3 experiments is owner/admin only
+- **Connecting a repository** is owner/admin only
+- An admin **cannot mint or modify owner access**
+
+### Gateway authentication
+
+Gateway traffic authenticates with per-project Caveman API keys (`cave_live_...`), hashed with a server-side pepper and cached in Valkey. Revocation invalidates the cache immediately. The gateway reads `x-cave-api-key` first, else the `Authorization: Bearer` header.
+
+### CSRF protection
+
+All non-GET dashboard requests carry an `x-cave-csrf` header, enforced server-side. Auth endpoints are rate-limited.
+
+### Scoped access tokens
+
+Scoped access tokens narrow an integration to a subset of the caller's role. Authorization is the intersection of role and scope.
+
+## Data retention and ZDR
+
+### Default retention
+
+Caveman keeps customer data until the customer deletes it. This is a control you set for your own policy, not a product limit.
+
+| Data class | Default | Your control |
+| --- | --- | --- |
+| Request history (traces, spans, evaluations, rollups) | Kept until deleted | Set `trace_retention_days` from 1 to 36,500 days |
+| Captured payloads (redacted request and response bodies) | Kept until deleted | Set `raw_payload_retention_days` or switch Raw payload storage off |
+| Compression recovery originals | Follows payload window | Disabled by ZDR |
+| Agent artifacts | Kept until deleted | Set `artifact_retention_days` |
+
+### Zero Data Retention (ZDR)
+
+Send `x-cave-retention: zdr` on any request to store no prompt, response, tool result, artifact, import, or fixture bodies anywhere: not in object storage, Postgres, ClickHouse, logs, or analytics. Payload viewers, replay fixtures, and plaintext semantic analysis are disabled. ZDR is honored on every plan.
+
+Send `x-cave-retention: metadata` to keep metadata only for a single request, regardless of organization settings.
+
+### Deletion timeline
+
+When you delete your organization or set a retention window:
+
+- Keys stop immediately
+- The purge runs 30 days after the request
+- Backups roll off over about 30 to 32 more days
+- Total removal from every copy takes up to about 62 days
+
+### Backups
+
+Hosted Cloud keeps daily backups with bounded retention:
+
+| System | Backup retention |
+| --- | --- |
+| Cloud SQL | 30 days in production; point-in-time recovery from 7 days of transaction logs |
+| Memorystore Valkey | 30 days in production |
+| ClickHouse Cloud | 7 days in production |
+| Daily portable ClickHouse export | 30-day retention lock, deleted the day after |
+
+## Training use policy by plan
+
+Whether your traffic is retained and used to improve Caveman's own models depends on your plan, and the boundary is enforced in code.
+
+| Plan | Model-improvement data collection |
+| --- | --- |
+| Free | A disclosed condition of the plan. Free organizations may not switch payload storage or training use off. |
+| Pay-as-you-go | Opt-in, off by default |
+| Enterprise and customer installs | Cannot be turned on; the control API refuses |
+
+**No plan's data is used for training in production today.**
+
+## Deletion and data-subject requests
+
+Deletion is organization-keyed. An owner can delete the organization in Data governance, which purges all associated data including stored payloads under the `capture/{org}/` prefix.
+
+The API builds a per-end-user access export (`POST /api/v1/data-requests`, keyed on `x-cave-user-hash`). There is no per-person correction or erasure control inside an organization. Caveman handles individual data-subject requests by hand, or by deleting the organization. If Caveman receives a request directly from one of your data subjects, it forwards it to you rather than acting on it unilaterally.
+
+## Hosting region and subprocessors
+
+### Region
+
+Hosted Caveman Cloud runs on GCP in `europe-west4` with ClickHouse Cloud in the same region. Cloudflare EU Regional Services is off, so traffic can be handled outside the EEA in transit. We make no EU-only processing claim. Where your request goes upstream is determined by the provider and endpoint you configured, under your own provider agreement.
+
+### Subprocessors
+
+Caveman engages a small set of subprocessors on its own account. Your upstream model providers reached via BYOK are your own processors, not Caveman subprocessors.
+
+| Subprocessor | Purpose | Touches customer traffic? |
+| --- | --- | --- |
+| Google Cloud | Compute, Cloud SQL, Memorystore, GCS, KMS | Yes |
+| ClickHouse Cloud | Managed ClickHouse on GCP | Yes |
+| Cloudflare | DNS, reverse proxy, TLS, DDoS, WAF | Yes |
+| Resend | Transactional email | Account emails only |
+| PostHog | caveman.so analytics | No prompt/response content |
+| Stripe | Pay-as-you-go billing | Billing data only |
+| Supabase | caveman.so waitlist and CLI telemetry | No customer traffic |
+| Vercel | Hosts caveman.so and docs.caveman.so | No customer traffic |
+| Google Workspace | Staff email | Only what you email us |
+| Cal.com | Meeting booking | No customer traffic |
+| GitHub | Sign-in and GitHub App for repositories | Repository content you connect |
+
+The authoritative list is at [caveman.so/legal/subprocessors](https://caveman.so/legal/subprocessors).
+
+## Honest status of legal documents and certifications
+
+### Certifications
+
+**We hold no certifications today.** Caveman Cloud is not SOC 2, ISO 27001, HIPAA, or any equivalent. Both SOC 2 Type II and ISO 27001 appear in internal roadmap planning as future intent, but no certification timeline is committed. When an independent audit report exists, we will make it available.
+
+### Legal documents
+
+The customer-facing legal documents (Terms, Privacy Policy, Data-use summary, and DPA) are currently **drafts pending counsel review**. Until counsel sign-off, request current versions from [contact@caveman.so](mailto:contact@caveman.so).
+
+### Vulnerability disclosure
+
+Report suspected vulnerabilities privately. Include affected version, reproduction steps, impact, and any logs with secrets redacted. Do not file public issues containing customer payloads, API keys, tokens, cookies, private keys, database URLs, or provider credentials. Contact [contact@caveman.so](mailto:contact@caveman.so).
+
+### Automated security testing
+
+Security scanning runs on every CI build and nightly on master: Go `govulncheck`, `pnpm audit`, Python `pip-audit`, `gitleaks` secret scanning, and a no-placeholder honesty gate. Targeted adversarial unit tests cover routing red-team and cross-tenant isolation. An independent third-party penetration test is planned but has not yet been commissioned.
+
+## Byte-safety as a security property
+
+The gateway changes the bytes the model sees only when the request asks for it:
+
+- Prompt-cache hints run on every request and never change model-visible text; on any parse problem the body passes through unchanged
+- Compression runs only when a request asks for it with `x-cave-optimize: compress`, and then rewrites tool output the model sees, losslessly or with an encrypted original for recovery
+- `record` mode is always pass-through; all transforms are skipped
+- BYOK OAuth and subscription tokens are auto-classified to a lossless-only, stealth-forward policy, and unknown credential modes fail closed to the same conservative policy
+- Unknown or unmatched routes return 404, not a silent pass-through
+
+For a security reviewer, this means the gateway does not mutate, truncate, or reinterpret your prompts unless a request explicitly asks for compression, and cannot invent savings it did not earn.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Data and Privacy" icon="shield-halved" href="/concepts/data-and-privacy">
+    Deep dive into payload storage, consent, tenant isolation, and encryption.
+  </Card>
+
+  <Card title="Deployment Options" icon="server" href="/solutions/deployment-options">
+    Hosted, your cloud, or on-prem: choose where Caveman runs.
+  </Card>
+
+  <Card title="Trust FAQ" icon="circle-question" href="/reference/faq">
+    Short answers to the questions that show up on vendor security questionnaires.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/reference/troubleshooting">
+    Fix common issues with authentication, traces, and gateway behavior.
+  </Card>
+</CardGroup>

@@ -1,0 +1,119 @@
+---
+title: "Savings evidence: measured, inferred, and verified in Caveman"
+sidebarTitle: "Savings Evidence"
+description: "Learn how Caveman labels spend and savings with measured, inferred, and verified evidence, why verified stays zero without proof, and what coverage means."
+---
+
+Caveman Cloud reports three distinct kinds of numbers about your AI spend: measured spend, inferred opportunity, and verified savings. They are produced by different systems, at different times, with different truth guarantees. Caveman keeps them separate and labeled so you can reason honestly about what changed and why.
+
+## The three labels
+
+| Label | What it means | Who writes it | Truth guarantee |
+| --- | --- | --- | --- |
+| **Measured spend** | List price multiplied by provider-reported tokens | Gateway, per request | Public catalog subtotal, not an invoice |
+| **Inferred headroom** | Modeled per-day rate of dollars that could be recovered | Worker detectors, per project/day | An estimate; nothing has happened yet |
+| **Verified savings** | Dollars actually not paid because a Caveman transform caused a provider-measured delta | Gateway, per request | Per-request causal proof only |
+
+There is no fourth bucket. Caveman does not report "realized savings" as a separate figure, and it never multiplies a per-day rate into a monthly projection.
+
+<Note>
+  Local wrap token savings (from the CLI compression tool) are reported in tokens, not dollars. They never convert to a monetary figure and never enter measured spend, inferred headroom, or verified savings.
+</Note>
+
+## What qualifies as verified
+
+Verified savings is the only per-request causal number. It requires a proven method that connects a specific Caveman transform to a provider-measured delta on that exact request. Verified savings stay zero when that evidence is absent.
+
+Caveman supports three verified methods, each tied to a specific provider and transform combination:
+
+| Method | Provider | Transform | Requirement |
+| --- | --- | --- | --- |
+| `provider_causal_cache` | Anthropic (direct) | `anthropic-cache-breakpoints` | Caveman placed the cache marker; the provider billed cache reads or writes |
+| `provider_causal_cache_bedrock` | Bedrock (Anthropic Claude on Runtime) | `bedrock-cache-points` | Caveman placed the cache marker; the provider billed cache reads or writes |
+| `provider_counted_baseline_delta` | Anthropic, OpenAI, Bedrock | `caveman-compression` | Caller asked for compression; a side call counted the original body; the provider counted the optimized body |
+
+Each method is enforced by an exact provider and optimizer tuple. Cross-minting is prevented at every layer. A row carries at most one verified method tag.
+
+### Why verified can be negative
+
+Verified savings is stored as a signed delta. A cache write that nobody reads is usually negative because of the write premium. A compressed request that the provider counted as larger than the original also books a loss. Days can legitimately show negative verified savings. Caveman never floors the number to zero.
+
+## Why numbers stay zero without evidence
+
+Several common situations produce zero verified savings even when optimizations are running. This is intentional: Caveman reports what it can prove, not what it hopes.
+
+<AccordionGroup>
+  <Accordion title="Cache hits the caller produced themselves">
+    If you placed your own `cache_control` markers, or OpenAI cached automatically, Caveman did not cause the hit. Those rows stay observed, not verified.
+  </Accordion>
+
+  <Accordion title="Response cache hits">
+    A served response-cache hit (exact or semantic) avoids a provider call entirely. It costs \$0 and mints zero verified savings because there is no counterfactual provider response to compare.
+  </Accordion>
+
+  <Accordion title="Compression without counted baseline">
+    Compression reduces tokens, but without a side call that counts the original body against the served body on the same request, the delta is inferred, not verified.
+  </Accordion>
+
+  <Accordion title="Incomplete or unpriced usage">
+    If the provider response is missing token counts, or the model has no catalog price, the row is priced at \$0 and saves \$0.
+  </Accordion>
+
+  <Accordion title="Record mode">
+    When the gateway is in record mode, nothing transforms the request, so nothing can cause a verified delta.
+  </Accordion>
+
+  <Accordion title="Failed requests">
+    Requests with status 400 or higher cost zero and save zero.
+  </Accordion>
+
+  <Accordion title="Custom provider origins">
+    Traffic routed to custom or tenant-hosted endpoints is priced as `unpriced:provider-origin` and is ineligible for verified methods.
+  </Accordion>
+</AccordionGroup>
+
+## The role of rungs
+
+Every number in Caveman carries a rung that tells you which reality produced it:
+
+| Rung | Meaning |
+| --- | --- |
+| `measured` | Observed spend from provider-reported tokens |
+| `inferred` | Local estimate or modeled counterfactual |
+| `observed` | Before/after correlation over two windows, not causal |
+| `observed_holdout` | Randomized holdout estimate with an interval |
+| `verified` | Per-request causal proof |
+
+The rung is printed on every number in the console and returned with every SQL column. Do not add numbers from different rungs together. They answer different questions.
+
+## Coverage and what it means
+
+Coverage is the share of your traffic that carries complete, catalog-priced telemetry. It matters because:
+
+- Measured spend is accurate only for covered traffic
+- Verified savings can only be minted for covered traffic that also meets the method preconditions
+- Inferred headroom is generated only from workloads with enough observed signal
+
+Low coverage does not mean Caveman is broken. It means some traffic is unpriced, failed, or routed to a model without a catalog entry. The console shows coverage per workload so you can decide whether to register missing models or investigate failures.
+
+## Reporting honestly
+
+Caveman applies several rules to keep claims accurate:
+
+- No fake savings: headline compression figures from benchmarks stay labeled as inferred and are never multiplied into monthly savings
+- Byte-safe fallback: on parse errors, unsupported inputs, or not-smaller output, the gateway forwards the original bytes unchanged
+- Fail closed: unknown cases resolve to the conservative answer (record mode, zero price, `passed: false`)
+- Recoverable compression: lossy transforms store the original under a content-addressed handle so it can be retrieved byte-for-byte
+
+If Caveman cannot support a claim, it reports the honest zero rather than invent a basis.
+
+## Reading the numbers in the console
+
+When you open a workload or project dashboard, look for these cues:
+
+- **Measured spend** is the top-line cost. It is a list-price subtotal, not your invoice.
+- **Inferred headroom** appears as a daily rate. It is an opportunity, not a promise.
+- **Verified savings** appears only when at least one verified method has minted rows in the window. It shows the sum of signed deltas, with a coverage line that says what share of eligible traffic was counted.
+- **Avoided calls** from the response cache are shown as a count with an estimated avoided spend label. They are not summed into verified savings.
+
+For SQL access, the `requests` table exposes `verified_savings_usd` with a `verified` basis label, and `cost_usd` with a `managed_provider_complete_catalog_list_price` basis label. Gated columns are `NULL` when their precondition fails, never `0`.

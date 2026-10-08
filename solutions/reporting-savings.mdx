@@ -1,0 +1,257 @@
+---
+title: "Monthly AI spend and savings reporting playbook with Caveman"
+sidebarTitle: "Reporting Savings"
+description: "Build a defensible monthly AI spend report using Caveman console views, SQL queries, and CSV exports. Learn how to phrase each number for finance and the board."
+---
+
+This playbook shows finance leaders and engineering managers how to produce a monthly AI spend and savings report from Caveman Cloud. It combines console views you can screenshot, SQL queries you can run with `cvm sql`, CSV exports for spreadsheets, and phrasing guidance for board decks. Every number is grounded in the telemetry schema and labeled with its evidence basis so you can defend it under scrutiny.
+
+## What to report and where to find it
+
+A complete monthly report has four parts: total spend, spend breakdown, savings evidence, and coverage. Use the console for quick visuals and SQL for reproducible numbers.
+
+| Report section | Console view | SQL table | Key columns |
+| --- | --- | --- | --- |
+| Total spend | **Spend** tile | `requests` | `spend_usd`, `timestamp` |
+| Spend by workflow / agent / model | **Spend → Axis breakdown** | `requests` | `workflow`, `agent`, `model`, `spend_usd` |
+| Cost per request | **Traces** detail | `requests` | `spend_usd`, `latency_ms`, `input_tokens`, `output_tokens` |
+| Coverage | **Analytics → Usage** footer | `requests` | `cost_usd` (NULL when unpriced) |
+| Verified savings | **Improvements → Verified savings** | `requests` | `verified_savings_usd` |
+
+<Note>
+  Money columns are `NULL` when a request is unpriced, not zero. Use `count(column)` to count covered rows and `sum()` to total covered spend. Do not add columns of different bases.
+</Note>
+
+## Monthly spend by workflow, agent, or model
+
+Run this query to produce the top-line spend breakdown for any month. Replace the `--from` and `--to` dates with your reporting period.
+
+```bash
+cvm sql "
+SELECT
+  workflow,
+  agent,
+  model,
+  count() AS requests,
+  sum(spend_usd) AS total_spend,
+  avg(spend_usd) AS avg_cost_per_request,
+  sum(input_tokens) AS total_input_tokens,
+  sum(output_tokens) AS total_output_tokens
+FROM requests
+WHERE workflow != ''
+GROUP BY workflow, agent, model
+ORDER BY total_spend DESC
+" --from 2026-01-01 --to 2026-01-31 --format csv
+```
+
+The `total_spend` is measured spend at public catalog list price. It is not your provider invoice, but it is consistent month to month and includes every request that carried complete pricing. The `avg_cost_per_request` helps you spot workflows that are becoming more expensive, even if volume is flat.
+
+### Top cost drivers
+
+To find the single largest contributors without grouping, run:
+
+```bash
+cvm sql "
+SELECT
+  timestamp,
+  trace_id,
+  workflow,
+  model,
+  spend_usd,
+  input_tokens,
+  output_tokens,
+  latency_ms
+FROM requests
+ORDER BY spend_usd DESC
+LIMIT 50
+" --from 2026-01-01 --to 2026-01-31 --format csv
+```
+
+Export this to a spreadsheet and flag any request with unusually high input tokens or latency. Attach the trace IDs to your report so engineering can investigate.
+
+## Daily spend trend
+
+A daily trend line makes spend visible and helps you spot anomalies:
+
+```bash
+cvm sql "
+SELECT
+  toDate(timestamp) AS day,
+  count() AS requests,
+  sum(spend_usd) AS daily_spend,
+  avg(spend_usd) AS avg_per_request
+FROM requests
+GROUP BY day
+ORDER BY day
+" --from 2026-01-01 --to 2026-01-31 --format csv
+```
+
+Import the CSV into your spreadsheet tool and chart `day` against `daily_spend`. A spike on a single day usually means a model upgrade, a traffic surge, or a runaway loop in one workflow.
+
+## Coverage: how complete are your numbers?
+
+Coverage is the share of traffic that carries complete, catalog-priced telemetry. Low coverage means your spend totals undercount reality. Compute it with:
+
+```bash
+cvm sql "
+SELECT
+  count() AS total_requests,
+  count(cost_usd) AS priced_requests,
+  round(count(cost_usd) * 100.0 / count(), 2) AS coverage_percent
+FROM requests
+" --from 2026-01-01 --to 2026-01-31 --format table
+```
+
+<Warning>
+  Do not present total spend as a complete figure when coverage is low. Report the measured spend alongside the coverage percentage, and note which models or workloads are unpriced.
+</Warning>
+
+## Savings by evidence label
+
+Caveman does not expose a single "savings" SQL column that mixes evidence types. You read each label separately. For verified savings, use the column that exists in the schema:
+
+```bash
+cvm sql "
+SELECT
+  toDate(timestamp) AS day,
+  count() AS total_requests,
+  sum(verified_savings_usd) AS verified_savings
+FROM requests
+GROUP BY day
+ORDER BY day
+" --from 2026-01-01 --to 2026-01-31 --format csv
+```
+
+`verified_savings_usd` is `NULL` when the request does not meet the verified gate, so `sum()` covers only qualifying rows. The console **Improvements → Verified savings** page shows the same figure with a coverage line scoped to the counted method's own minted rows.
+
+For inferred headroom, use the console **Cave Plan** or **Improvements** views. Inferred headroom is a modeled per-day rate and is not directly queryable as a single SQL column. If you need it in a report, screenshot the console view and note the date range.
+
+<Note>
+  There is no SQL column for "total savings" or "realized savings." Verified savings is the only production-grounded savings figure in the telemetry schema. Observed outcomes and inferred headroom are reported through console views, not summed into a single number.
+</Note>
+
+## Cost per request and latency quality
+
+Cost per request is a leading indicator of efficiency. Track it alongside latency to show that optimization is not slowing your agents:
+
+```bash
+cvm sql "
+SELECT
+  workflow,
+  count() AS requests,
+  sum(spend_usd) AS total_spend,
+  avg(spend_usd) AS avg_cost,
+  median(latency_ms) AS p50_latency,
+  quantile(0.95)(latency_ms) AS p95_latency
+FROM requests
+WHERE workflow != ''
+GROUP BY workflow
+ORDER BY total_spend DESC
+" --from 2026-01-01 --to 2026-01-31 --format csv
+```
+
+Report median latency (`p50`) rather than average, because latency distributions have long tails. If a workflow's cost drops but latency rises sharply, investigate before presenting it as a win.
+
+## Full monthly reporting template
+
+Use this table as a template for your monthly report. Fill each cell with a query result or console screenshot.
+
+| Metric | January 2026 | December 2025 | Change | Source |
+| --- | --- | --- | --- | --- |
+| Total measured spend |  |  |  | `sum(spend_usd)` |
+| Total requests |  |  |  | `count()` |
+| Coverage |  |  |  | `count(cost_usd) / count()` |
+| Verified savings |  |  |  | `sum(verified_savings_usd)` |
+| Top workflow by spend |  |  |  | `GROUP BY workflow ORDER BY spend` |
+| Top model by spend |  |  |  | `GROUP BY model ORDER BY spend` |
+| Average cost per request |  |  |  | `avg(spend_usd)` |
+| P50 latency |  |  |  | `median(latency_ms)` |
+| Hard cap blocks |  |  |  | Governance → Budgets |
+| Soft alert count |  |  |  | Inbox |
+
+Add a notes column for anomalies: a model upgrade, a new workflow launch, or a coverage gap that engineering is investigating.
+
+## CSV export for spreadsheets
+
+The `cvm sql` command exports directly to CSV with `--format csv`:
+
+```bash
+cvm sql -f monthly_report.sql --from 2026-01-01 --to 2026-01-31 --format csv > january_spend.csv
+```
+
+For JSON pipelines, use `--format json` or `--format jsonl`. In a terminal, `table` is the default. When you pipe `cvm` output to another command, it automatically switches to JSON.
+
+<Warning>
+  Reports refuse date ranges that reach past your retention window with HTTP 422 and error code `cave_retention_limited`. If you set a 90-day request-history window, a report for January submitted in May will be rejected. Set your window before you need historical reports, or export data monthly.
+</Warning>
+
+## How to phrase each number in a board deck
+
+The same number can sound honest or inflated depending on phrasing. Use this table to present Caveman figures credibly:
+
+| Number | Say this | Do not say this |
+| --- | --- | --- |
+| Measured spend | "Our January measured AI spend was \$X at public list price, with Y% coverage." | "Our AI bill was \$X." |
+| Inferred headroom | "Inferred headroom is \$X/day based on modeled counterfactuals. Nothing has happened yet." | "We will save \$X/month." |
+| Verified savings | "Verified savings were \$X in January, backed by provider-measured deltas on counted requests." | "We saved \$X guaranteed." |
+| Coverage | "Z% of requests carried complete catalog pricing. The remainder was unpriced or failed." | "We have full visibility." |
+| Cost per request | "Average cost per request was \$X, down from \$Y." | "Our costs dropped Z% with no caveats." |
+| Negative verified day | "Cache write premiums exceeded read savings this week, producing a negative verified day." | "We had no savings this week." |
+
+<Note>
+  Caveman never floors negative verified savings to zero. A day can legitimately show a loss, and reporting it honestly builds credibility.
+</Note>
+
+## Retention limits and what they mean for reporting
+
+When your organization sets a request-history window, the daily retention job deletes older rows from `requests`, `spans`, `tool_events`, and related tables. Reports, statements, and receipts refuse any range that reaches past the window with:
+
+- HTTP status: **422**
+- Error code: **`cave_retention_limited`**
+
+A deleted day is never drawn as zero. The report simply refuses the range. If you lift a window by lengthening it or switching to keep-forever, you cannot restore what was already deleted.
+
+<Steps>
+  <Step title="Check your current window">
+    Open **Governance → Data** to see `trace_retention_days`. `null` means keep until deleted.
+  </Step>
+  <Step title="Export data before the window trims it">
+    Run monthly CSV exports and store them in your own systems.
+  </Step>
+  <Step title="Set a window that matches your reporting needs">
+    If you need 13 months of history for annual reporting, set the window to at least 400 days before the end of your fiscal year.
+  </Step>
+</Steps>
+
+## Getting the data out automatically
+
+For teams that want to schedule reports, use `cvm sql` in CI with a service token:
+
+```bash
+export CAVE_TOKEN="cave_live_..."
+cvm sql -f spend_report.sql --from $(date -d 'last month' +%Y-%m-01) --to $(date +%Y-%m-01) --format csv > last_month.csv
+```
+
+Rows go to standard output; the row count, window, time, and query digest go to standard error. Money values arrive as exact decimal strings in every format. Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. Human sessions get up to 10,000 rows, 8 MiB, and 30 seconds.
+
+If you need more rows, aggregate in SQL rather than downloading raw rows. For example, group by day and workflow instead of selecting every trace.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Finance Overview" icon="chart-pie" href="/solutions/finance">
+    How Caveman measures spend, labels savings, and governs AI budgets.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Full SQL catalog, permissions, and example queries for requests, spans, and evals.
+  </Card>
+
+  <Card title="Traces and Spend" icon="magnifying-glass" href="/guides/traces-and-spend">
+    Navigate traces, workloads, and spend in the Caveman console.
+  </Card>
+
+  <Card title="Savings Evidence" icon="shield-check" href="/concepts/savings-evidence">
+    The technical contract for measured, inferred, verified, and observed savings.
+  </Card>
+</CardGroup>

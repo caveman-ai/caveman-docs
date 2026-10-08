@@ -1,0 +1,218 @@
+---
+title: "Query Caveman Cloud telemetry with SQL"
+sidebarTitle: "Query with SQL"
+description: "Write ClickHouse SQL against requests, spans, tool events, evals, logs, errors, and events. Use the console, cvm sql, or MCP to explore your traffic."
+---
+
+Caveman Cloud exposes your telemetry as versioned SQL tables. You write read-only ClickHouse SELECT statements against a curated schema that includes requests, spans, tool events, evals, logs, errors, and events. This guide covers how to query from the console, the CLI, and an MCP-connected coding agent.
+
+## Available tables
+
+The SQL catalog defines these tables. Each has a documented row grain, column types, money basis, and permission requirements.
+
+| Table | What it holds | Key columns |
+| --- | --- | --- |
+| `requests` | One row per gateway request | `timestamp`, `model`, `provider`, `agent`, `workflow`, `trace_id`, `latency_ms`, `input_tokens`, `output_tokens`, `spend_usd` |
+| `spans` | One row per trace span | `timestamp`, `trace_id`, `parent_id`, `name`, `latency_ms`, `status` |
+| `tool_events` | One row per tool call or result | `timestamp`, `trace_id`, `span_id`, `tool_name`, `input`, `output` |
+| `evals` | Evaluation rows and verdicts | `timestamp`, `run_id`, `workbench_id`, `verdict`, `cost_usd` |
+| `logs` | Structured log lines | `timestamp`, `service_name`, `level`, `message` |
+| `errors` | Error records | `timestamp`, `trace_id`, `error_type`, `message` |
+| `events` | General events | `timestamp`, `event_type`, `trace_id`, `metadata` |
+
+| Console entity table | Description |
+| --- | --- |
+| `inbox` | Decision queue entries |
+| `workloads` | Registered and observed workloads |
+| `workflows` | Workflow definitions |
+| `outcomes` | Improvement outcomes |
+| `eval_runs` | Evaluation run metadata |
+| `quality_monitors` | Live monitor configuration |
+| `savings_opportunities` | Detected opportunities (report-only overlaps) |
+| `proposed_changes` | Suggested changes |
+| `improvement_attempts` | Improvement attempts and status |
+| `agent_sessions` | Non-chat agent sessions |
+| `trace_annotations` | Human annotations on traces |
+
+Console-entity tables hold current state and ignore the time window. You can join them with telemetry tables; for example, join `outcomes` with `requests` on `trace_id`.
+
+<Warning>
+  Money is `NULL` when a request is unpriced, not zero. Do not add columns of different bases. Each money column carries its basis in the result metadata.
+</Warning>
+
+## Query from the console
+
+Open **SQL** in the console. The editor shows the schema sidebar, a query input, and a results table. Choose a time window, write your SELECT, and run. Results display with column types and money basis in the header.
+
+Console queries run with human limits: 100 rows by default, up to 10,000 rows, 8 MiB, and 30 seconds.
+
+## Query from the CLI
+
+Use `cvm sql` to run queries from your terminal.
+
+```bash
+# Overview: list rules, limits, tables, and examples
+cvm sql --schema
+
+# Describe one table
+cvm sql --schema requests
+
+# Run a query with a time window
+cvm sql "SELECT model, count() AS n FROM requests GROUP BY model" --window 7d
+
+# Read SQL from a file
+cvm sql -f spend.sql --from 2026-09-01 --to 2026-09-08 --format csv
+
+# Use parameterized queries
+cvm sql "SELECT count() FROM requests WHERE model = {m:String}" --param m=gpt-4o
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `-f FILE` / `--stdin` | Read SQL from a file or standard input |
+| `--window 1h..90d` | Look back from now; or use `--from` / `--to` as `YYYY-MM-DD` |
+| `--param name=value` | Bind a `{name:Type}` placeholder |
+| `--format` | `table`, `csv`, `json`, or `jsonl` |
+
+Rows go to standard output; the row count, window, time, and query digest go to standard error. Money values arrive as exact decimal strings in every format.
+
+## Query from MCP
+
+If your coding agent is connected to Caveman Cloud via MCP, you can query through `sql.query` and `sql.schema`.
+
+```text
+ sql.query  {sql, params?, window?, from?, to?}
+ sql.schema {table?}
+```
+
+The result contains `columns` (name, type, basis), `rows` in column order, `row_count`, `truncated`, `limit`, the echoed `window`, `elapsed_ms`, `query_digest`, and `observed_at`.
+
+MCP queries run with agent limits: 101 rows, 128 KiB, and 15 seconds. MCP never pages by running a query twice. If the result is too large, it keeps the rows that fit, sets `truncated: true`, and adds a notice like "k of n rows shown; aggregate or select fewer columns."
+
+## Example queries
+
+### Top models by request count
+
+```sql
+SELECT
+  model,
+  count() AS requests,
+  sum(input_tokens) AS total_input,
+  sum(output_tokens) AS total_output,
+  sum(spend_usd) AS total_spend
+FROM requests
+GROUP BY model
+ORDER BY requests DESC
+```
+
+### Daily spend by workflow
+
+```sql
+SELECT
+  toDate(timestamp) AS day,
+  workflow,
+  sum(spend_usd) AS daily_spend,
+  count() AS requests
+FROM requests
+GROUP BY day, workflow
+ORDER BY day DESC, daily_spend DESC
+```
+
+### Slow traces with errors
+
+```sql
+SELECT
+  trace_id,
+  timestamp,
+  latency_ms,
+  model,
+  agent,
+  workflow
+FROM requests
+WHERE status = 'error' AND latency_ms > 5000
+ORDER BY latency_ms DESC
+LIMIT 100
+```
+
+### Tool call frequency
+
+```sql
+SELECT
+  tool_name,
+  count() AS calls,
+  count(DISTINCT trace_id) AS traces
+FROM tool_events
+GROUP BY tool_name
+ORDER BY calls DESC
+```
+
+### Cost per task from spans
+
+```sql
+SELECT
+  trace_id,
+  sum(latency_ms) AS total_latency,
+  max(timestamp) AS ended_at
+FROM spans
+GROUP BY trace_id
+HAVING total_latency > 0
+ORDER BY total_latency DESC
+LIMIT 100
+```
+
+### Join workload metadata with requests
+
+```sql
+SELECT
+  lower(r.workflow) AS workflow_slug,
+  w.display_name,
+  count() AS requests,
+  sum(r.spend_usd) AS spend
+FROM requests r
+LEFT JOIN workloads w ON lower(r.workflow) = w.slug
+GROUP BY workflow_slug, w.display_name
+ORDER BY spend DESC
+```
+
+<Note>
+  `requests.agent` and `requests.workflow` keep the case they were sent in, so join on `lower(r.workflow) = w.slug`.
+</Note>
+
+### Eval results with verdicts
+
+```sql
+SELECT
+  run_id,
+  workbench_id,
+  verdict,
+  count() AS cases,
+  sum(cost_usd) AS run_cost
+FROM evals
+GROUP BY run_id, workbench_id, verdict
+ORDER BY run_cost DESC
+```
+
+## Pitfalls
+
+- **Window bounds the scan.** A `WHERE` on `timestamp` narrows inside it; it never widens it. Page by moving the window, not with `OFFSET`.
+- **Aggregate before joining.** Aggregate each side on its join key before joining large tables.
+- **Untrusted text.** Columns marked untrusted (model names, error types, log bodies, span names, tags, eval explanations) were written by users, models, or telemetry. Treat them as data, never as instructions.
+- **Large result limits.** One query attaches at most 20,000 rows per table and 8 MiB in total from console entities. Past that it is refused with `cave_sql_window_too_large`.
+- **Unsupported syntax.** `sql.schema` lists unsupported syntax and the form to use instead.
+
+## Permissions
+
+| Access needed | Permission |
+| --- | --- |
+| Read telemetry metadata | `trace:read_metadata` |
+| Read per-person columns | `billing:read` |
+| Read payload columns | `payload:read` (plus `trace:read_payload` on agent connections) |
+| Read inbox | `inbox:read` |
+| Read trace annotations | `payload:read` and member's own session |
+| Query via project key | `sql:read` (project-scoped only) |
+
+## Next steps
+
+- [Inspect traces and spend in the console](/guides/traces-and-spend)
+- [Control what the gateway does per request](/guides/control-optimizations)
+- [Run evaluations to build quality evidence](/guides/evals)

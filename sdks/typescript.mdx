@@ -1,0 +1,329 @@
+---
+title: "TypeScript SDK: Install, Trace, and Control LLM Traffic"
+sidebarTitle: "TypeScript"
+description: "Install @caveman-ai/sdk, configure the gateway client, trace workflows, control per-request optimizations, parse receipts, and manage Cloud resources with typed resources."
+---
+
+The `@caveman-ai/sdk` package is a zero-runtime-dependency TypeScript client for Caveman Cloud. It wraps the gateway's `/sdk/v1/*` contract, so you can trace agent workflows, delegate compression, search tool catalogs, proxy provider calls, and export OpenTelemetry spans without adding extra dependencies to your project.
+
+This page covers installation, configuration, per-request controls, receipt parsing, Cloud control-plane resources, and error handling for the TypeScript SDK.
+
+## Install
+
+Install the package from npm. It ships as an ES module and requires Node.js 22.13 or newer.
+
+```bash
+npm install @caveman-ai/sdk
+```
+
+Import the `Cave` client and the types you need:
+
+```ts
+import { Cave } from "@caveman-ai/sdk";
+import type { CompressResult, ToolSearchResult } from "@caveman-ai/sdk";
+```
+
+## Configure the client
+
+Create a `Cave` instance with your API key, gateway base URL, and an agent slug. The agent slug labels every span and trace the SDK records. Optionally set a `defaultWorkflow` so every traced unit of work is tagged to a workflow unless you override it per call.
+
+```ts
+import { Cave } from "@caveman-ai/sdk";
+
+const cave = new Cave({
+  apiKey: process.env.CAVE_API_KEY!,
+  baseURL: process.env.CAVE_GATEWAY_URL!,
+  agent: "support-agent",
+  defaultWorkflow: "invoice-flow",
+});
+```
+
+The constructor throws if `apiKey`, `baseURL`, or `agent` is missing. The `baseURL` should not have a trailing slash. For example, if your gateway URL is `https://gateway.example.com`, OpenAI calls go to `https://gateway.example.com/openai/v1`.
+
+## Trace workflows
+
+Use `cave.trace()` to wrap a unit of work. Inside the callback you get a `CaveTrace` with helpers for tools, model calls, artifacts, and checkpoints. The SDK POSTs telemetry to the gateway and swallows transport failures so they never break your agent.
+
+```ts
+await cave.trace({ workflow: "refund-flow", tags: { tier: "pro" } }, async (trace) => {
+  const order = await trace.tool("lookupOrder", { readOnly: true, idempotent: true }, async () => {
+    return db.orders.find(orderId);
+  });
+
+  const reply = await trace.model.openai.responses.create({
+    model: "gpt-5.4-mini",
+    input: `Summarize order ${orderId}`,
+  });
+
+  return reply;
+});
+```
+
+### Checkpoints
+
+Offload conversation context to the gateway and retrieve it later with a reversible `source_ref`.
+
+```ts
+const cp = await trace.context.checkpoint(messages, { reason: "pre-summarization" });
+// later, or in a peer step
+const restored = await trace.context.expand(cp.source_ref as string);
+```
+
+### Context packing
+
+Send caller-owned context fragments to the gateway and get back the subset that fits under a token budget, plus the exact IDs of everything deferred.
+
+```ts
+const packed = await cave.context.pack(
+  "why did deploy fail?",
+  [
+    { id: "system", text: systemPrompt, pin: true },
+    { id: "deploy-log", text: deployLog },
+    { id: "old-notes", text: oldNotes },
+  ],
+  { maxTokens: 8_000, reserveTokens: 1_000 },
+);
+
+sendToModel(packed.items);
+queueForLater(packed.deferredIds);
+```
+
+<Tip>
+  Packing is a lossy selector, not a compressor. `basis` is always `"inferred"` and omitted items are named in `deferredIds` so your application can re-supply them.
+</Tip>
+
+### Artifacts
+
+Page a large payload to gateway storage and return a compact stub the model can expand on demand.
+
+```ts
+const stub = await trace.artifacts.page(bigSearchResult, {
+  source: "vector-search",
+  contentType: "application/json",
+  strategy: "json-index",
+});
+```
+
+## Per-request control
+
+Optimizations are a project-level setting, but a single request can ask for or disable specific optimizations. The gateway checks the project policy, capability, and evidence gate before applying anything; a request never grants itself permission.
+
+```ts
+// Pass this one request through byte-identical
+await cave.openai().responses.create(body, { cave: { optimize: "off" } });
+
+// Disable individual optimizations
+await cave.openai().responses.create(body, {
+  cave: { optimize: { compress: false, cacheHints: false } },
+});
+```
+
+Unknown tokens are rejected with 400 `cave_invalid_optimize_override`. Read the response receipt to see whether an optimization was applied or denied.
+
+## Model routing
+
+Send `model: "cave-auto"` and let the project's router pick the model on every request. A named model is kept as-is. If the project has no provider connection or baseline model configured, the gateway returns 400 `cave_routing_not_enabled`.
+
+```ts
+const out = await cave.openai().responses.create({
+  model: "cave-auto",
+  input: "Summarize the last quarter",
+});
+```
+
+## Receipts
+
+Every gateway response carries per-call disclosure headers. Use `parseReceipt` to read them. Headers the gateway did not send stay absent, never defaulted.
+
+```ts
+import { parseReceipt } from "@caveman-ai/sdk";
+
+const response = await cave.openai().raw("/v1/responses", { method: "POST", body });
+const receipt = parseReceipt(response.headers);
+// { mode, optimizations, cacheStatus, requestId, compressionRatio?, tokensBefore?, tokensAfter?, recoveryHandle? }
+```
+
+`tokensBefore` and `tokensAfter` are inferred estimates from the compressor, not provider counts. If `recoveryHandle` is present, you can retrieve the byte-exact original.
+
+## Provider clients
+
+`cave.openai()`, `cave.anthropic()`, `cave.gemini()`, and `cave.vertex()` return thin clients proxied through the gateway. Each has a `.raw` escape hatch for native provider paths.
+
+```ts
+const openai = cave.openai({ upstreamKey: process.env.OPENAI_API_KEY });
+const out = await openai.responses.create({ model: "gpt-5.4-mini", input: "hello" });
+
+const vertex = cave.vertex({ upstreamKey: await gcloudAccessToken() });
+const native = await vertex.raw(
+  "/vertex/v1/projects/p/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent",
+  { method: "POST", body: JSON.stringify(body) },
+);
+```
+
+You can attach a `latencyClass` hint (`"interactive"`, `"background"`, or `"offline"`) to any request. Anything other than `"interactive"` sets the `x-cave-async` header so the gateway can defer it.
+
+## Compression
+
+`cave.compress()` POSTs a payload to the gateway and returns the Engine report. The SDK delegates all compression decisions; it never reimplements a compressor client-side.
+
+```ts
+const result: CompressResult = await cave.compress(bigJson, { contentType: "json" });
+console.log(result.ratio, result.basis); // e.g. 0.93, "inferred"
+```
+
+If anything goes wrong during transport or parsing, the SDK passes the original through unchanged: `ratio` is `0`, there is no `recoveryHandle`, and `basis` is `"inferred"`.
+
+## Tool search
+
+`cave.tools()` returns a handle with the full catalog, a deferred initial subset, and a `search()` method that queries the gateway.
+
+```ts
+const tools = cave.tools({ catalog: myTools, strategy: "deferred" });
+// send tools.initial on the first turn
+
+const found: ToolSearchResult = await tools.search("refund a charge", {
+  maxTools: 5,
+  ranker: "bm25",
+});
+console.log(found.tools, found.savedTokens, found.reductionPct);
+```
+
+`search()` is async and must be awaited. The gateway honors `"embeddings"` only when it has an embedding provider wired. `cave.toolSearch()` is the flat variant when you manage the catalog yourself.
+
+## The OTel exporter
+
+`cave.exporter()` returns an `OTelExporter` that builds OTLP/JSON by hand and POSTs to the gateway's `/v1/traces` endpoint. No external OpenTelemetry SDK or collector is required.
+
+```ts
+const otel = cave.exporter({ serviceName: "billing-agent" });
+const root = otel.recordSpan("chat.completion", {
+  provider: "openai",
+  model: "gpt-5.4-mini",
+  inputTokens: 1200,
+  outputTokens: 340,
+  status: "ok",
+});
+otel.recordSpan("tool.call", { toolName: "lookupOrder", parentSpanId: root.spanId });
+await otel.export(); // → { ok, spansAccepted, spansTotal, ... }
+```
+
+## Retry-loop breaker
+
+Interrupt an agent that is stuck re-issuing the same tool call.
+
+```ts
+const breaker = cave.retryLoopBreaker(3);
+try {
+  await breaker.guard("search", { q: "refund" }, () => runSearch("refund"));
+} catch (e) {
+  if (e instanceof RetryLoopError) {
+    // the agent was looping, so break out and re-plan
+  }
+}
+```
+
+## Shared context
+
+Hand context between agents in the same project. Keys are tenant-scoped, so a peer in another project cannot read them.
+
+```ts
+await cave.sharedContext.put("triage-42", JSON.stringify(handoff));
+// ... a peer agent in the same project ...
+const back = await cave.sharedContext.get("triage-42");
+```
+
+## Prompt snippets
+
+Build deterministic internal brevity instructions for system prompts.
+
+```ts
+const snippet = cave.prompts.internalBrevity({
+  style: "technical-concise",
+  preserveErrorsVerbatim: true,
+});
+```
+
+## Cloud control-plane resources
+
+Import `Cloud` from `@caveman-ai/sdk/cloud` to work with Caveman Cloud control-plane resources. Use a Cloud access token, separate from gateway inference keys.
+
+```ts
+import { Cloud } from "@caveman-ai/sdk/cloud";
+
+const cloud = new Cloud({
+  controlURL: process.env.CAVE_CONTROL_URL!,
+  accessToken: process.env.CAVE_ACCESS_TOKEN!,
+  projectId: process.env.CAVE_PROJECT_ID!,
+});
+
+const suites = await cloud.scenarioSuites.list();
+const result = await cloud.evals.result({
+  workbench_id: process.env.WORKBENCH_ID!,
+  run_id: process.env.RUN_ID!,
+});
+if (result.data.quality.status !== "passed") {
+  throw new Error("Evaluation did not pass");
+}
+```
+
+Receipted writes require an explicit `idempotencyKey`. The client does not automatically retry writes. Accepted work is not a passing result: always read the persisted result or use the CLI wait workflows.
+
+## Error handling
+
+The SDK throws descriptive errors for common gateway and local failure modes:
+
+| Error | Meaning | What to do |
+| --- | --- | --- |
+| `cave_invalid_optimize_override` | Unknown optimization token in per-request control | Fix the token and retry |
+| `cave_routing_not_enabled` | Project has no provider connection or baseline for `cave-auto` | Add a provider connection or baseline model in the console |
+| `cave_async_jobs_unavailable` | Async jobs surface is reserved but not yet available | Use eval, scenario, or native-run resources instead |
+| `RetryLoopError` | Same tool call signature repeated past threshold | Break out of the loop and re-plan |
+
+On network or parse errors, compression and other delegated operations fall back safely. The SDK never rewrites bytes itself and never reports a saving the engine did not hand back.
+
+## Examples
+
+### Export OTel spans
+
+The bundled exporter example records a chat completion span and a child tool span, then ships them to the gateway.
+
+```ts
+import { Cave } from "@caveman-ai/sdk";
+
+const cave = new Cave({
+  apiKey: process.env.CAVE_API_KEY!,
+  baseURL: process.env.CAVE_GATEWAY_URL!,
+  agent: "ts-sdk-agent",
+  defaultWorkflow: "invoice-flow",
+});
+
+const exporter = cave.exporter();
+const trace = exporter.newTraceId();
+
+const chat = exporter.recordSpan("chat gpt-5.5", {
+  traceId: trace,
+  provider: "openai",
+  model: "gpt-5.5",
+  operation: "chat",
+  inputTokens: 1200,
+  outputTokens: 350,
+  cachedTokens: 800,
+  costUsd: 0.0145,
+});
+
+exporter.recordSpan("tool_call fetch_invoice", {
+  traceId: trace,
+  parentSpanId: chat.spanId,
+  operation: "tool_call",
+  toolName: "fetch_invoice",
+});
+
+const result = await exporter.export();
+console.log("Exported:", result);
+```
+
+## Next steps
+
+- [Python SDK](/sdks/python) for the same gateway contract in Python
+- [CLI](/cli/cvm) for running workloads, managing resources, and CI workflows
+- [Gateway](/integrations/openai) for provider integration guides

@@ -1,0 +1,112 @@
+---
+title: "Set AI spend budgets, hard caps, and spend-rate alerts"
+sidebarTitle: "Budgets"
+description: "Cap Caveman Cloud model spend with monthly soft and hard project budgets, per-key limits, and spend-rate quotas, and handle budget errors and headers in your app."
+---
+
+Caveman Cloud budgets stop runaway model spend at the gateway, before a request reaches the provider. You can set a monthly cap for a whole project, a cap per API key, and short-window spend-rate quotas that catch bursts within minutes. Configure project budgets under **Governance → Budgets** and key budgets under [Governance → Keys](/governance/api-keys#per-key-limits).
+
+## Budget types at a glance
+
+| Control | Scope | Window | On breach |
+| --- | --- | --- | --- |
+| **Soft cap** | Project | Calendar month, UTC | Notifies owners and admins; traffic continues |
+| **Hard cap** | Project | Calendar month, UTC | Refuses requests with `429` |
+| **Key soft budget** | One API key | Day, week, month, or total | Warning headers and an alert; traffic continues |
+| **Key hard budget** | One API key | Day, week, month, or total | Refuses requests with `429` |
+| **Spend-rate quota** | Per key or per workflow | 60 seconds to 24 hours, rolling | Alert, or optional advisory `429` |
+
+All amounts are in US dollars at public catalog list prices. Set any value to `0` to turn it off.
+
+## Set a monthly project budget
+
+<Steps>
+  <Step title="Open Governance → Budgets">
+    Select the project. The **Monthly budget** panel shows gateway spend so far this UTC month, the current caps, and the amount **reserved in flight**.
+  </Step>
+  <Step title="Set a soft cap">
+    Enter the amount at which you want a warning. Crossing it notifies owners and admins through the Inbox and email, and fires any `budget.alert` webhook, once per period. Traffic keeps flowing.
+  </Step>
+  <Step title="Set a hard cap">
+    Enter the amount at which traffic must stop. Once committed spend plus in-flight reservations reaches the cap, new requests are refused until the 1st of next month (UTC) or until you raise the cap.
+  </Step>
+  <Step title="Save limits">
+    Click **Save limits**. The console confirms when the policy has been delivered to the gateway. If it says delivery is pending, the change is saved but not yet enforced.
+  </Step>
+</Steps>
+
+Every soft or hard cap crossing appears in the **Cap crossings** panel and in the Inbox.
+
+### How hard caps avoid overshoot
+
+Before forwarding a request, the gateway **reserves** its maximum possible cost: the counted input tokens plus the largest allowed output, at catalog price. After the provider answers, it settles the real amount and releases the rest. Because reservations count against the cap, many concurrent requests cannot collectively blow past it. Requests to an unpriced model reserve a fixed ceiling.
+
+<Tip>
+  Setting a sensible `max_tokens` on your requests makes reservations tighter, so you can run closer to a hard cap without early refusals.
+</Tip>
+
+## Spend-rate quotas
+
+Monthly caps protect the month; spend-rate quotas protect the next few minutes. They watch rolling spend so a looping agent is caught long before it dents the monthly budget.
+
+| Field | Meaning |
+| --- | --- |
+| **Window (seconds)** | Rolling window, 60 to 86,400 seconds |
+| **Per API key** | Dollars per window for any single key |
+| **Per workflow** | Dollars per window for any single workflow, from `x-cave-workflow` or the key's default workflow |
+| **Refuse requests above threshold** | When on, returns an advisory `429` once a threshold is crossed. When off, the gateway only records an alert. |
+
+Recent threshold crossings stay in the **Spend-rate alerts** panel for 7 days.
+
+<Warning>
+  Spend-rate quotas are advisory. The estimate is a rolling lower bound, in-flight provider work can still spend, and the quota fails open if its counter store is unavailable. Use a **hard cap** when you need a guaranteed stop.
+</Warning>
+
+## Handle budget responses in your app
+
+### Hard cap reached
+
+The gateway answers `429` with code `cave_budget_exceeded` and the header `x-should-retry: false`. Do not retry; the request will keep failing until the window resets or the cap is raised.
+
+```json Response body
+{
+  "error": {
+    "type": "cave_gateway_error",
+    "code": "cave_budget_exceeded",
+    "message": "budget exceeded: Hard budget cap reached at public catalog list prices, counting spend already settled plus requests in flight. This is a list-price cap, not a provider invoice."
+  }
+}
+```
+
+| Header | Value |
+| --- | --- |
+| `x-cave-budget-scope` | `project` or `key`, whichever cap was hit. When both apply, the tighter one is reported. |
+| `x-cave-budget-usd` | The cap in dollars |
+| `x-cave-budget-spend-usd` | Spend counted against the cap, including reservations |
+
+### Soft cap crossed
+
+The request succeeds and the response carries warning headers you can log or surface:
+
+| Header | Value |
+| --- | --- |
+| `x-cave-budget-soft-exceeded` | `true` |
+| `x-cave-budget-spend-usd` | Current spend |
+| `x-cave-budget-soft-usd` | The soft cap |
+| `x-cave-budget-hard-usd` | The hard cap, when one is set |
+
+### Spend-rate quota exceeded
+
+When refusal is on, the gateway answers `429` with code `cave_spend_rate_soft_limit_exceeded`. Back off and retry later, or route the work to a different key.
+
+## Spend accounting
+
+The **Spend accounting** panel puts three figures side by side:
+
+- **Measured layer spend**: provider-reported usage priced at catalog list rates. This is what caps count.
+- **Imported spend**: spend reported by external systems. Shown for correlation only and **excluded from caps**.
+- **Verified savings**: provider-measured savings that a Caveman change caused. See [Savings evidence](/concepts/savings-evidence).
+
+## Who can change budgets
+
+Owners, Admins, and Engineers can edit budgets. Keys with the `admin:bypass_budget` scope are never metered or blocked, so keep them rare. Budget changes are recorded in **Governance → Audit**.

@@ -1,0 +1,205 @@
+---
+title: "Control Caveman Gateway optimizations per request"
+sidebarTitle: "Control Optimizations"
+description: "Choose record mode or active optimizations per request with x-cave-optimize and related headers. Understand receipts, opt-out, and what each optimizer does."
+---
+
+The Caveman gateway can pass requests through byte-identical or apply eligible optimizations on the fly. You control the behavior of every single call with request headers. This guide explains how to opt in, opt out, read the receipt, and understand which optimizers exist and when they run.
+
+## Record mode vs optimizations
+
+By default, the gateway runs eligible byte-safe optimizations (S0 and S1). Behavioral and structural changes require opt-in and may need evaluation gates. A single header overrides the behavior for one request.
+
+| Mode | How to request | What happens |
+| --- | --- | --- |
+| Record | `x-cave-optimize: off` | Pass through byte-identical. No optimization runs. |
+| Default | Omit the header | Run eligible byte-safe optimizations (prompt cache hints, routing hints). |
+| Opt-up | `x-cave-optimize: compress` or `cache-hints` | Request a specific optimization; the gateway checks policy, capability, and eval gates before applying it. |
+| Opt-down | `x-cave-optimize: no-cache` | Disable one optimization for this request while leaving others running. |
+
+## The x-cave-optimize header
+
+`x-cave-optimize` accepts comma-separated tokens. Mixing opt-up and opt-down in one header is allowed; opt-down wins when the same optimization is named.
+
+| Token | Meaning |
+| --- | --- |
+| `off` | Pass through byte-identical |
+| `no-cache` | Disable prompt cache hints |
+| `no-compress` | Disable compression |
+| `no-route` | Disable model routing |
+| `no-stream-usage` | On streamed OpenAI chat, do not request token usage from OpenAI |
+| `compress` | Request compression |
+| `compress=lossless` | Request compression that changes no value (JSON tool output only) |
+| `cache-hints` | Request prompt cache hints (normally on by default) |
+| `route` | Request model routing |
+| `style=caveman` | Add terse output shaping instruction |
+| `style=concise` | Add mild output shaping instruction |
+| `style=off` | Do not add output shaping for this request |
+
+<Warning>
+  Unknown tokens return 400 `cave_invalid_optimize_override`. The gateway never guesses what you meant.
+</Warning>
+
+## SDK per-request control
+
+The TypeScript and Python SDKs translate options into the same header bytes.
+
+<CodeGroup>
+
+```ts TypeScript
+// Pass this request byte-identical
+await cave.openai().responses.create(body, { cave: { optimize: "off" } });
+
+// Disable cache hints and compression for this request
+await cave.openai().responses.create(body, {
+  cave: { optimize: { cacheHints: false, compress: false } },
+});
+
+// Request compression and a style for this request
+await cave.openai().responses.create(body, {
+  cave: { optimize: { compress: true, style: "caveman" } },
+});
+```
+
+```python Python
+# Pass this request byte-identical
+cave.openai().responses.create(body, optimize="off")
+
+# Disable cache hints and compression
+cave.openai().responses.create(
+    body, optimize={"cache_hints": False, "compress": False}
+)
+
+# Request compression and style
+cave.openai().responses.create(
+    body, optimize={"compress": True, "style": "caveman"}
+)
+```
+
+</CodeGroup>
+
+<Note>
+  A request never grants itself permission. The gateway checks the project policy, capability, and any required eval gate before applying an opt-in.
+</Note>
+
+## Response receipts and headers
+
+Every response carries disclosure headers describing what happened. Read them to distinguish applied and denied optimizations.
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-optimize-applied` | Comma list of opt-ups that ran (preconditions cleared) |
+| `x-cave-optimize-denied` | `token=reason` pairs for refused opt-ups |
+| `x-cave-cache-mode` | The response cache mode applied (`respect`, `force`, `semantic`, `disable`) |
+| `x-cave-response-cache` | Cache outcome: `hit`, `hit_semantic`, `shadow_hit`, `shadow_miss`, `miss`, `bypass`, `uncacheable` |
+| `x-cave-cache-status` | The **provider's** prompt cache outcome (`hit`, `miss`, `write`, `partial`, `unknown`) |
+
+### Parse receipts with the SDK
+
+<CodeGroup>
+
+```ts TypeScript
+import { parseReceipt } from "@caveman-ai/sdk";
+
+const response = await cave.openai().raw("/v1/responses", {
+  method: "POST",
+  body,
+});
+const receipt = parseReceipt(response.headers);
+// receipt.optimizeApplied, receipt.optimizeDenied, receipt.responseCache, etc.
+```
+
+```python Python
+from caveman_cloud import parse_receipt
+
+receipt = parse_receipt(response.headers)
+# Receipt(mode, optimizations, cache_status, request_id,
+#         compression_ratio, tokens_before, tokens_after, recovery_handle)
+```
+
+</CodeGroup>
+
+A header the gateway did not send stays absent in the receipt. The receipt never fills in a default value.
+
+## Which optimizers exist
+
+Optimizers are grouped by safety class. The gateway only runs an optimizer when its preconditions are met and the request or project policy allows it.
+
+### S0/S1 byte-safe (no model-visible change)
+
+| Optimizer | Provider | Default | What it does |
+| --- | --- | --- | --- |
+| `anthropic-cache-breakpoints` | Anthropic | On | Injects ephemeral `cache_control` on the largest stable prefix so repeated prefixes bill at `cache_read` rate |
+| `openai-prompt-cache-key` | OpenAI | On | Injects a canonical cache key to improve routing affinity for OpenAI prompt caching |
+| `bedrock-cache-points` | Bedrock (Anthropic Claude) | Off | Adds Bedrock-native cache marker to the stable prefix |
+
+### S1 behavioral (can change output, eval-gated)
+
+| Optimizer | Provider | Default | What it does |
+| --- | --- | --- | --- |
+| `output-brevity` | OpenAI | Off, eval-gated | Adds a 512-token `max_output_tokens` cap when the caller sets none |
+| `reasoning-effort` | OpenAI | Off, eval-gated | Sets `reasoning_effort: "low"` on reasoning-capable models when the caller sets none |
+
+<Warning>
+  Enabling the policy flag alone does nothing for eval-gated optimizers. The eval gate must be cleared first through an experiment that proves task success is unchanged under the change.
+</Warning>
+
+### S2 structural (needs SDK cooperation)
+
+- `toon-reencoding` sends `x-cave-optimize: compress=lossless` to rewrite JSON tool output to a shorter form that round-trips to the same data.
+
+### S3 behavioral (eval-gated rollout)
+
+- `cheaper-action-fit` routes to a cheaper model that graded at least as well on replayed cases.
+- `tool-output-size-profile` and `duplicate-step-profile` identify structural patterns that require code changes in the agent.
+
+## Cache control per request
+
+`x-cave-cache` controls the response cache (the gateway's own stored answers, separate from provider prompt cache).
+
+| Value | Behavior |
+| --- | --- |
+| `respect` (default) | Read cache if present, write on miss |
+| `force` | Serve exact match from cache, or store if miss |
+| `ttl=<seconds>` | Force with a custom TTL (clamped to 60 to 86400) |
+| `semantic` | Serve semantic matches; shadow mode if plan does not allow |
+| `semantic,ttl=<seconds>` | Semantic with custom TTL |
+| `disable` | Skip cache read and write |
+
+<CodeGroup>
+
+```ts TypeScript
+await cave.openai().responses.create(body, {
+  cave: { cache: { mode: "force", ttlSeconds: 900 } },
+});
+```
+
+```python Python
+cave.openai().responses.create(
+    body, cache={"mode": "force", "ttl_seconds": 900}
+)
+```
+
+</CodeGroup>
+
+## Opting out per request
+
+Use opt-down tokens when one request must not touch a specific optimization:
+
+```bash
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-optimize: no-cache,no-compress" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+```
+
+## What compression is measured at
+
+The compression optimizer measured 33.2% fewer provider-reported input tokens on the wrap benchmark (95% CI 14.6% to 48.5%). That is a token-count reduction observed on one benchmark corpus, not a promise about your traffic and not a dollar figure. Gateway reporting stays labeled `inferred` until a verified method backs it.
+
+## Next steps
+
+- [Inspect traces and spend to see optimization impact](/guides/traces-and-spend)
+- [Query telemetry with SQL to compare before and after](/guides/query-with-sql)
+- [Run evaluations to clear eval gates](/guides/evals)

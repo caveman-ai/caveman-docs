@@ -1,0 +1,381 @@
+---
+title: "Adopt Caveman Cloud: a 30-day rollout plan for your team"
+sidebarTitle: "Adoption Playbook"
+description: "Roll out Caveman Cloud to your team in four weeks: baseline traffic, diagnose costs, prove savings with eval gates, and report verified results."
+---
+
+Adopting Caveman Cloud is a four-week exercise with clear owners, milestones, and exit criteria each week. This playbook is designed for three audiences working together: developers who integrate and operate the gateway, platform and engineering leaders who govern the rollout, and finance stakeholders who need defensible numbers. Each week builds on the last: you connect traffic, diagnose what it costs, prove that changes are safe, and report verified savings that can stand up to scrutiny.
+
+<Note>
+  This plan assumes you already have a Caveman Cloud account. If not, start with the [Quickstart](/quickstart) to sign in, create a project, and send your first request.
+</Note>
+
+---
+
+## RACI at a glance
+
+| Activity | Developer | Platform/CTO | Finance |
+| --- | --- | --- | --- |
+| Swap base URL and send test requests | R | A | I |
+| Label traffic with agent and workflow headers | R | A | C |
+| Set soft/hard budgets and guardrails | C | A | R |
+| Confirm coverage and catalog pricing | R | A | I |
+| Read Cave Plan and rank top cost drivers | C | A | C |
+| Define eval criteria from saved traffic | R | A | I |
+| Run replay, shadow, and canary experiments | R | A | I |
+| Report first verified numbers | I | A | R |
+| Expand to more workloads and enable Automation | C | A | C |
+
+_R = Responsible, A = Accountable, C = Consulted, I = Informed_
+
+---
+
+## Week 1: Connect and baseline
+
+Your goal this week is to get one production workload routing through the Caveman gateway, with labeled traffic, budgets in place, and confirmed coverage. Nothing is optimized yet. You are in record mode, collecting an honest baseline.
+
+### Developer tasks
+
+<Steps>
+  <Step title="Swap the base URL">
+    Change one production workload to route through Caveman. This is a single line change: point your OpenAI, Anthropic, or compatible client at the gateway URL with your Cave API key.
+
+    ```ts
+    const client = new OpenAI({
+      apiKey: process.env.CAVE_API_KEY,
+      baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
+      defaultHeaders: {
+        "x-cave-upstream-key": process.env.OPENAI_API_KEY!,
+        "x-cave-agent": "support-agent",
+        "x-cave-workflow": "resolve-ticket",
+      },
+    });
+    ```
+
+    See [Connect a Workload](/guides/connect-workload) for Anthropic, Google, and curl examples.
+  </Step>
+  <Step title="Label every request">
+    Set `x-cave-agent` and `x-cave-workflow` on every request. Labels are case-sensitive in traces and determine how traffic groups into workloads. Inconsistent casing fragments your data and makes cost attribution harder.
+  </Step>
+  <Step title="Connect coding agents (optional)">
+    If your team uses Claude Code, Codex, Gemini CLI, or OpenCode, wrap them with `caveman` so their traffic is captured and attributed per person, per agent, per merged change. See [Connect Coding Agent](/guides/connect-coding-agent).
+  </Step>
+  <Step title="Confirm traces appear">
+    Open **Traces** in the console and verify your traffic is visible. Each trace should show model, tokens, cost, latency, and the agent and workflow labels you attached.
+  </Step>
+</Steps>
+
+### Platform/CTO tasks
+
+<Steps>
+  <Step title="Set budgets">
+    Open **Governance → Budgets** and configure soft spend alerts and hard caps per project. Soft alerts send an Inbox item and email when crossed. Hard caps block traffic at admission when the reservation would exceed the limit.
+  </Step>
+  <Step title="Configure guardrails">
+    Set up guardrails that mask or block sensitive content in prompts and responses. Test them with `policy.test_guardrails` before publishing an authorized policy change.
+  </Step>
+  <Step title="Review access controls">
+    Confirm team roles in **Team** and **SSO**. Five roles exist: owner, admin, engineer, viewer, billing. Raw payload read is owner/admin only. An admin cannot mint or modify owner access.
+  </Step>
+</Steps>
+
+### Finance tasks
+
+<Steps>
+  <Step title="Confirm coverage">
+    Open **Spend** and check the coverage share. Coverage is the percentage of traffic with complete, catalog-priced telemetry. Low coverage means some models are unpriced or requests are missing token counts, which makes downstream savings claims unreliable.
+  </Step>
+  <Step title="Document the baseline">
+    Record the first measured spend number. This is your baseline (list price times provider-reported tokens). It is not your provider invoice, but it is the honest starting point for every comparison.
+  </Step>
+</Steps>
+
+### Week 1 exit criteria
+
+- [ ] At least one workload routing through the gateway with consistent labels
+- [ ] Traces visible in the console with agent and workflow attribution
+- [ ] Soft budget alerts and hard caps configured
+- [ ] Coverage above 80% for the connected workload, or a plan to register missing models
+
+### Common pitfalls in Week 1
+
+| Pitfall | Why it hurts | Fix |
+| --- | --- | --- |
+| Missing labels | Traffic groups as "unknown" and cannot be attributed to workloads | Add `x-cave-agent` and `x-cave-workflow` to every request |
+| Unpriced models | Missing catalog prices price those requests at \$0, lowering coverage | Register the model in **Gateway → Connections** or accept the honest zero |
+| Trailing slash on gateway URL | Produces a double slash and may 404 | Remove the trailing slash from `CAVE_GATEWAY_URL` |
+| Confusing CAVE_API_KEY with upstream key | Requests fail auth or provider calls fail | Use `CAVE_API_KEY` in `authorization`; use `x-cave-upstream-key` for the provider |
+
+---
+
+## Week 2: Diagnose
+
+Your goal this week is to understand where your money is going, read the ranked improvement opportunities, and select one to two concrete moves to prove. You will also define eval criteria so you can judge whether those moves are safe.
+
+### Developer tasks
+
+<Steps>
+  <Step title="Read the Cave Plan">
+    Open **Improvements → Cave Plan** to see ranked moves per workload. Each move shows inferred headroom in dollars per day, broken down by safety class (S0 to S3). Start with S0/S1 moves: they are byte-safe and need no code changes.
+  </Step>
+  <Step title="Query top cost drivers with SQL">
+    Run a query to find your most expensive workflows and models:
+
+    ```sql
+    SELECT
+      workflow,
+      model,
+      count() AS requests,
+      sum(spend_usd) AS total_spend,
+      avg(latency_ms) AS avg_latency
+    FROM requests
+    GROUP BY workflow, model
+    ORDER BY total_spend DESC
+    LIMIT 20
+    ```
+
+    See [Query with SQL](/guides/query-with-sql) for more examples.
+  </Step>
+  <Step title="Check fit">
+    Caveman pays off when input is much larger than output and the input is repetitive or bloated: RAG chunks, tool schemas, system prompts, and long histories. If your workload is short prompts with long outputs, or already lean, the inferred headroom will be honest about the smaller prize.
+  </Step>
+</Steps>
+
+### Platform/CTO tasks
+
+<Steps>
+  <Step title="Pick 1-2 moves">
+    From the Cave Plan, pick one S0/S1 move and optionally one S2 move. Good first candidates:
+
+    - **Anthropic cache breakpoints** (`anthropic-cache-breakpoints`): byte-safe, on by default, path to verified dollars
+    - **Bedrock cache points** (`bedrock-cache-points`): opt-in, also path to verified dollars
+    - **TOON reencoding** (`toon-reencoding`): S2, needs `x-cave-optimize: compress=lossless`, eval-gated
+
+    Avoid starting with S3 behavioral changes (model routing, output caps). They require eval gates and canary rollouts before they earn anything.
+  </Step>
+  <Step title="Define eval criteria">
+    For any move that changes model-visible bytes, define what "safe" means. Build a dataset in **Evals → Library** from saved traffic, or create a strict suite with inline fixtures. See [Build and run evals](/guides/evals).
+  </Step>
+</Steps>
+
+### Finance tasks
+
+<Steps>
+  <Step title="Validate inferred numbers">
+    The Cave Plan shows daily rates, never monthly projections. Ask: does the inferred headroom align with the share of spend that is input-heavy? If most spend is on output tokens, the opportunity is smaller.
+  </Step>
+</Steps>
+
+### Week 2 exit criteria
+
+- [ ] Cave Plan reviewed and top cost drivers identified
+- [ ] 1-2 moves selected with clear owners
+- [ ] Eval criteria defined for any move above S0
+- [ ] Baseline measured spend documented for comparison
+
+### Common pitfalls in Week 2
+
+| Pitfall | Why it hurts | Fix |
+| --- | --- | --- |
+| Expecting huge savings on output-heavy workloads | Inferred headroom is input-weighted; output-heavy workloads have smaller opportunity | Accept the honest zero or shift focus to input-heavy workloads |
+| Picking an S3 move first | Needs replay, canary, and rollback before any dollar is proven | Start with S0/S1 cache optimizations |
+| Underestimating eval work | An eval gate must clear before an S1/S2/S3 optimizer can run | Begin dataset creation early in the week |
+
+---
+
+## Week 3: Prove
+
+Your goal this week is to run experiments, clear eval gates, and earn your first verified savings. Byte-safe cache optimizations are the fastest path to verified dollars because Caveman can prove causality with provider-reported cache usage.
+
+### Developer tasks
+
+<Steps>
+  <Step title="Run a replay experiment">
+    For S2/S3 moves, replay the candidate change against recorded traffic. Start the experiment from the improvement in the console, or run `cvm tools list` to find the experiment operations available to your role. The experiment replays saved requests with the new policy and grades outputs against your eval criteria.
+  </Step>
+  <Step title="Shadow mode">
+    If available for your move, run in shadow mode first. The gateway executes the optimization but does not serve the result. This proves the change is safe before any user sees it.
+  </Step>
+  <Step title="Canary with eval gates">
+    For moves that passed replay, enable them on a small share of traffic with `x-cave-optimize` headers or project policy. Monitor eval results continuously. If quality degrades, rollback is immediate.
+  </Step>
+  <Step title="Enable verified cache optimizations">
+    For Anthropic-direct or Bedrock Claude traffic, ensure cache breakpoints or cache points are active. These are the only optimizations that can earn `verified` savings today because Caveman can prove the provider billed the cache reads or writes.
+  </Step>
+</Steps>
+
+### Platform/CTO tasks
+
+<Steps>
+  <Step title="Approve S1/S2 experiments">
+    Publishing aggressive (S2/S3) policies and approving S3 experiments requires owner or admin role. Review the Evidence report: one claim, approach, physics proof, judged proof, evidence links, proving cost, and recommended action.
+  </Step>
+  <Step title="Monitor the ledger">
+    Open **Improvements → Verified savings** daily. Verified savings start at the honest \$0. They grow only when qualifying evidence exists. Cache-heavy days may show negative verified savings at first (write premiums), then turn positive as reads accumulate.
+  </Step>
+</Steps>
+
+### Finance tasks
+
+<Steps>
+  <Step title="Count verified dollars">
+    Verified savings is the only number that can be defended in a finance readout. Inferred headroom is an estimate; verified savings is provider-grounded causal proof. If verified is still zero, document why (record mode, unpriced models, or non-qualifying traffic).
+  </Step>
+</Steps>
+
+### Week 3 exit criteria
+
+- [ ] At least one replay or shadow experiment completed
+- [ ] Eval gate cleared for any S1+ move
+- [ ] First verified savings rows visible in the ledger, or documented reason why not
+- [ ] Canary running on a bounded traffic share with rollback plan
+
+### Common pitfalls in Week 3
+
+| Pitfall | Why it hurts | Fix |
+| --- | --- | --- |
+| Expecting verified on day one | Verified savings require qualifying method, provider-complete usage, and active transform | Wait for cache reads to accumulate or counted baseline to complete |
+| Confusing inferred with verified | Inferred is a modeled daily rate; verified is causal proof | Only report verified to finance; label inferred clearly |
+| Skipping eval gates | An S1/S2/S3 optimizer enabled without a cleared eval gate can degrade quality | Enforce eval gating in project policy |
+
+---
+
+## Week 4: Report and expand
+
+Your goal this week is to present the first verified numbers, expand to additional workloads, and enable Automation carefully. This is where the loop becomes continuous.
+
+### Developer tasks
+
+<Steps>
+  <Step title="Expand to more workloads">
+    Apply the same connect-and-label pattern to the next 1-2 workloads. Use the proven eval criteria from Week 3 where relevant.
+  </Step>
+  <Step title="Enable Automation (carefully)">
+    From the installation settings, enable repository scans and production investigations first. Hold off on repair pull requests until your team is comfortable reviewing Evidence reports. See [Set up Automation](/guides/automation).
+  </Step>
+  <Step title="Connect a decision model (optional)">
+    For consistent Compare and route judgment, connect a dedicated decision model in **Settings → Judges**. This improves the independence of eval verdicts.
+  </Step>
+</Steps>
+
+### Platform/CTO tasks
+
+<Steps>
+  <Step title="Present verified results">
+    Summarize the first verified savings number with coverage percentage and the method that produced it (`provider_causal_cache`, `provider_causal_cache_bedrock`, or `provider_counted_baseline_delta`). Include the honest \$0 baseline if nothing is verified yet.
+  </Step>
+  <Step title="Set a proving budget">
+    Configure the monthly proving budget in **Settings**. The default is 10% of your last 30 days' model spend, capped at 250 USD. Set it to 0 USD to turn proving off entirely.
+  </Step>
+  <Step title="Review governance changes">
+    Audit logs record changes to budgets, guardrails, keys, and roles. Review **Governance → Audit** after any administrative change.
+  </Step>
+</Steps>
+
+### Finance tasks
+
+<Steps>
+  <Step title="Draft the first readout">
+    Include three numbers with their rung labels:
+
+    - **Measured spend**: baseline cost at catalog list price
+    - **Inferred headroom**: daily opportunity rate, not a promise
+    - **Verified savings**: causal dollars saved, with qualifying method and coverage
+
+    Do not sum inferred and verified. They answer different questions.
+  </Step>
+  <Step title="Plan the next reporting cycle">
+    Verified savings grow as cache reads accumulate and more workloads qualify. Set a monthly cadence to review the ledger and expand the coverage percentage.
+  </Step>
+</Steps>
+
+### Week 4 exit criteria
+
+- [ ] First verified savings reported with coverage and method
+- [ ] 2-3 workloads connected and labeled
+- [ ] Automation enabled for at least repository scans
+- [ ] Finance readout delivered with honest labels
+
+---
+
+## Readiness checklist
+
+Before you start Week 1, confirm these prerequisites:
+
+<Steps>
+  <Step title="Account and project">
+    You have a Caveman Cloud account, a project, and at least one Cave API key. You know your gateway URL.
+  </Step>
+  <Step title="Provider keys">
+    You have active provider keys (OpenAI, Anthropic, Bedrock, etc.) and permission to route traffic through them.
+  </Step>
+  <Step title="Team access">
+    Team members are invited with the right roles. Owners and admins can configure governance. Engineers can integrate and query.
+  </Step>
+  <Step title="Workload identified">
+    You have named the first workload to connect: an agent or service with measurable traffic and clear input/output characteristics.
+  </Step>
+  <Step title="Retention policy understood">
+    You know your organization's payload storage setting and retention windows. Payload storage is on by default; ZDR is available per request.
+  </Step>
+</Steps>
+
+---
+
+## Common adoption pitfalls
+
+| Pitfall | Impact | Prevention |
+| --- | --- | --- |
+| Missing labels | Breaks workload attribution and cost per task | Enforce `x-cave-agent` and `x-cave-workflow` in code review |
+| Unpriced models | Lowers coverage and makes savings claims unreliable | Register models in **Gateway → Connections** early |
+| Expecting verified on day one | Frustration and loss of trust with finance | Explain the evidence ladder in the first readout |
+| Output-heavy workloads | Small inferred headroom despite high spend | Focus first on workloads where input >> output |
+| Enabling Automation too fast | Unreviewed PRs and Inbox overload | Start with scans only; add repair PRs after the team is trained |
+| Confusing inferred with verified | Overstated savings claims | Always label the rung: measured, inferred, or verified |
+| Skipping eval gates | Quality regressions in production | Enforce eval gating for every S1+ optimizer |
+
+---
+
+## What comes after Week 4
+
+The 30-day playbook gets you to your first verified number and a repeatable loop. After that:
+
+- **Monthly**: review the Cave Plan, run new experiments, and expand verified methods to more workloads
+- **Quarterly**: report verified savings to stakeholders with coverage trends
+- **Continuously**: let Automation scan repositories and traffic, but keep human approval at every gate
+
+For deeper guidance on each surface, see:
+
+<CardGroup cols={2}>
+  <Card title="Connect a Workload" icon="plug" href="/guides/connect-workload">
+    Route production traffic with a base-URL swap and two headers.
+  </Card>
+
+  <Card title="Traces and Spend" icon="magnifying-glass" href="/guides/traces-and-spend">
+    Inspect cost, latency, and verified savings in the console.
+  </Card>
+
+  <Card title="Improvements" icon="wand-magic-sparkles" href="/guides/improvements">
+    Review the Cave Plan, run attempts, and read Evidence reports.
+  </Card>
+
+  <Card title="Evals" icon="flask" href="/guides/evals">
+    Build datasets, run workbenches, and clear eval gates.
+  </Card>
+
+  <Card title="Automation" icon="gear" href="/guides/automation">
+    Enable continuous scans and investigations.
+  </Card>
+
+  <Card title="Savings Evidence" icon="scale-balanced" href="/concepts/savings-evidence">
+    Understand measured, inferred, and verified labels.
+  </Card>
+
+  <Card title="Control Optimizations" icon="sliders" href="/guides/control-optimizations">
+    Choose record mode or active optimizations per request.
+  </Card>
+
+  <Card title="Team and Admin" icon="users" href="/guides/team-and-admin">
+    Configure roles, SSO, budgets, and governance.
+  </Card>
+</CardGroup>

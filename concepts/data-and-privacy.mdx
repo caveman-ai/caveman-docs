@@ -1,0 +1,90 @@
+---
+title: "Data, privacy, and tenant isolation in Caveman Cloud"
+sidebarTitle: "Data and Privacy"
+description: "Learn what data Caveman Cloud stores, how payload storage and consent work, retention and deletion controls, and how tenant isolation protects your information."
+---
+
+Caveman Cloud stores the data you send through it, keeps it under your control, and isolates it within your tenant boundary. You decide how long to keep request and response payloads, whether to use them for product improvement, and when to delete them. This page explains what is stored, where it lives, and how it is protected.
+
+## What Caveman stores
+
+The gateway records two categories of data from every request:
+
+- **Metadata**: request timing, token counts, cost, model name, status code, labels (`x-cave-agent`, `x-cave-workflow`), session IDs, optimization outcomes, and trace identifiers
+- **Payloads**: request and response bodies, tool results, compression originals, and SDK artifacts
+
+Metadata is stored for every request. Payloads are stored only when payload storage is enabled for your organization, which it is by default. When payload storage is switched off, Caveman keeps metadata, payload hashes, token counts, costs, and durations only.
+
+<Warning>
+  Metadata-only traffic cannot supply raw replay fixtures. Do not assume every installation records prompts or responses. Check your organization's retention settings if you need payload content for debugging or evaluation.
+</Warning>
+
+## Payload storage and consent
+
+Three consents govern what happens to your data. They are stated separately and can be managed independently:
+
+| Consent | Scope | What it permits |
+| --- | --- | --- |
+| **Payload storage** | Organization-wide | Keeping request and response bytes at all |
+| **Training use** | Organization-wide | Using those bytes for Caveman product improvement |
+| **Replay consent** | Per project | Sending redacted bytes to a third-party model as evaluation or improvement input |
+
+Payload storage is the floor. Without it, neither training use nor replay consent can reach anything, because bytes that were never kept cannot be reused. Training use and replay are independent above that floor: you can allow replay for evaluation without consenting to product-wide training, or vice versa.
+
+Replay consent is on by default for every project. A person in your organization can revoke it per project through the console or API. Free organizations may have restrictions on switching payload storage or training use off, depending on plan terms.
+
+## Retention and deletion
+
+You control how long data is kept through retention windows you set on your organization. Retention is a policy choice, not a product limit, and the rule is the same on every plan.
+
+| Data type | Default | Your control |
+| --- | --- | --- |
+| Request history (traces, spans, tool events, evaluations) | Kept until deleted | `trace_retention_days`: 1 to 36,500 days, or `null` to keep forever |
+| Prompt and response text, compression originals, SDK artifacts | Kept until deleted | `raw_payload_retention_days`: 1 to 36,500 days, or `null` to keep forever; or switch payload storage off to delete all |
+| Agent artifacts | Kept until deleted | `artifact_retention_days`: 1 to 36,500 days, or `null` to keep forever |
+
+Derived working data (semantic cache samples, traffic vectors, quality monitor checkpoints, router outcomes) keeps fixed system lifetimes. Shortening your request-history window also trims derived data that depends on it.
+
+When you set a window:
+
+- The daily retention job deletes expired rows and objects
+- Deletion is permanent: lifting the window later does not restore what was deleted
+- The console asks for confirmation before shortening a window
+
+When you switch payload storage off, the next daily run deletes all captures, compression originals, and artifacts for your organization. It also removes evaluation rows drafted from saved traffic. The run is resumable: if the job cannot finish in one day, it continues from its checkpoint the next day.
+
+## Request capture details
+
+Request captures share chunks with earlier captures from the same project, retention class, and creation hour. A capture whose earlier shared chunks have expired can become unreadable up to an hour before its own window ends. This is a storage optimization: sharing never keeps bytes past the retention window.
+
+Capture is best-effort under load. When the gateway's capture queue or byte budget is full, the request is still served and recorded, but its payloads are skipped and marked `skipped_backpressure`.
+
+## Tenant isolation
+
+Your tenant scope comes from verified authentication, never from a request label or payload field. Caveman enforces isolation at every storage layer:
+
+### Authentication to scope
+
+Every request carries a verified JWT or API key. That credential resolves to an organization and project context. All subsequent storage operations use that scope.
+
+### Storage boundaries
+
+Every database query, cache key, and stored object is scoped to your organization and project, and stored payloads are encrypted per tenant.
+
+### Encryption
+
+Payloads are envelope-encrypted. The encryption version binds the ciphertext to the organization, project, and data kind, so a ciphertext moved to another tenant cannot be decrypted.
+
+### ZDR mode
+
+Zero Data Retention (ZDR) stores no prompts, responses, tool results, artifacts, imports, or fixture bodies in any system. Payload viewers, replay fixtures, and semantic analysis are disabled. ZDR is a strict metadata-only mode for organizations with the highest sensitivity requirements.
+
+## Backups
+
+Hosted Cloud keeps daily backups with bounded retention.
+
+A deletion or retention trim reaches backups only when they age out. Customer-owned installations manage their own backup policy.
+
+## Organization deletion
+
+Scheduled organization deletion removes the tenant's records. User identities are global: an identity remains while another organization still references it. When the final referencing organization is purged, the unreferenced identity is deleted too. This preserves attribution for other tenants while completing erasure for yours.

@@ -1,0 +1,62 @@
+---
+title: "Import keys, budgets, and teams from LiteLLM or Kong"
+sidebarTitle: "Import Gateway Config"
+description: "Move governance from LiteLLM Proxy or Kong AI Gateway into Caveman: import providers, model allowlists, limits, budgets, projects, keys, and members in one pass."
+---
+
+If you already govern AI traffic with LiteLLM Proxy or Kong AI Gateway, **Governance → Switch** imports that configuration into Caveman Cloud so you do not rebuild keys, budgets, and teams by hand. Importing requires the Owner, Platform admin, or Developer role.
+
+## Supported sources
+
+| Source | What to paste |
+| --- | --- |
+| **LiteLLM Proxy** | Your `config.yaml`: `model_list`, `router_settings`, `litellm_settings`, `general_settings`, and `guardrails`. Optionally connect a running LiteLLM server to pull keys, teams, and users live. |
+| **Kong AI Gateway** | The output of `deck gateway dump -o kong.yaml`: services, routes, `ai-*` plugins, consumers, and consumer groups. |
+
+## What gets created
+
+| Caveman object | Comes from |
+| --- | --- |
+| Providers | Upstream providers referenced in the config |
+| Allowed models | The model list |
+| Limits and budget | Rate limits and budgets in the config |
+| Projects | LiteLLM teams or Kong consumer groups, one project each |
+| API keys | Existing keys, re-issued with fresh secrets |
+| Members | Users, invited by email |
+
+## Run an import
+
+<Steps>
+  <Step title="Choose the source format">
+    Open **Governance → Switch** and pick **LiteLLM Proxy** or **Kong AI Gateway**.
+  </Step>
+  <Step title="Paste the configuration">
+    Paste the YAML. For LiteLLM, you can also enter the server URL and master key to read keys, teams, users, budgets, and guardrails. Caveman only reads from the server; it never changes it.
+  </Step>
+  <Step title="Review the plan">
+    The **What Caveman will create** panel lists every provider, model, limit, project, key, and member before anything is written.
+  </Step>
+  <Step title="Add provider secrets">
+    Config files reference provider keys through environment variables such as `os.environ/OPENAI_API_KEY`. Paste the secret for each variable so Caveman can store it as a provider connection.
+  </Step>
+  <Step title="Apply and copy new keys">
+    Apply the import. New key secrets are shown **once**: copy them and update your apps.
+  </Step>
+</Steps>
+
+<Warning>
+  Key secrets cannot be copied over because the source system stores them hashed. Every imported key gets a new secret, so plan a cutover window to swap credentials in your apps.
+</Warning>
+
+Re-running an import is idempotent, so you can safely re-apply a partial run.
+
+## After the import
+
+- Check **Governance → Budgets** and **Governance → Keys** to confirm caps and per-key limits match what you expect.
+- Add `team` and `cost-center` tags to imported keys for [cost allocation](/governance/cost-allocation).
+- Point your apps at the Caveman gateway URL with their new keys. See [Authentication](/authentication).
+
+## Next steps
+
+- [Manage the imported API keys](/governance/api-keys)
+- [Use LiteLLM alongside Caveman](/integrations/litellm)

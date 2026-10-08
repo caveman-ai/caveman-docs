@@ -1,0 +1,122 @@
+---
+title: "Inspect traces, workloads, and spend in Caveman Cloud"
+sidebarTitle: "Traces and Spend"
+description: "Navigate the Caveman console to explore traces, workloads, analytics, and spend. Find expensive workloads, read cost per task, and interpret verified savings."
+---
+
+The Caveman Cloud console organizes your telemetry into traces, workloads, spend, and analytics. This guide shows you how to find your traffic, read its cost structure, and use the built-in reports to spot expensive workloads and interpret what you see.
+
+## Traces
+
+Open **Traces** in the console to inspect every request that passed through the gateway. Each row is a trace with metadata: timestamp, cost, latency, model, agent, workflow, and population.
+
+### Search and filter
+
+The traces view supports three orthogonal controls:
+
+- **Filters** narrow which rows qualify (errors, cache hits, streamed, and more).
+- **Sort** ranks matching rows by timestamp, cost, latency, or token count.
+- **Group** rolls rows up by session, workflow, model, member, or auth mode.
+
+Use the view presets for common starting points: All traces, Errors, Slow, or Expensive.
+
+### Inspect a single trace
+
+Click a trace row to open its detail page. You will see:
+
+- **Spans**: the call tree within the trace, with latency for each span.
+- **Cost**: measured spend for the trace, labeled with its basis.
+- **Metadata**: model, provider, agent, workflow, request ID, and optimization headers applied.
+- **Payload**: captured request and response bodies, if retention policy and permissions allow.
+
+<Warning>
+  Payload access depends on retention policy and consent. Metadata-only traffic cannot supply raw replay fixtures. Do not assume every installation records prompts or responses.
+</Warning>
+
+### Trace cost accounting
+
+Each trace shows its measured cost at catalog list price. Three labels matter:
+
+- **Measured spend**: observed usage priced from the catalog. This is the baseline.
+- **Inferred savings**: counterfactual estimates from detectors. These are not invoice reductions.
+- **Verified savings**: provider-grounded causal attribution. Starts at zero and only grows when qualifying evidence exists.
+
+## Workloads
+
+A workload is a grouped unit of traffic, typically by agent or workflow label. Open **Quality → Workloads** to see the workload list.
+
+### Read a workload page
+
+Each workload page shows tiles for:
+
+- **Pass rate (7d)**: the share of tasks that meet criteria over the last 7 days.
+- **Tasks (7d)**: total task count, with how many were judged.
+- **Cost per task**: the average cost of one task in this workload, with its basis.
+- **Judges**: how many eval judges are trusted, plus any warnings.
+- **Grading**: current monitor status and spend against its daily cap.
+
+<Note>
+  Cost per task is not automatically cost per successful task. The average includes failed and incomplete tasks.
+</Note>
+
+### Find expensive workloads
+
+Sort workloads by cost per task or total tasks to find the workloads that drive the most spend. A workload with a high cost per task and many tasks is the strongest candidate for optimization. Use the **Cave Plan** page to see ranked improvement opportunities per workload.
+
+## Spend
+
+Open **Spend** for one bill per period. The page shows:
+
+- Tile overview: total spend, plus speed metrics.
+- Axis breakdown: cut spend by person, agent, key, end user, project, workflow, task type, model, provider, or endpoint.
+- The default axis is **workflow**; switch to **model** or **member** to answer different questions.
+
+Spend is read in billing periods, so the time ladder skips 14-day windows.
+
+### Verified savings
+
+Open **Improvements → Verified savings** to inspect the ledger of provider-measured savings that Caveman changes caused. Every entry is grounded in one of three qualifying methods:
+
+1. Provider cache read on a breakpoint Caveman placed (Anthropic models)
+2. Compression where the provider counted fewer input tokens
+3. A saving proven by a test with complete provider usage
+
+Verified savings stay at zero until that evidence exists. They can be negative when cache-write premiums exceed read savings so far.
+
+<Warning>
+  Only pay-as-you-go API-key traffic qualifies for verified savings. Subscription and OAuth logins never qualify. Requests sent with `x-cave-optimize: off` earn nothing.
+</Warning>
+
+## Analytics
+
+Open **Analytics** for population-level views.
+
+### Usage
+
+**Analytics → Usage** shows tokens and requests by model, provider, and project. Toggle between the token view and the cost view. The cost view is only enabled when catalog pricing is fully available.
+
+Key metrics:
+
+- **Tokens by model**: input, output, and cached token shares.
+- **Cost by model**: catalog subtotal and effective rate per million tokens.
+- **Per request averages**: when token coverage is complete.
+
+Coverage gaps (incomplete pricing, malformed rows, or unavailable usage) are reported in a footer bar so you know when a number is partial.
+
+### Traffic shape
+
+**Analytics → Traffic shape** reports population, model and provider mix, input and output shape, errors, and coverage limits for a bounded window. Use it to compare compatible cohorts before attributing a change to an optimization.
+
+### Efficiency and routing
+
+**Analytics → Efficiency** and **Analytics → Routing** show optimization-specific reports. Efficiency reports cache hit rates and compression impact. Routing reports model mix and any automatic routing decisions.
+
+## Dashboards
+
+Open **Dashboards** for charts of your traffic, built by you or your coding agent. Every project includes the read-only **Cost and quality** and **Coding agent insights** dashboards. See [Custom dashboards](/analytics/custom-dashboards) to build your own and set alerts.
+
+## Next steps
+
+- [Query your telemetry with SQL for custom analysis](/guides/query-with-sql)
+- [Control what the gateway does per request](/guides/control-optimizations)
+- [Run evaluations to build quality evidence](/guides/evals)

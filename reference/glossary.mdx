@@ -1,0 +1,245 @@
+---
+title: "Glossary of Caveman Cloud terms and concepts"
+sidebarTitle: "Glossary"
+description: "Alphabetical definitions of Caveman Cloud terms found across the documentation, console, and CLI, with links to the pages that cover each topic."
+---
+
+This glossary defines the terms you will encounter in Caveman Cloud documentation, the console, and the CLI. Every entry links to the page that covers the concept in depth.
+
+---
+
+## A
+
+**Agent label** : The `x-cave-agent` header that names the application component sending a request. Labels identify traffic for reporting and workload grouping but do not grant access. See [Workloads](/concepts/workloads).
+
+**Anthropic-cache-breakpoints** : The S0 optimizer that injects ephemeral `cache_control` markers on the largest stable prefix for Anthropic models. This is a byte-safe, on-by-default optimization and one of the three paths to [verified savings](/concepts/savings-evidence).
+
+**API key, Cave** : The `CAVE_API_KEY` that authenticates requests to the Caveman gateway. It is separate from your upstream provider key. See [Authentication](/authentication) and [Connect Workload](/guides/connect-workload).
+
+**Ask Caveman** : The agent-assisted investigation surface where you ask questions about your traffic and workloads. Responses can read your connected repository when authorized. See [Built-in AI](/concepts/built-in-ai) and [Improvements](/guides/improvements).
+
+**Automation** : The continuous agent work that watches your workloads: repository scans, production investigations, pull-request reviews, and repair pull requests. All four kinds are off by default and operator-gated. See [Automation](/guides/automation).
+
+## B
+
+**Baseline** : The measured spend at catalog list price before any optimization is applied. This is the reference against which inferred headroom and verified savings are compared. See [Savings Evidence](/concepts/savings-evidence).
+
+**Bedrock-cache-points** : The S1 optimizer that adds Bedrock-native cache markers to Anthropic Claude models on Amazon Bedrock. It is opt-in and is one of the three paths to verified savings. See [Optimizations](/concepts/optimizations).
+
+**Budget, hard** : A spend cap that blocks traffic at admission when the reservation would exceed it. See [Team and Admin](/guides/team-and-admin).
+
+**Budget, proving** : The monthly cap on agent spend for candidate generation and replay experiments. Defaults to 10% of prior 30-day model spend, capped at 250 USD. See [Built-in AI](/concepts/built-in-ai).
+
+**Budget, soft** : A spend threshold that sends an Inbox item and email when crossed, without blocking traffic. See [Team and Admin](/guides/team-and-admin).
+
+**BYOK (Bring Your Own Key)** : The model where you use your own provider API keys; Caveman routes traffic to your provider with your credentials and never resells access. See [Security Overview](/solutions/security-review).
+
+**Byte-safe** : A guarantee that the gateway changes only provider-native hints (not model-visible text) unless the request explicitly asks for compression or another behavioral optimizer. See [Control Optimizations](/guides/control-optimizations).
+
+## C
+
+**Canary** : A rollout pattern where an optimization runs on a small share of traffic with continuous eval monitoring before expanding. See [Rollout Safety](/concepts/rollout-safety).
+
+**Cave API key** : See **API key, Cave**.
+
+**Cave Plan** : The ranked list of improvement opportunities per workload, synthesized from detector output and rendered as Moves with inferred headroom. See [Improvements](/guides/improvements).
+
+**cave-auto** : The agent mode in the CLI that generates and evaluates candidate changes. See [CLI](/cli/cvm).
+
+**CCR (Compression Counterfactual Recovery)** : The system that stores encrypted compression originals so prompts can be recovered byte-for-byte. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Compress (lossless)** : The S2 optimization that rewrites JSON tool output to a shorter form that round-trips to the same value. Triggered with `x-cave-optimize: compress=lossless`. See [Control Optimizations](/guides/control-optimizations).
+
+**Compress (lossy)** : The S4 optimization that changes model-visible bytes. It runs only when requested with `x-cave-optimize: compress`, stores encrypted originals for recovery, and is gated by eval and policy. See [Optimizations](/concepts/optimizations).
+
+**Connect Workload** : The tutorial for routing an existing application's LLM calls through the Caveman gateway. See [Connect Workload](/guides/connect-workload).
+
+**Coverage** : The share of traffic that carries complete, catalog-priced telemetry. Low coverage means some models are unpriced or requests lack token counts. See [Traces and Spend](/guides/traces-and-spend).
+
+**cvm** : The Caveman Cloud CLI. Use it to query traces, run SQL, manage evals, and operate the control plane. See [CLI](/cli/cvm).
+
+## D
+
+**Decision model** : A dedicated model connected for consistent, independent eval judgments in Compare and route rollouts. See [Decision Models](/guides/decision-models).
+
+**Detector** : A worker process that profiles traffic and writes opportunity rows with inferred headroom. Each detector belongs to a mutex family so headroom is never double-counted. See [Optimizations](/concepts/optimizations).
+
+## E
+
+**Engineer** : One of five organization roles (owner, admin, engineer, viewer, billing). Engineers can integrate workloads and run queries but cannot modify owner access or publish aggressive policies. See [Team and Admin](/guides/team-and-admin).
+
+**Eval gate** : The quality threshold that must be cleared by an experiment before an S1 or S3 optimizer can run in production. See [Evals](/guides/evals) and [Rollout Safety](/concepts/rollout-safety).
+
+**Evidence report** : The structured report attached to every improvement attempt, containing one claim, approach, physics proof, judged proof, evidence links, proving cost, and recommended action. See [Improvements](/guides/improvements).
+
+## F
+
+**Factory proving project** : The special project whose key Caveman internal agents carry. It is pinned to metadata-only retention regardless of organization settings. See [Data and Privacy](/concepts/data-and-privacy).
+
+## G
+
+**Gateway** : The stateless reverse proxy that authenticates requests, applies optimizations, forwards to providers, and emits telemetry. See [How It Works](/concepts/how-it-works).
+
+**Gateway URL** : The origin of your Caveman installation, with no trailing slash. Example: `https://gateway.caveman.so`. See [Quickstart](/quickstart).
+
+**Guardrail** : A check that runs against requests and responses to mask or block sensitive content. See [Team and Admin](/guides/team-and-admin).
+
+## H
+
+**Hard cap** : See **Budget, hard**.
+
+**Headroom** : The inferred dollar opportunity detected by a worker for a given workload, expressed as a per-day rate. See [Optimizations](/concepts/optimizations).
+
+**Headroom by class** : The Cave Plan aggregation that splits total inferred headroom across safety classes (S0-S3) so you can see what zero app change earns versus what cooperation unlocks. See [Optimizations](/concepts/optimizations).
+
+## I
+
+**Implied** : See **Inferred**.
+
+**Improvement attempt** : One lap of the self-driving loop focused on a single workload: generate, screen, replay, evaluate, and surface as a reviewable proposal. See [Improvements](/guides/improvements).
+
+**Inbox** : The org-scoped decision queue that shows what Caveman noticed, what it did, and what needs your decision. Every proposal enters the Inbox for human review. See [Automation](/guides/automation) and [Improvements](/guides/improvements).
+
+**Inferred** : The rung label for modeled estimates, local counterfactuals, or per-day rates. Inferred is not a promise and cannot be summed with measured or verified. See [Savings Evidence](/concepts/savings-evidence).
+
+**Installation** : A deployed instance of Caveman Cloud, which may be hosted (managed by Caveman) or customer-owned (in your VPC). See [Deployment Options](/solutions/deployment-options).
+
+## J
+
+**Judged proof** : The eval results and model judgments in an Evidence report that depend on task-specific criteria. Contrasts with physics proof. See [Improvements](/guides/improvements).
+
+## L
+
+**Label** : See **Agent label** and **Workflow label**.
+
+**LiteLLM** : An LLM gateway that can send OpenTelemetry traces to Caveman via its exporter, keeping provider credentials in LiteLLM while Caveman receives telemetry. See [Integrations](/integrations/litellm).
+
+**Lossless** : See **Compress (lossless)**.
+
+## M
+
+**Measured** : The rung label for observed spend at catalog list price. It is honest subtotal, not an invoice, and stays separate from inferred and verified. See [Savings Evidence](/concepts/savings-evidence).
+
+**Member key** : An API key with broader scopes for organization-level access, contrasting with a project key. See [Connect Workload](/guides/connect-workload).
+
+**Metadata-only** : The retention mode where Caveman stores only spans, token counts, costs, latency, and hashes; no prompt or response bodies are kept. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Monitor, live** : A configured quality monitor that samples production traffic and alerts on degradation. Requires current qualification, budgets, and provider access. See [Evals](/guides/evals).
+
+**Move** : A ranked improvement opportunity in the Cave Plan, synthesized from detector output and rendered with headroom, safety class, and recommended action. See [Improvements](/guides/improvements).
+
+**Mutex family** : A group of overlapping detectors where at most one member survives per `(agent, workflow, model, day)`. This prevents double-counting headroom. See [Optimizations](/concepts/optimizations).
+
+## O
+
+**Observed** : The rung label for before/after correlation over two windows, not causal proof. Distinct from inferred and verified. See [Savings Evidence](/concepts/savings-evidence).
+
+**Opportunity** : See **Headroom**.
+
+**Optimizer** : A gateway component that modifies requests to reduce cost. Optimizers are grouped by safety class (S0-S4) and gated by policy, capability, and eval gates. See [Control Optimizations](/guides/control-optimizations).
+
+**Output-brevity** : The S1 behavioral optimizer that adds a 512-token output cap on OpenAI models when the caller sets none. It is off by default and eval-gated. See [Control Optimizations](/guides/control-optimizations).
+
+## P
+
+**Payload storage** : The organization-wide consent that permits keeping request and response bytes. It is on by default and can be switched off for metadata-only mode. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Per-request key** : An upstream provider key passed in `x-cave-upstream-key` on a single request, used but not stored by Caveman. See [Security Overview](/solutions/security-review).
+
+**Physics proof** : The arithmetic or structural evidence in an Evidence report (token counts, latency, schema checks) that is independent of model judgment. See [Improvements](/guides/improvements).
+
+**Population** : The origin class of a trace: `agent` (production traffic), `engineer` (coding agents), or `unknown`. See [Workloads](/concepts/workloads).
+
+**Project key** : An API key scoped to a single project, typically with `sql:read` and gateway access. See [Connect Workload](/guides/connect-workload).
+
+**Prompt cache** : Provider-native caching of long prefixes, enabled by gateway optimizers such as `anthropic-cache-breakpoints` and `openai-prompt-cache-key`. See [Optimizations](/concepts/optimizations).
+
+**Proving budget** : See **Budget, proving**.
+
+## R
+
+**RACI** : The responsibility-assignment matrix used in the [Adoption Playbook](/solutions/adoption-playbook) to clarify who develops, governs, and finances each adoption activity.
+
+**Rate limit** : The per-key and per-workflow request limits that control throughput. See [Control Optimizations](/guides/control-optimizations).
+
+**Raw payload** : The request and response bodies stored when payload storage is on. Raw payload read requires owner or admin role. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Reasoning-effort** : The S1 behavioral optimizer that sets `reasoning_effort: "low"` on reasoning-capable OpenAI models when the caller sets none. It is off by default and eval-gated. See [Control Optimizations](/guides/control-optimizations).
+
+**Record mode** : The gateway pass-through mode where no optimization runs and requests are forwarded byte-identical. Activated with `x-cave-optimize: off`. See [Control Optimizations](/guides/control-optimizations).
+
+**Replay** : Running a candidate change against recorded traffic to evaluate quality before deployment. Requires payload storage or replay consent. See [Evals](/guides/evals).
+
+**Replay consent** : The per-project consent that permits sending redacted bytes to a third-party model as Factory Builder and judge input. It is on by default. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Response cache** : The gateway's own stored answers cache, separate from provider prompt cache. Controlled with `x-cave-cache`. See [Control Optimizations](/guides/control-optimizations).
+
+**Retry strategy** : The approach Caveman uses to handle transient provider errors, falling back to the original request when an optimization fails. See [How It Works](/concepts/how-it-works).
+
+**Role** : One of five organization roles: owner, admin, engineer, viewer, billing. See [Team and Admin](/guides/team-and-admin).
+
+**Rollback** : Reverting an optimization or policy change when eval gates detect quality degradation. See [Rollout Safety](/concepts/rollout-safety).
+
+**Rollout safety** : The framework that governs how optimizations move from experiment to production, with eval gates, shadow mode, and canary for higher safety classes. See [Rollout Safety](/concepts/rollout-safety).
+
+**Routing ask** : A `POST /v1/route` call where the gateway reads the ask text in memory to choose a model and effort, but does not store the text. See [Security Overview](/solutions/security-review).
+
+**Routing hint** : See **Optimizer**.
+
+## S
+
+**Safety class** : The classification of an optimization's risk level: S0 (byte-safe, default), S1 (provider-native change), S2 (structural, needs SDK cooperation), S3 (behavioral, eval-gated rollout), S4 (lossy compression, opt-in with recovery). See [Optimizations](/concepts/optimizations) and [Rollout Safety](/concepts/rollout-safety).
+
+**Savings evidence** : The three labeled kinds of numbers Caveman reports: measured, inferred, and verified. See [Savings Evidence](/concepts/savings-evidence).
+
+**Scoped access token** : An integration token that narrows the caller's access to a subset of their role's permissions. Authorization is the intersection of role and scope. See [Team and Admin](/guides/team-and-admin).
+
+**Shadow mode** : A rollout stage where the optimization executes but its result is not served, used to prove safety before canary. See [Rollout Safety](/concepts/rollout-safety).
+
+**Soft cap** : See **Budget, soft**.
+
+**SSO** : Single sign-on via OIDC or SAML, configured in the console under **SSO**. See [Team and Admin](/guides/team-and-admin).
+
+**Stored connection** : A provider key saved once in **Gateway → Connections** so callers do not need to send `x-cave-upstream-key` per request. See [Connect Workload](/guides/connect-workload).
+
+**Subprocessor** : A third party engaged by Caveman on its own account (Google Cloud, ClickHouse Cloud, Cloudflare, etc.). Model providers reached via BYOK are your own processors, not Caveman subprocessors. See [Security Review](/solutions/security-review).
+
+## T
+
+**Task** : One run of a workload, including all requests that share a session ID within the gateway's idle window. Cost per task is the optimization target. See [Workloads](/concepts/workloads).
+
+**Telemetry, CLI** : Usage data sent by the `caveman` CLI by default in interactive terminals, including command events and exit classes but never prompts or code. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Tenancy isolation** : The application-level boundary that scopes every query to a verified organization ID, never a client-supplied value. See [Data and Privacy](/concepts/data-and-privacy).
+
+**TOON (Text Object Notation)** : The compact encoding used by the lossless compression tier for JSON tool results. See [Optimizations](/concepts/optimizations).
+
+**Trace** : One request through the gateway, with metadata and optional payload capture. See [Traces and Spend](/guides/traces-and-spend).
+
+**Trace retention** : The organization-wide window (`trace_retention_days`) that controls how long request history is kept. See [Data and Privacy](/concepts/data-and-privacy).
+
+**Training consent** : The organization-wide consent that permits using captured bytes for Caveman product improvement. See [Data and Privacy](/concepts/data-and-privacy).
+
+## U
+
+**Upstream key** : The provider API key sent in `x-cave-upstream-key` when Caveman does not store a team key for the project. See [Connect Workload](/guides/connect-workload) and [Security Overview](/solutions/security-review).
+
+**Usage** : Provider-reported token counts and related metrics. Caveman uses provider counts, never local tokenizer output, for measured spend and verified savings. See [Savings Evidence](/concepts/savings-evidence).
+
+## V
+
+**Verified** : The rung label for per-request causal proof where a Caveman transform caused a provider-measured delta. Verified stays zero without qualifying evidence. See [Savings Evidence](/concepts/savings-evidence).
+
+**Verified method** : One of three causal proof methods: `provider_causal_cache` (Anthropic direct), `provider_causal_cache_bedrock` (Bedrock Claude), and `provider_counted_baseline_delta` (counted transformed requests). See [Savings Evidence](/concepts/savings-evidence).
+
+**Viewer** : One of five organization roles, with read access to traces, spend, and reports but no mutation permissions. See [Team and Admin](/guides/team-and-admin).
+
+## W
+
+**Workload** : The unit of observation in Caveman Cloud: a stream of requests sharing a common shape, identified by labels. Workloads can be registered (declared) or observed (discovered from traffic). See [Workloads](/concepts/workloads).
+
+**Workflow label** : The `x-cave-workflow` header that names the task or flow within an agent. Labels are case-sensitive and used for cost attribution. See [Workloads](/concepts/workloads).
+
+## Z
+
+**Zero Data Retention (ZDR)** : The strict metadata-only mode that stores no prompt, response, tool result, artifact, import, or fixture bodies in any system. Activated with `x-cave-retention: zdr`. See [Data and Privacy](/concepts/data-and-privacy).

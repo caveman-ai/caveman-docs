@@ -1,0 +1,100 @@
+---
+title: "Authenticate with Caveman Cloud: API Keys and Credentials"
+sidebarTitle: "Authentication"
+description: "Learn how Caveman Cloud authentication works: the Cave API key vs the upstream provider key, project scoping, CLI sign-in, CI tokens, MCP OAuth, and common auth errors."
+---
+
+Caveman Cloud uses two separate credentials. The **Cave API key** authenticates you to Caveman Cloud. The **upstream provider key** authenticates to the model provider. They have different audiences, different rotation paths, and different error behavior when they are missing or invalid.
+
+## The two credentials
+
+| Credential | Header | Audience | How it is created |
+| --- | --- | --- | --- |
+| Cave API key | `x-cave-api-key: <Cave key>` or `authorization: Bearer <Cave key>` | Caveman Cloud Gateway and Control API | Generated in the console under **Gateway, Connect** or via **Governance, Keys** |
+| Upstream provider key | `x-cave-upstream-key` | The model provider (OpenAI, Anthropic, Google, and so on) | Created in the provider's own dashboard; stored in Caveman Cloud or sent per request |
+
+The Cave key carries your tenant and project scope. The upstream key is forwarded by the gateway to the provider on your behalf. When you store the upstream key in a Caveman Cloud provider connection, you can drop the `x-cave-upstream-key` header from requests.
+
+<Tip>
+  Never commit either key to source control. Use environment variables or a secret manager.
+</Tip>
+
+## Gateway authentication
+
+Send the Cave API key on every request to the gateway. The gateway reads the `x-cave-api-key` header first and falls back to `authorization: Bearer <key>`, so both styles work. It resolves your organization and project from the key, then forwards the request upstream with the provider key.
+
+<Note>
+  Use `authorization: Bearer` when your SDK puts its `apiKey` there (for example, the OpenAI SDK with `apiKey: CAVE_API_KEY`). Use `x-cave-api-key` when the SDK's `apiKey` slot must carry the provider key instead, as in the [OpenAI](/integrations/openai) and [Anthropic](/integrations/anthropic) integration examples.
+</Note>
+
+```bash
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
+  -H "x-cave-agent: support-agent" \
+  -H "x-cave-workflow: resolve-ticket" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+```
+
+Labels like `x-cave-agent` and `x-cave-workflow` identify traffic for reporting. They do not grant access. Tenant scope always comes from the verified API key, never from a request label or payload field.
+
+## Control API and console authentication
+
+The console and the control API authenticate with the same identity system used by the gateway. When you sign in through the browser, the console obtains an access token for control-plane operations. The Cloud SDKs and CLI use the same token.
+
+### CLI sign-in
+
+Install the `cvm` CLI and sign in once through the browser. The CLI reuses the credential saved by `caveman login`.
+
+```bash
+npm i -g @caveman-ai/cloud
+cvm login
+```
+
+In headless environments such as CI, set `CAVE_TOKEN` and, for a private installation, `CAVE_API_URL`. Signed-out `cvm` commands exit with code 3 instead of hanging.
+
+```bash
+export CAVE_TOKEN="cave_live_..."
+export CAVE_API_URL="https://your-installation.caveman.so"
+cvm projects list
+```
+
+Non-secret config sits at `~/.caveman-cloud/config.json`. Auth tokens go to the OS keychain when available, with a file fallback under `~/.caveman/credentials`.
+
+### MCP and coding agents
+
+Coding agents connect through the MCP endpoint using browser OAuth. Open **Connect your coding agent** in the dashboard. The approval binds one project and defaults to metadata reads; content, authoring, and paid execution stay opt-in. No Caveman CLI or gateway key is required for this path.
+
+OAuth uses S256 PKCE and issuer-bound authorization responses. There is no dynamic client registration.
+
+## Project scoping
+
+Keys, traces, workloads, evals, and SQL queries are all scoped to a project. When using the CLI, you can target a project with:
+
+- `--project UUID`
+- The `CAVE_PROJECT_ID` environment variable
+- `cvm context bind` (writes `.caveman-cloud.json` in the repository)
+- The saved default project
+
+SDK calls require `projectId` at initialization.
+
+## Key rotation and governance
+
+Project owners and admins manage API keys under **Governance, Keys** in the console. You can create, revoke, and review key usage. Identity administration and credential lifecycle remain human-only: shared agents cannot create or rotate keys.
+
+A Cloud access token and a gateway inference key have different audiences. Do not use one where the other is expected.
+
+## Common auth errors
+
+| Error | What it means | What to do |
+| --- | --- | --- |
+| 401 Unauthorized | The Cave API key is missing, revoked, or malformed. | Check that `authorization: Bearer <key>` is present and the key is active in **Governance, Keys**. |
+| 403 Forbidden | The key is valid but the operation is outside the caller's role or project scope. | Verify the project assignment and role. Some actions are human-only. |
+| `cave_budget_exceeded` (429) | A project or key hard budget is reached. The response carries `x-should-retry: false`. | Do not retry. Raise the cap or wait for the window to reset. See [Budgets](/governance/budgets#handle-budget-responses-in-your-app). |
+| `cave_spend_rate_soft_limit_exceeded` (429) | A spend-rate quota with refusal turned on was crossed. | Back off and retry later, or raise the quota in **Governance, Budgets**. |
+| `cave_invalid_optimize_override` (400) | The `x-cave-optimize` header contains an unknown token. | Correct the header value. The gateway never guesses what you meant. |
+| `cave_sql_unavailable` (503) | The SQL boundary self-check has not passed or has failed. | Retry later. The route answers 503 until the database probe succeeds. |
+| CLI exit code 3 | Signed out or forbidden. | Run `cvm login` or check that `CAVE_TOKEN` is set in CI. |
+
+For SQL access, per-person columns need `billing:read`, payload columns need `payload:read`, and agent connections additionally need `trace:read_payload`. Project keys with `sql:read` can query their own project only.
