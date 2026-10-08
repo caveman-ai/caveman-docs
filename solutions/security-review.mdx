@@ -118,6 +118,48 @@ The active, enforced boundary is application-level organization scoping. Every q
 
 Cross-tenant access is denied and tested. Handlers never scope from a client-supplied organization or project ID, and never return a synthesized object: they read real organization-scoped rows or return 404.
 
+## Agent access to your repository
+
+Built-in agent runs, such as Ask and Factory, work in a real git checkout of the connected repository at the commit Caveman admitted the run on.
+
+### What reaches the model provider
+
+The checkout includes the last `nativeAgents.source.historyDepth` commits of history. The default is 50. That history can reach your model provider:
+
+- Commit messages
+- Author names and email addresses
+- Earlier versions of files within the history depth, including secrets removed from the latest commit
+
+Caveman removes `.env*` files and every file that can change an agent's tools or permissions from the working tree: `opencode.json`, `.opencode/`, `.claude/settings*.json`, `.claude/agents/`, `.claude/commands/`, `.mcp.json`, `.cursor/mcp.json`, `.cursor/cli.json`, `.cursor/hooks.json`, `.vscode/mcp.json`, `.github/agents/`, `.github/prompts/`, `.github/chatmodes/`, `.gemini/settings.json`, `.gemini/commands/`, `.gemini/extensions/`, `.codex/`, `.roo/mcp.json`, `.roomodes`, `.kiro/settings/mcp.json`, `.amazonq/mcp.json`, `.zed/settings.json`, and `.caveman-cloud.json`. These files stay readable through git history within the depth. Instruction files such as `AGENTS.md`, `CLAUDE.md`, and skills stay readable in the working tree. A proposed change that carries a removed file is refused.
+
+### Control the history depth
+
+Lower the depth if older commits in a repository hold data you do not want sent to the model provider. Set it in your Helm values:
+
+```yaml values.yaml
+nativeAgents:
+  source:
+    # Commits of history in each checkout. 0 is the whole history, 1 is the tip alone.
+    historyDepth: 50
+```
+
+### Credential custody
+
+GitHub credentials never reach the agent's sandbox:
+
+1. The control API mints a read-only token for one repository.
+2. The control API relays git for exactly the admitted commit and depth, under a per-fetch byte cap (`nativeAgents.source.maxBundleMiB`, default 1024). A larger fetch returns `413 source_too_large`.
+3. A separate source fetcher runs git and assembles the checkout. The fetcher holds no credential of any kind, runs on the same sandbox kernel as the agent, and can reach only the control API's relay port.
+4. The control API revokes the token and re-checks the run's authority before the agent receives anything.
+
+The control API never parses repository objects itself. It caches a built checkout unencrypted on the pod's scratch volume for at most 16 minutes. The fetcher removes its scratch data when each fetch ends.
+
+### Ask working copies
+
+An Ask conversation keeps its working copy between turns. Caveman saves a changed working copy in your installation's artifact storage, encrypted like every agent artifact. The next turn continues on the commit Caveman admitted the earlier turn at, read from Caveman's own records. Anything an agent writes can reach the next turn of the same conversation, never another conversation, and is never pushed.
+
+File citations and review evidence are checked separately against GitHub through the REST API. Caveman re-hashes every directory on the way to a cited file against the admitted commit and refuses a mismatch.
+
 ## Access control
 
 ### Authentication methods
