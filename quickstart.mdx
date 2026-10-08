@@ -1,21 +1,23 @@
 ---
 title: "Quickstart: Send Your First Request to Caveman Cloud"
 sidebarTitle: "Quickstart"
-description: "Get from zero to a live trace in Caveman Cloud in a few minutes: sign in, create a project and API key, configure your client, send a request, and view it in Traces."
+description: "Get from zero to a live trace in Caveman Cloud in a few minutes: create an account or sign in, create a project and API key, configure your client, send a request, and view it in Traces."
 ---
 
-This guide takes you from signing in to viewing your first trace in the Caveman Cloud console. You need an existing upstream model provider account (for example OpenAI) with an API key.
+This guide takes you from creating an account to viewing your first trace in the Caveman Cloud console. You need an existing upstream model provider account (for example OpenAI) with an API key.
 
 <Tip>
   **Fastest path: let your coding agent do it.** In the console, open **Getting Started**, then **Send one request**, and choose the option where your coding agent does the wiring. Caveman Cloud gives you a prompt with your gateway URL and a fresh Cave key to paste into your agent. See [Connect your coding agent](/guides/connect-coding-agent) and [Automated AI setup](/guides/ai-setup). The manual steps below are the alternative.
 </Tip>
 
 <Steps>
-  <Step title="Sign in to the console">
-    Open your Caveman Cloud console in a browser and sign in. Invited members land directly in the project they were invited to.
+  <Step title="Create an account or sign in">
+    Open your Caveman Cloud console in a browser. If you already have an account, sign in. Invited members land directly in the project they were invited to.
+
+    To create an account on hosted Caveman Cloud, choose **Create an account** and sign up with email and password, Google, or GitHub. Accept the Free notice, then confirm your email if you signed up with a password. At your first sign-in, Caveman Cloud creates a personal Free workspace that you own, with a project named **Default**. See [Create an account](/authentication#create-an-account).
   </Step>
   <Step title="Create a project">
-    From the console, create a new project and name it. The project is the scope for all traces, keys, and workloads you will inspect.
+    Use the **Default** project, or create a new project from the console and name it. The project is the scope for all traces, keys, and workloads you will inspect.
   </Step>
   <Step title="Create a Cave API key">
     Go to **Gateway, Connect** and generate a Cave API key. Copy the key value and the gateway URL. The gateway URL is the origin for your installation, with no trailing slash. For example: `https://gateway.caveman.so`.

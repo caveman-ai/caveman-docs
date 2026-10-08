@@ -1,7 +1,7 @@
 ---
 title: "Authenticate with Caveman Cloud: API Keys and Credentials"
 sidebarTitle: "Authentication"
-description: "Learn how Caveman Cloud authentication works: the Cave API key vs the upstream provider key, project scoping, CLI sign-in, CI tokens, MCP OAuth, and common auth errors."
+description: "Learn how Caveman Cloud authentication works: creating an account, the Cave API key vs the upstream provider key, project scoping, CLI sign-in, CI tokens, MCP OAuth, and common auth errors."
 ---
 
 Caveman Cloud uses two separate credentials. The **Cave API key** authenticates you to Caveman Cloud. The **upstream provider key** authenticates to the model provider. They have different audiences, different rotation paths, and different error behavior when they are missing or invalid.
@@ -39,6 +39,49 @@ curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
 
 Labels like `x-cave-agent` and `x-cave-workflow` identify traffic for reporting. They do not grant access. Tenant scope always comes from the verified API key, never from a request label or payload field.
 
+## Create an account
+
+Hosted Caveman Cloud has open sign-up. Open the console and choose **Create an account**, or go to `/signup`. You can sign up with:
+
+- **Email and password.** Caveman Cloud emails you a confirmation link. Open the link and enter the password you chose at sign-up to confirm the address. Confirming does not sign you in. Sign in next with your email and password. If you forgot the password, choose **Reset it**. The reset also confirms the address.
+- **Google** or **GitHub.** The provider must have verified your email address.
+
+Signing up again with an unconfirmed address sends a set-password link instead of a new confirmation. Sign-ups are rate-limited per client address.
+
+### The Free notice
+
+A new hosted account starts on the Free plan. Before Caveman Cloud creates your account's workspace, it shows the **How Free works** notice:
+
+> On Free, you agree that Caveman may use your prompt text and recorded requests to improve its models. Requests are kept until you delete them or your configured retention window expires. Add a card any time to turn sharing off.
+
+- **Accept and continue** records your answer for this notice version and continues sign-up.
+- **Decline** creates no workspace. You can keep using Caveman locally without an account with `npx @caveman-ai/cli`.
+
+The notice is versioned. If you sign in when a newer version applies before your workspace exists, Caveman Cloud shows the notice again and retries the sign-in after you accept.
+
+### Your personal workspace
+
+At your first sign-in, if you are not already a member of an organization, Caveman Cloud creates a personal organization for you:
+
+- You are the **owner**.
+- The organization is named after you, or after the part of your email address before the `@`.
+- It contains one project named **Default**, ready for keys and traffic.
+- On hosted Caveman Cloud, it is on the **Free** plan, and Caveman Cloud stores the accepted Free notice with it.
+
+Pending invitations do not block the personal workspace. They stay pending, and you can accept them later.
+
+### Sign-up on customer installs
+
+On a customer-managed installation, sign-up is off by default and the sign-up page shows "Sign-up is by invitation on this Cloud." Operators turn it on with the `auth.signup.open` Helm value, which requires the identity service and `global.deploymentProfile` set to `private`. A personal workspace created on a customer install gets the **enterprise** plan, and no Free notice is shown.
+
+```yaml
+global:
+  deploymentProfile: private
+auth:
+  signup:
+    open: true
+```
+
 ## Control API and console authentication
 
 The console and the control API authenticate with the same identity system used by the gateway. When you sign in through the browser, the console obtains an access token for control-plane operations. The Cloud SDKs and CLI use the same token.
@@ -51,6 +94,8 @@ Install the `cvm` CLI and sign in once through the browser. The CLI reuses the c
 npm i -g @caveman-ai/cloud
 cvm login
 ```
+
+`cvm login` opens the device page (`/activate`) with a code from your terminal. If you are signed out and do not have an account yet, choose **Create an account** on that page. The device code carries through sign-up, the Free notice, and email confirmation, so you return to `/activate` to approve the device once you sign in. The code stays valid for a few minutes. If it expires, run `cvm login` again.
 
 In headless environments such as CI, set `CAVE_TOKEN` and, for a private installation, `CAVE_API_URL`. Signed-out `cvm` commands exit with code 3 instead of hanging.
 
