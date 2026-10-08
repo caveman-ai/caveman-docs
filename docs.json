@@ -1,10 +1,10 @@
 {
-  "theme": "maple",
+  "theme": "willow",
   "name": "Caveman Cloud",
   "colors": {
-    "primary": "#1f9a4e",
-    "light": "#4ade80",
-    "dark": "#1F9A4E"
+    "primary": "#0A0A0A",
+    "light": "#FAFAFA",
+    "dark": "#4ADE80"
   },
   "navigation": {
     "tabs": [
@@ -174,5 +174,18 @@
   "favicon": {
     "light": "/images/caveman-mark-tile-4096.png",
     "dark": "/images/caveman-mark-tile-4096.png"
+  },
+  "appearance": {
+    "default": "dark",
+    "strict": true
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#000000"
+    }
+  },
+  "styling": {
+    "codeblocks": "dark"
   }
 }
