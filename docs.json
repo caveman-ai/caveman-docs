@@ -1,10 +1,10 @@
 {
-  "theme": "luma",
+  "theme": "maple",
   "name": "Caveman Cloud",
   "colors": {
     "primary": "#1f9a4e",
     "light": "#4ade80",
-    "dark": "#1f9a4e"
+    "dark": "#1F9A4E"
   },
   "navigation": {
     "tabs": [
@@ -165,5 +165,14 @@
   },
   "interaction": {
     "drilldown": true
+  },
+  "logo": {
+    "light": "/images/caveman-mark-white.svg",
+    "dark": "/images/caveman-mark-black.svg",
+    "href": "https://caveman.so"
+  },
+  "favicon": {
+    "light": "/images/caveman-mark-tile-4096.png",
+    "dark": "/images/caveman-mark-tile-4096.png"
   }
 }
