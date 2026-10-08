@@ -75,7 +75,7 @@ There are two credential paths:
   </Accordion>
 </AccordionGroup>
 
-Provider secrets are never returned to clients, never logged in plaintext, and redaction rules scrub `sk-` keys, bearer tokens, DSNs, and PEM blocks. An SSRF guard validates any custom provider base URL before it is persisted.
+Provider secrets are never returned to clients, never logged in plaintext, and redaction rules scrub `sk-` keys, bearer tokens, DSNs, and PEM blocks. An SSRF guard validates any custom provider base URL before it is persisted, again at the gateway on each request, and at the socket in the provider backend. Private addresses are refused. The one exception is a customer-owned install, where the operator can list exact private `host:port` upstreams, such as an in-VPC Kong, through the Helm value `privateUpstreams`. Each entry is bound to an RFC1918 range of `/24` or narrower. The chart refuses the value on hosted Cloud, and loopback, metadata, and CGNAT addresses stay blocked. See [Forward to a private upstream](/solutions/deployment-options#forward-to-a-private-upstream).
 
 ## Encryption
 

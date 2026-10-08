@@ -48,6 +48,10 @@ If you already govern AI traffic with LiteLLM Proxy or Kong AI Gateway, **Govern
   Key secrets cannot be copied over because the source system stores them hashed. Every imported key gets a new secret, so plan a cutover window to swap credentials in your apps.
 </Warning>
 
+<Note>
+  To keep Kong in place and put Caveman in front of it, point a provider at Kong's private address. On a customer-owned install, the operator must first list Kong's host and port in the Helm value `privateUpstreams`. Hosted Cloud does not allow private upstreams. See [Forward to a private upstream](/solutions/deployment-options#forward-to-a-private-upstream).
+</Note>
+
 Re-running an import is idempotent, so you can safely re-apply a partial run.
 
 ## After the import

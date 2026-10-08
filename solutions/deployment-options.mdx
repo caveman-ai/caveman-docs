@@ -73,6 +73,48 @@ Switching placement after install is refused until a separate migration is plann
 
 Stored provider keys are **off by default** on customer installs. The operator sets `providers.storedCredentialsEnabled: true` to allow storing team keys sealed under your KMS. Without stored keys, traffic must send `x-cave-upstream-key` per request. Provider secrets are never returned to clients and never logged in plaintext.
 
+### Forward to a private upstream
+
+A customer install can put Caveman in front of a private upstream inside your network, such as an in-VPC Kong AI Gateway that fronts your providers. By default, Caveman refuses a provider base URL that points at a private address, uses plain HTTP, or uses a port other than 443. The Helm value `privateUpstreams` opens exactly one `host:port` pair for each entry. The pair is opened at every hop:
+
+- The SSRF guard when control-api creates, verifies, or imports a provider.
+- The gateway pre-flight check on each request.
+- The provider backend, which checks the address it dials at the socket.
+- NetworkPolicy egress from the provider backend and control-api to `cidr` on `port`.
+
+Each entry takes these fields:
+
+| Field | Description |
+| --- | --- |
+| `host` | Hostname or RFC1918 IPv4 address used in the provider base URL. |
+| `port` | Port used in the provider base URL. HTTP and HTTPS are both allowed. |
+| `targetPort` | Optional. The pod port behind a Kubernetes Service when it differs from `port`. The entry then opens `cidr` on both ports. |
+| `cidr` | The range `host` must resolve into. Must be an RFC1918 IPv4 range of `/24` or narrower. |
+
+`cidr` is the address NetworkPolicy sees. For an internal load balancer or a VM, use the address `host` resolves to:
+
+```yaml values.yaml
+privateUpstreams:
+  - { host: kong.corp.internal, port: 8443, cidr: 10.20.4.17/32 }
+```
+
+For an in-cluster Service, your CNI may enforce policy before or after Service DNAT. List both the ClusterIP and the pod range behind it. Kong's chart default maps Service port 80 to container port 8000:
+
+```yaml values.yaml
+privateUpstreams:
+  - { host: kong-proxy.kong.svc.cluster.local, port: 80, cidr: 10.12.7.9/32 }
+  - { host: kong-proxy.kong.svc.cluster.local, port: 80, targetPort: 8000, cidr: 10.8.3.0/24 }
+```
+
+Then set the provider base URL to the listed host and port, for example `https://kong.corp.internal:8443`.
+
+These limits apply:
+
+- `privateUpstreams` requires `license.mode: installation-v2`. The chart refuses to render it on hosted Cloud, where any tenant could aim a provider at a listed private host.
+- Every address `host` resolves to must stay inside `cidr`. If the name starts resolving anywhere else, Caveman refuses the request at save time, at request time, and at the socket.
+- The request must name the host you listed. Listing an IP address does not open other hostnames that resolve to it.
+- Loopback, link-local and cloud metadata addresses, IPv6 unique-local, and CGNAT ranges stay blocked even for a listed host. The chart also rejects `localhost`, metadata hostnames, and numeric hosts outside RFC1918.
+
 ### Data collection switch
 
 An operator can set `dataCollection.enabled: false` in the site values to keep the entire installation metadata-only. In this mode:
