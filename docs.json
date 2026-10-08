@@ -145,5 +145,25 @@
   },
   "icons": {
     "library": "lucide"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Geist"
+    },
+    "body": {
+      "family": "Geist"
+    }
+  },
+  "contextual": {
+    "options": [
+      "view",
+      "copy",
+      "chatgpt",
+      "claude"
+    ],
+    "display": "header"
+  },
+  "interaction": {
+    "drilldown": true
   }
 }
