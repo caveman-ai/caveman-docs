@@ -142,5 +142,8 @@
         ]
       }
     ]
+  },
+  "icons": {
+    "library": "lucide"
   }
 }
