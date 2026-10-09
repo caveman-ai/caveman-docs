@@ -1,7 +1,7 @@
 ---
-title: "Optimization catalog: what Caveman changes and how it is gated"
+title: "Caveman optimization catalog and safety gating"
 sidebarTitle: "Optimization Catalog"
-description: "Explore every Caveman optimizer, from byte-safe S0 cache hints to S3 eval-gated model routing. Learn how the safety ladder protects output, what each tier earns, and how to opt in per request."
+description: "Explore every Caveman optimizer, from byte-safe S0 cache hints to eval-gated behavioral changes and S4 compression, and how the safety ladder gates them."
 ---
 
 Caveman Cloud applies optimizations in tiers that match how much they can change what the model sees. At the bottom, S0 and S1 optimizers add provider-native hints without touching model-visible content. Higher tiers rewrite prompts, trim tool output, or swap the model itself, and each step carries stronger proof requirements. This catalog explains every optimizer Caveman runs, which safety class it belongs to, how to trigger or prevent it, and whether its savings can become verified.
