@@ -39,6 +39,22 @@ The product runs one continuous cycle against your traffic: **Observe, Diagnose,
 
 Ask Caveman helps you understand traffic patterns, trace failures, and workload behavior before deciding what to improve. It does not mutate production or open pull requests on its own. Follow-up turns use `parent_run_id` to continue a conversation.
 
+#### What Ask reads from your repository
+
+Ask and Factory agent runs work in a real git checkout of your connected repository at the commit Caveman admitted the run on. The checkout includes:
+
+- **Every file** in the repository at that commit, except the files listed below.
+- **Git history** to a default depth of 50 commits, so the agent can run `git log`, `git blame`, and `git show`. Operators change the depth with the Helm value `nativeAgents.source.historyDepth`. See [Security review](/solutions/security-review#agent-access-to-your-repository).
+- **Instruction files** such as `AGENTS.md`, `CLAUDE.md`, their nested copies, and skills. These stay readable, as in a developer's checkout.
+
+Caveman removes `.env*` files and every file that can change an agent's tools or permissions from the working tree. Examples include `.mcp.json`, `opencode.json`, `.opencode/`, `.claude/settings*.json`, `.claude/agents/`, `.claude/commands/`, `.codex/`, and `.cursor/mcp.json`. Removed files are still readable as data through git history within the history depth.
+
+#### Continuity across turns
+
+In a git checkout, changes the agent makes carry over to the next turn of the same Ask conversation. This includes edited files and local commits. Caveman saves the working copy after a turn that changed it, and the next turn continues on the same commit. Nothing is pushed to GitHub or exported, and the working copy never reaches another conversation.
+
+If your default branch moved on GitHub since the earlier turn, Ask still works on the earlier commit and tells you when the difference matters.
+
 Learn how to run investigations with the CLI in the [Improvements guide](/guides/improvements).
 
 ### Improvements
