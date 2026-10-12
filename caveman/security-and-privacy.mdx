@@ -1,0 +1,179 @@
+---
+title: "Caveman security, privacy, and telemetry controls"
+sidebarTitle: "Security & Privacy"
+description: "Learn how Caveman handles data, credentials, SSRF protection, local storage, and how to disable telemetry with caveman telemetry off or DO_NOT_TRACK=1."
+---
+
+Caveman processes prompts, tool output, source code, provider credentials, and browser state locally. This page covers the trust model, data flow, credential handling, SSRF protection, transform safety, browser controls, skill permissions, and how to opt out of CLI telemetry.
+
+## Trust model
+
+By default, the proxy is a single-operator tool. It binds to loopback and accepts every request on it without authentication. In that configuration, do not expose it on a LAN, container bridge, public interface, or shared host. A non-loopback listen address is refused at startup unless an inbound credential is configured: `CAVEMAN_AUTH_TOKEN`, a middleware token map, an OIDC issuer, or a TLS client CA. The container image listens on `0.0.0.0:8787`, so it will not start without one.
+
+A shared deployment is a separate, explicit configuration. On the provider (inference) routes it requires `CAVEMAN_AUTH_TOKEN`, and every request must present that token in `x-cave-api-key` or `Authorization: Bearer`. The proxy consumes the header before resolving a provider credential, so the shared token is never forwarded upstream and is never mistaken for a provider key. Provider credentials live on the server, in its environment or in an AWS role, not on the clients. That token is a single shared secret (at least 16 bytes) with no per-user identity or roles: rotate it when someone leaves.
+
+The framework middleware routes (`/caveman/v1/middleware/*`) have their own identity, from runtime `bin-v2.0.0`: the shared token still means one `single_operator` principal, and a token map, an OIDC issuer, or TLS client certificates add per-team principals. A principal reaches only its own sessions; its allowed namespaces are checked server-side on every route, and each request is written to an audit log line with the principal, never the content. Principal names carry their source (`oidc:<issuer>#<claim>`, `mtls:uri:...`, `mtls:dns:...`), so no JWT or certificate can take over a token principal's sessions by spelling its name; a certificate's subject CN names a principal only when `CAVEMAN_TLS_CLIENT_CN_FALLBACK` is set. Originals can be encrypted at rest, and several replicas can share one Postgres store.
+
+The proxy can serve TLS itself (`CAVEMAN_TLS_CERT_FILE`, `CAVEMAN_TLS_KEY_FILE`, optionally `CAVEMAN_TLS_CLIENT_CA_FILE` for mTLS, checked against the current CA on every request so a CA rotation also cuts live connections); otherwise it speaks plain HTTP and TLS belongs in front of it. Keep the listener inside a private network either way. Health endpoints stay unauthenticated for load balancers, and `/metrics` does too unless `CAVEMAN_METRICS_TOKEN` is set, so do not expose them publicly. A token map that fails to reload keeps the previous one, revoked tokens included; alert on `caveman_identity_reload_failures_total`. See [Deploy the proxy for a team](/caveman/deploy#identity).
+
+Connected Caveman Cloud commands have separate account and organization controls. Those controls are not what gates a self-hosted shared proxy.
+
+## Data flow
+
+Local mode keeps Caveman processing on device, but provider-bound content still goes to the provider selected by the agent. "Local" describes the Caveman layer, not the entire model request.
+
+Potential local data stores include:
+
+- proxy request metadata and recovery records in SQLite
+- durable facts in Cavemem
+- feature configuration
+- agent-native hook or plugin state
+- browser session state owned by Chrome
+
+Read [Context recovery](/caveman/context-recovery) before treating a recovery handle as secret storage.
+
+Framework middleware: the client, adapters, and runtime make no calls to Caveman servers and send no telemetry. The runtime you host stores tool-result originals and scope state; what it keeps, for how long, and how deletion and encryption at rest work (current and next release) is in the [Framework middleware data](#framework-middleware-data) section below. The CLI that can start the runtime has separate opt-out telemetry (`caveman telemetry off` or `DO_NOT_TRACK=1`); the Python import name `caveman_cloud` is historical and does not imply a cloud service.
+
+## Credentials
+
+- Keep API keys in environment or provider-native credential stores.
+- Do not write secrets into YAML, project config, prompts, benchmark fixtures, or command history.
+- Preserve inbound authorization without logging it.
+- Use distinct provider keys for development where the provider supports it.
+- Rotate a key if terminal, trace, or issue output exposed it.
+
+## SSRF protection
+
+The proxy validates upstream addresses and redirects. Private, loopback, link-local, and other unsafe address classes are blocked by default. A self-hosted provider needs explicit `CAVE_SSRF_ALLOWLIST` configuration.
+
+Allow only exact hosts needed. Broad private-network ranges can let prompt-driven requests reach unrelated local services.
+
+When an outbound proxy is in use (`upstream_proxy`, which by default honours `HTTPS_PROXY`), that proxy connects to providers on Caveman's behalf, so the boundary moves to it. Caveman still applies the range checks to IP-literal destinations and rejects `localhost` before selecting it, but hostnames are resolved by the proxy, so hostname-level policy is the proxy's own access control. The same applies to the Bedrock and Vertex endpoint pre-flight: for a proxied destination it checks host syntax, `localhost`, and IP-literal ranges without resolving. The proxy address is operator configuration and is dialed without an allowlist entry. Destinations that `NO_PROXY` sends direct keep the full guard and still need a `CAVE_SSRF_ALLOWLIST` entry when they are private or loopback.
+
+## Lossy transforms
+
+Engine, TOON, pixel, and output shrinker can change model-visible context. Safety controls include:
+
+- record-mode byte pass-through
+- parse validation
+- size comparison
+- explicit capability gates
+- exact-source recovery
+- original-byte fallback when recovery store fails
+- fail-closed handling for unknown modes or grader types
+
+Recovery reduces information-loss risk but does not prove the model will request missing detail. Use record mode for workflows where every input byte must remain visible.
+
+## Browser controls
+
+The browser bridge can inspect pages, click elements, or evaluate JavaScript; write actions may submit forms or trigger purchases. Grant permissions per operation, and review script expressions before evaluation.
+
+The MV3 response extension runs locally, sends no Caveman analytics, and modifies outgoing message text visibly. The browser platform and selected chat service still receive the submitted message.
+
+## Skills and plugins
+
+Remote skills influence model behavior, while hooks and plugins execute under host-agent permissions. Preview source, confirm repository identity, and inspect file changes before installation.
+
+Do not install a skill because its name resembles a trusted package. Use a pinned release or commit when reproducibility matters.
+
+## Local file permissions
+
+Hook state uses restrictive file modes and symlink-safe writes. Protect Caveman databases, configuration, and backups with user-only permissions because they can contain recovered prompts or remembered facts.
+
+## Reporting a vulnerability
+
+Do not publish exploitable details in a public issue before maintainers can assess them. Use [GitHub private vulnerability reporting](https://github.com/JuliusBrussee/caveman/security/advisories/new), and include affected version, minimal reproduction, impact, and suggested mitigation without real credentials or customer data. Supported versions and response targets are in [SECURITY.md](https://github.com/JuliusBrussee/caveman/blob/main/SECURITY.md#supported-versions).
+
+## Deployment checklist
+
+1. Confirm the proxy listens on `127.0.0.1`, or that a non-loopback listener is deliberate, private, and served over TLS (its own listener or in front).
+2. Set `CAVEMAN_AUTH_TOKEN` from a secret store for any shared listener, and rotate it on team changes. For framework middleware shared by several teams, give each team a token-map principal with only its namespaces.
+3. Keep secrets out of configuration files.
+4. Review enabled transforms and model allowlists.
+5. Set a precise SSRF allowlist only when required.
+6. Restrict local database and hook-state permissions.
+7. Test recovery before a long lossy session.
+8. Run record mode for byte-sensitive workflows.
+9. Review agent, browser, hook, and plugin permissions separately.
+
+## Framework middleware data
+
+The middleware client (`@caveman-ai/sdk/middleware`, `caveman_cloud.middleware`), the adapters (`@caveman-ai/middleware`, `caveman-middleware`), and the `caveman-proxy` runtime make **no network calls to Caveman servers**. They send no telemetry. The client talks only to the runtime endpoint you configure; the runtime answers the `/caveman/v1/middleware/*` routes and does not call a model provider on this path. The Python import name `caveman_cloud` is historical: it does not mean a cloud service is involved.
+
+The CLI you may use to install and start the runtime (`caveman setup`, `caveman start`) is a separate program with its own opt-out [usage telemetry](#cli-usage-telemetry): content-free usage events, never prompts or tool results. Turn it off with `caveman telemetry off` or `DO_NOT_TRACK=1`. Running the binary or container image directly (`caveman-proxy serve`) involves no CLI and no telemetry.
+
+What the runtime stores, on its own disk, or in the Postgres database you point it at with `CAVEMAN_MIDDLEWARE_DATABASE_URL` when several replicas share one store:
+
+- **Tool-result originals** (exact text), so the model can recover them. Treat them as sensitive as the tool output itself.
+- **Scope state** in the runtime database (`~/.caveman/caveman.db`, or under `CAVEMAN_HOME` in the container): scope identifiers (namespace, session, branch, cache epoch), the compressed replacement text the runtime chose, recovery grants, and receipts. The replacement text is derived from tool output, so it is sensitive too. No provider credentials, no model responses.
+
+Lifecycle **before runtime `bin-v2.0.0`**: originals go into the shared recovery store (`~/.caveman/ccr.db`) in plaintext and are not deleted when a session is deleted or expires; retention (`retention_seconds`, default 24 hours) covers scope metadata only. Delete the recovery store yourself when you need the originals gone.
+
+Lifecycle **from runtime `bin-v2.0.0`**:
+
+- originals live in the middleware store and belong to their scope, not to the shared recovery store
+- `retention_seconds` covers originals too, and a `max_retention_seconds` cap bounds sliding renewal
+- deleting a session (`sessions/delete`) deletes the scope's metadata and every original it owns, and reports `originals_deleted: true` with counts
+- originals are encrypted at rest when an encryption key is configured; without a key they rely on file permissions, as today
+- an original from a call that produced no replacement is not kept
+
+## CLI usage telemetry
+
+Telemetry is **on by default and opt-out**. The default is never silent: the first interactive command persists the decision (with a stable random install ID) and prints a one-line disclosure naming the scope and the off switch. Nothing sends before that disclosure run, and CI / non-interactive runs never persist the default. Once a yes is persisted, agent sessions started through caveman's native hooks (which have no terminal) also send a `session_start` event from a background process. Login is not required.
+
+```bash
+caveman telemetry status
+caveman telemetry on
+caveman telemetry off
+```
+
+Controls, in precedence order:
+
+- non-empty, non-zero `DO_NOT_TRACK` forces telemetry off
+- `CAVEMAN_TELEMETRY=1|true|on` enables it and other non-empty values disable it
+- CI is always off; a non-interactive run (such as a native agent hook) sends only under a yes already persisted by an interactive run, and never persists one itself
+- otherwise the persisted choice in `~/.caveman-cloud/config.json` applies — a persisted opt-out (from any version, including the old opt-in prompt's "no") is honored forever
+- no persisted choice means on, persisted with a printed disclosure on the first interactive command
+
+Agent hooks started by desktop apps or background services may never read your shell profile, so an environment variable alone can miss them. When an interactive command sees `DO_NOT_TRACK` or `CAVEMAN_TELEMETRY=0` while the saved choice is on, it saves a lasting opt-out. `caveman telemetry off` does the same immediately.
+
+`CAVEMAN_TELEMETRY_URL` overrides the destination, mainly for testing. Events are sent by a detached background process that gives up after 10 seconds, so no command waits on the network; if that process cannot start, the CLI sends in-process with a 1.5-second limit. Failures never fail the CLI command. The request is a JSON `POST` with no browser headers; the receiver drops requests that carry `Origin` or `Sec-Fetch-Site` or are not `application/json`, so a web page cannot post events on a visitor's behalf.
+
+When the disclosed scope widens, the persisted decision carries the wording version it was made under. A wider scope reprints the disclosure once on the next interactive command and bumps the stored version; it never re-asks, never flips a decision, and never touches a persisted opt-out.
+
+This telemetry is pseudonymous, not anonymous: the install ID links one install's events together, and the stored IP address shows where they came from. IP addresses are cleared from stored events after 90 days, and whole events are deleted 13 months after they were received. Separately, Supabase's platform request logs record each request's IP address and approximate location derived by Cloudflare (city, region, country, network) for the Supabase plan's log retention period; the 90-day clearing covers the events table, not those logs.
+
+Events can contain:
+
+- the IP address the request came from, as seen by Supabase's edge network (not a value the client can set). Stored with every event and used to rate-limit each sender; the server also records when it received the event
+- event name and client timestamp; random install ID; CLI version; OS; architecture; Node major version
+- account state (signed in or not, and the cached plan name), how the CLI was installed (npm, npx, pnpm, bun, or a source checkout; never the path), timezone, and locale
+- agent session starts: which agent launched (Claude Code, Codex, ...) and whether the session was new, resumed, or cleared, sent once per host session by the native SessionStart hook, with the same token increment described below
+- allowlisted command, subcommand, and known agent ID; duration; outcome; broad error class
+- tokens processed and tokens saved by the local Proxy, as the increment since the last event rather than lifetime totals, always carrying their measurement basis (`inferred` — tokenizer estimates, never billed counts, never a dollar figure). Read as an aggregate over the local store; when no store or Proxy binary is present the fields are omitted rather than reported as zero. The first read on a machine only records a baseline and reports nothing, so a store holding traffic from before this disclosure is never reported retroactively
+- local Proxy session aggregates: request and token counts, compression-eligible request counts, compression before/after/saved token counts, estimated cuts, cache read/write token counts, cache-bust request counts, measurement mode, and headline-suppression state
+- first-run aggregate scan counts from local Claude Code or Codex history, including sessions, tokens, estimated cuts, scan timing, whether the scan succeeded, hit its time limit, or used the local Engine, and whether an account was already connected
+- Caveman MCP tool name, duration, and outcome
+
+Telemetry does **not** include prompt or completion bodies, raw argv, file paths, tool arguments or results, provider credentials, or local database rows/files.
+
+### Delete sent telemetry
+
+`caveman telemetry status` shows your install ID while telemetry is on. `caveman telemetry off` removes the ID from your machine and prints it once as `discarded_anonymous_id`; an interactive command that turns telemetry off because of `DO_NOT_TRACK` or `CAVEMAN_TELEMETRY=0` prints it too. Keep it: it is the only way to find your events, because Caveman does not know which install is yours.
+
+To have every stored event for an install ID deleted, send the ID through [GitHub private vulnerability reporting](https://github.com/JuliusBrussee/caveman/security/advisories/new) with "telemetry deletion" in the title. Deletion covers the events table; Supabase's platform request logs expire on their own schedule and cannot be deleted per install.
+
+## Local storage
+
+Caveman stores runtime data under `~/.caveman/` and account/config state under `~/.caveman-cloud/` unless a documented environment override changes a path. Important files include:
+
+- `~/.caveman/caveman.db`: per-request metadata, usage, local savings estimates, transformed prefix replacements, and related local evidence. Normal request rows do not store raw request or response bodies, but transformed content can remain in this database. Treat it as sensitive.
+- `~/.caveman/ccr.db`: exact originals for recoverable transforms. This file can contain prompts, credentials embedded in content, and tool results. Treat it as sensitive.
+- explicit `caveman trial` runs store raw request payloads in the local `trial_payloads` table for replay. Reports exclude those payloads.
+- local learn/first-run scans read supported Claude Code and Codex history files and write aggregate reports/state locally. Raw session content is not included in CLI telemetry or authenticated scan sync.
+- `~/.caveman-cloud/config.json`: endpoints, project/account pointers, telemetry decision, and other CLI state.
+- account credentials: macOS Keychain when available, otherwise `~/.caveman/credentials` with file mode `0600`. `CAVE_TOKEN` remains owned by the parent environment.
+
+CCR SQLite files and sidecars are created or tightened to mode `0600` and refuse unsafe symlink/non-regular-file paths. This is filesystem access control, not database encryption. Default retained CCR payload budget is 512 MiB; `CAVEMAN_CCR_MAX_BYTES` can change it. Existing recovery handles are never evicted. When the budget is exhausted, new recovery writes fail and lossy transforms must fall back to pass-through.
+
+Uninstall removes installed integrations and hooks. Do not assume it erases runtime databases, reports, backups, or credentials; inspect `~/.caveman/` and `~/.caveman-cloud/` separately if data deletion is required.

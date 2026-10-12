@@ -1,0 +1,263 @@
+---
+title: "Caveman benchmarks and honest numbers"
+sidebarTitle: "Benchmarks"
+description: "Review Caveman's measured results, benchmark methodology, and how to run your own A/B comparisons to verify savings for your specific workload."
+---
+
+Caveman publishes measured results with full provenance and explicit limits. This page covers the CaveBench Wrap benchmark, the response skill's measured output reduction, per-file compression results, community A/B comparisons, and how to run your own benchmarks.
+
+## CaveBench Wrap benchmark
+
+On six deterministic, agent-shaped tool-output workloads, Caveman-wrapped Claude Code used **33.2% fewer provider-reported input tokens** than direct Claude Code: **591,673 vs 885,793 tokens** across 18 paired runs. Caveman passed all **18/18 exact-answer checks**. The case-clustered 95% interval was **14.6% to 48.5%**.
+
+<Note>
+  Claim basis: `benchmark_counterfactual`. This is controlled benchmark evidence, not production traffic, customer spend, a provider invoice, or Caveman `verified_savings`.
+</Note>
+
+| Arm | Exact quality | Provider input on held pairs | Reduction vs direct | Case-clustered 95% interval |
+| --- | --: | --: | --: | --: |
+| Direct Claude Code | 18/18 | 885,793 | baseline | n/a |
+| Caveman wrap + skill | 18/18 | 591,673 | **33.2%** | **14.6% to 48.5%** |
+| Headroom wrap | 15/18 | 703,202 vs matched direct | 6.7% | -0.7% to 17.9% |
+
+Caveman won 15/18 pairs. Headroom's three YAML runs failed the exact-answer gate and remain visible rather than counting toward savings at held quality.
+
+### Per-case results
+
+Each case ran three times per arm.
+
+| Case | Shape | Direct input | Caveman input | Reduction | Caveman quality |
+| --- | --- | --: | --: | --: | --: |
+| `sre-log-needle` | log | 148,807 | 74,068 | 50.2% | 3/3 |
+| `deployment-json-drift` | JSON | 147,975 | 108,939 | 26.4% | 3/3 |
+| `fraud-csv-outlier` | CSV | 165,823 | 74,484 | 55.1% | 3/3 |
+| `test-output-failure` | test output | 150,377 | 108,514 | 27.8% | 3/3 |
+| `config-yaml-drift` | YAML | 132,124 | 71,027 | 46.2% | 3/3 |
+| `dashboard-html-alert` | HTML | 140,687 | 154,641 | **-9.9%** | 3/3 |
+
+Unsupported and no-op inputs stay in the aggregate. HTML regressed because no compression transform applied while full Caveman skill overhead remained counted.
+
+### Method
+
+- Six immutable MCP fixtures, each 60–95 KB: logs; deployment JSON; fraud CSV; test output; configuration YAML; dashboard HTML.
+- Three rotated repetitions for direct Claude Code, Caveman, and Headroom: 54 total agent runs and 18 direct/Caveman pairs.
+- Claude Code `2.1.223`, model `claude-sonnet-5`.
+- Headroom `0.33.0`, pinned at upstream commit `e0ce4b1d`.
+- Every arm called the same fixture exactly once and returned a structured answer checked by an exact semantic JSON oracle.
+- Every arm used Claude Code's `modelUsage` counters. Primary input metric: `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.
+- Cache buckets were summed without price weighting. Wrapper-native tokenizer estimates did not drive the comparison.
+- Recovery was available only when required answer data was absent from visible compressed content. Recovery calls and follow-up provider input remained counted.
+- Full Caveman skill prompt overhead remained counted from the first request.
+- Aggregate reduction compares summed Caveman input with summed paired direct input. The interval uses a deterministic 10,000-resample percentile bootstrap clustered by case.
+
+### Verification and provenance
+
+- Generated: `2026-08-06T14:31:43Z`
+- Publication gate: passed
+- Same provider-usage source: 54/54 runs
+- Fixture called exactly once: 54/54 runs
+- Caveman skill installed, loaded, and applied: 18/18 runs
+- Positive proxy compression observed: 15/18 Caveman runs; no-op runs remained included
+- Permission denials: 0
+- Corpus SHA-256: `9a400a6dc38591dc3ce59bc2e3fa6fc59d99e211dc9185b430979de78991760a`
+- Caveman skill SHA-256: `5e30bb56afbd0b01bd736f2da84180e76f18db4a64de8e124525d5c8dc2e8605`
+- Harness source SHA-256: `e6322a3a55cfdfa6c7942022a1be9adb49fa30c380352c819c99bbd4bff30cc4`
+- Fixture MCP binary SHA-256: `5c71768780582708c00fa1d6862a6a5b93fc33fc23655ff430b0edb8fee1e790`
+- Claude binary SHA-256: `4163c57c719e27680336f323ebdcd2ba8aa48a683fdfa427240ec4b506a21e45`
+- Harness Git commit: `630e157246b68b63559fb8baab29b87042db996b`
+- Dirty worktree at execution: `false`
+
+### Reproduction availability
+
+This repository contains the published report and provenance hashes, but not raw harness or run artifacts for this result. It cannot be independently reproduced from this checkout. Treat the result as a pinned report, not a reproducible public benchmark, until harness and raw artifacts are published here.
+
+Publication requires at least six cases and three repetitions; exact direct and Caveman quality on every run; one fixture call per run; the same provider usage source; active Caveman skill; at least one proven compression; positive aggregate reduction; and a 95% interval entirely above zero. Negative and no-op cases may not be removed.
+
+### Boundaries
+
+- Workloads are deterministic large tool outputs, not open-ended coding tasks or customer traffic.
+- Result applies to this pinned suite and runtime. It is not a universal savings promise.
+- Local host isolation reset a dedicated Claude configuration before every arm. This was not a sealed container, and no exact filesystem or egress isolation is claimed.
+- Cost, latency, and output-token deltas are secondary because agent trajectories can differ. Primary claim is paired provider input tokens at held quality.
+
+## Response skill measured numbers
+
+The Caveman response skill makes the model write shorter output. The skill itself does not compress input, context, files, or model thinking tokens. The Caveman local Engine and proxy are separate components that can compress recoverable input.
+
+| What | Number | How measured | Source |
+| --- | --- | --- | --- |
+| Output reduction vs a plain `Answer concisely.` control | caveman 3%, ultracave 35%, megacave 9% at the median (n=10, single run, output length only, tiktoken o200k approximation; measured on the 3.1.0 skill text, not re-run since the 3.2.0 rule changes) | `evals/llm_run.py` on claude-opus-5-5 with host settings isolated; `evals/measure.py` | [`evals/snapshots/results.json`](https://github.com/JuliusBrussee/caveman/blob/main/evals/snapshots/results.json) |
+| Output reduction vs default verbose replies (no benchmark harness run) | Not published | `benchmarks/` harness exists, but the repository has no committed reviewed raw result | [`benchmarks/`](https://github.com/JuliusBrussee/caveman/blob/main/benchmarks/) |
+| Input reduction from the skill | 0% | It's an output-style instruction | Not applicable |
+| Input cost the skill _adds_ | Not measured yet | `evals/llm_run.py` now stores the usage Claude Code reports for every call, and `evals/measure.py` reports the median input tokens the skill adds against the terse control. The committed snapshot predates usage capture. | [`evals/README.md`](https://github.com/JuliusBrussee/caveman/blob/main/evals/README.md) |
+| `/caveman-compress` on memory files | 33.2% total input reduction across five listed fixtures (22.8–49.1% per file, tiktoken o200k) | `skills/caveman-compress/scripts/benchmark.py` over `tests/caveman-compress/`, plus structural checks; no general quality-equivalence claim | [caveman-compress fixtures](https://github.com/JuliusBrussee/caveman/blob/main/skills/caveman-compress/README.md#benchmarks) |
+
+Token-count runs measure output length only. They do not prove semantic or technical equivalence. Publish a reduction only with committed raw pairs and separate quality review. A fidelity eval now exists (`evals/score_fidelity.py`: fixed cases, regex checks for kept numbers, negations, language and safety wording, scored for every arm), but no reviewed fidelity snapshot is committed, so no quality claim is published.
+
+## Per-file compression
+
+Measured 2026-10-03, outside any agent run. Each of the six corpus files was regenerated byte for byte (corpus SHA-256 matches the one above) and passed once through `engine.Simulate` in compress mode, with the case question as the query. That is the path the proxy's query-aware `CompressSegmentQuery` takes. Tokens are counted with the engine's `o200k_base` counter. No model call, no recovery.
+
+| Case | Shape | File tokens | Today's engine (caveman `aeb45e2f`) | Engine at the run above (Caveman-Cloud `630e1572`, `public/`) |
+| --- | --- | --: | --: | --: |
+| `fraud-csv-outlier` | CSV | 28,041 | 314 (98.9% smaller) | 170 (99.4% smaller) |
+| `sre-log-needle` | log | 22,810 | 348 (98.5% smaller) | 224 (99.0% smaller) |
+| `config-yaml-drift` | YAML | 20,447 | 178 (99.1% smaller) | 178 (99.1% smaller) |
+| `test-output-failure` | test output | 18,806 | 203 (98.9% smaller) | 203 (98.9% smaller) |
+| `deployment-json-drift` | JSON | 18,837 | 281 (98.5% smaller) | 8,106 (57.0% smaller) |
+| `dashboard-html-alert` | HTML | 21,670 | 21,670 (no compressor) | 21,670 (no compressor) |
+| All six |  | 130,611 | 22,994 (82.4% smaller) |  |
+
+The session results above ran on the older engine. Today's engine is a little less aggressive on CSV and logs and far more aggressive on JSON (three JSON elision fixes landed 2026-09-30). The session benchmark has not been re-run on it. Without a query, the older engine gave 161 tokens for test output and 119 for YAML; today's engine gives the same either way.
+
+File reduction is not session reduction. Every request also carries the system prompt, tool definitions, conversation, and caveman skill, and any recovery read counts. All five compressed files use S4 transforms, which need the local recovery store.
+
+Reproduce: generate the payloads with `CorpusCases()` from Caveman-Cloud `internal/wrapbench/corpus.go`, then call `engine.New(nil, nil).Simulate(payload, engine.Options{Mode: engine.ModeCompress, Query: question})`.
+
+## When Caveman wins
+
+- Long chatty outputs give terse style more removable prose. Measure your own A/B; no aggregate reduction is currently published.
+- Longer sessions can accumulate output reduction; measure the rules' input cost and cache behavior in the same comparison.
+- Shorter replies can finish sooner and take less time to read.
+
+## When Caveman loses (net-negative)
+
+The rules can add input tokens. Whether shorter output offsets that cost depends on the agent, cache behavior, workload, and billing model. Comparing raw input and output token counts alone does not establish a monetary net result.
+
+- Terse coding Q&A ([#145](https://github.com/JuliusBrussee/caveman/issues/145)): fixed prompt overhead can exceed any output reduction. The user in #145 measured a net loss.
+- Agents billed by request or credit ([#506](https://github.com/JuliusBrussee/caveman/issues/506)): GitHub Copilot charges premium _requests_. A shorter answer is the same request, so Caveman cannot lower Copilot credit use. Same applies to other per-message pricing.
+- Session totals can differ sharply from output-only changes because prompts, context, files, and injected rules consume tokens. Provider-billed A/B totals outrank output-only estimates.
+- Tool-side counters can go the wrong direction ([#550](https://github.com/JuliusBrussee/caveman/issues/550)). One Cursor A/B showed 4.3M tokens with caveman versus 1M without and twice the wall-clock time. The exact run was not reproducible, so the only safe conclusion is that rule re-injection, retries, and cache or context accounting can overwhelm output savings. Turn Caveman off if your A/B is net-negative.
+
+## Community A/B comparisons
+
+Other people's runs, not ours. Each names the skill version it tested. Caveman 3 rewrote the rules after these runs, so treat them as evidence about the approach, not about today's exact file.
+
+- **LemonCrow** ([#727](https://github.com/JuliusBrussee/caveman/issues/727)): 20 engineering prompts × 5 reps × 3 runs (300 runs per arm), `claude-opus-4-8`, July 2026 `skills/caveman/SKILL.md` as the only extra system instruction. Billed output -44.1%. Total cost +0.06%. Initial cached context +1,532 tokens per run. [Method](https://github.com/lemoncrow-lab/lemoncrow/blob/main/BENCHMARKS.md#telegraphic-qa-benchmark) · [raw results](https://github.com/lemoncrow-lab/lemoncrow/tree/main/benchmarks/codebench/results/telegraphic_2026_07_17)
+- **edubraqd** ([#733 comment, 2026-09-14](https://github.com/JuliusBrussee/caveman/issues/733#issuecomment-5657222190)): 10 dev questions in pt-BR, `haiku-4-5`, 20 replies per arm, pre-3.0 SKILL.md at the `full` level. On top of a CLAUDE.md that already asks for terse replies, caveman cut output 8% (median -5%, stdev 25%). Separately, across 662 Claude Code sessions, output was 0.3% of all tokens and caveman's net effect on the bill was within ±0.2%.
+- **JetBrains** ([blog, July 2026](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/)): 86 real coding tasks, paired A/B. 8.5% fewer output tokens, no measurable quality loss (p = 0.82).
+
+Common thread: output shrink, but an agent run's bill is mostly input and cache re-reads, which an output-style rule cannot touch. The [proxy](/caveman/proxy-and-providers) goes after that input instead.
+
+## Measure it yourself
+
+1. `/caveman-stats` (Claude Code) reads the session log and prints recorded output/cache-read counts and mode attribution. It reports savings as unknown because that transcript has no measured comparison without Caveman. A benchmark on other tasks would not verify savings for this session.
+2. Run the same task with and without Caveman, then compare provider usage or billing page. That A/B outranks repository estimates.
+3. Reproduce repository numbers with `benchmarks/run.py` (Anthropic key required) and `evals/measure.py` (offline committed snapshot).
+
+## Rule of thumb
+
+<Warning>
+  Compare provider-billed totals on the same task with and without Caveman. If Caveman increases billed cost for the same task, turn it off for that workload.
+</Warning>
+
+Earlier stats releases applied a fixed 65% output ratio without a committed reviewed result. Current reports ignore those historical `est_saved_*` fields while preserving the original history rows. Lifetime and shared reports do not convert those estimates into verified savings, and the statusline no longer displays the numeric savings suffix. Memory-file comparisons report original and current bytes; they do not prove either file was sent to a provider.
+
+If your A/B contradicts these numbers, [open an issue](https://github.com/JuliusBrussee/caveman/issues). We will add the result to this page.
+
+## Testing and benchmarks in the repository
+
+The repository uses language-specific tests plus cross-package verification. Run the smallest relevant command first, then broader gates before release.
+
+### Core test commands
+
+**Go:**
+
+```bash
+go test ./...
+go vet ./...
+go build ./...
+```
+
+This covers Engine, proxy, memory, browser bridge, cache planner, and other Go packages in the module.
+
+**TypeScript and JavaScript:**
+
+```bash
+pnpm install --frozen-lockfile
+pnpm -r build
+pnpm -r test
+```
+
+Individual packages expose narrower scripts:
+
+```bash
+pnpm --dir packages/cli test
+npm --prefix extension test
+pnpm --dir packages/shared/contracts test
+```
+
+Use the package manifest to confirm exact scripts.
+
+**Python:**
+
+```bash
+python -m pytest -q packages/sdk/python
+```
+
+**Repository verification:**
+
+```bash
+python tests/verify_repo.py
+```
+
+The verifier checks repository invariants that ordinary unit tests do not cover, including generated or packaging expectations. Editing anything in `src/hooks/` requires regenerating `src/hooks/checksums.sha256`, which the verifier compares digest by digest.
+
+**Claude Code hooks:**
+
+```bash
+npm test                                   # includes tests/hooks/*.test.mjs
+node --test --test-force-exit tests/*.js
+python -m unittest discover -s tests
+bash tests/manual/session-mode-smoke.sh    # end-to-end, throwaway config dir
+```
+
+The smoke script drives the real hook binaries with the payloads Claude Code sends and never touches your own `~/.claude`.
+
+### Platform coverage
+
+Continuous integration builds and tests native Go and JavaScript paths and includes Windows coverage for platform-sensitive launcher behavior. The native release workflow builds a 36-artifact operating-system, architecture, and binary matrix, then publishes signed checksums.
+
+A local pass on one platform does not prove the full release matrix. Report exact commands and environment tested.
+
+### Benchmark categories
+
+- **Engine fixtures:** compare original and compact representations on committed fixtures. A valid report includes selected compressor, recovery result, byte or token counter, and any invariant checks.
+- **Browser fixtures:** measure accessibility-tree capture, query focus, compression, and recovery on recorded pages. See [`browse/BENCHMARK.md`](https://github.com/JuliusBrussee/caveman/blob/main/browse/BENCHMARK.md).
+- **Cache corpus:** stress capability and fail-safe gates. Report unsupported and rejected cases; raw pass rate is not a market-ranking result.
+- **Subagent tax:** `packages/subagent-tax` runs local fixtures without provider requests. Its counterfactual results apply to the exact fixture, assembly method, and token counter.
+- **Wrap report:** the published wrap benchmark documents one recorded comparison and provenance. See the [CaveBench Wrap benchmark](#cavebench-wrap-benchmark) section above for reproduction availability and claim limits.
+
+### Writing a benchmark report
+
+Every public result should include:
+
+1. question being tested
+2. fixture names, source, and hashes
+3. code revision and date
+4. hardware or provider/model where relevant
+5. exact command
+6. count basis and price source
+7. baseline and treatment definitions
+8. recovery, parse, and quality checks
+9. failures, exclusions, and negative deltas
+10. narrow conclusion supported by data
+
+A fixture-level result is not production validation. A local token estimate is not provider cost, and successful retrieval does not establish quality parity.
+
+### Failure testing
+
+Compression and integration tests should cover:
+
+- malformed input
+- duplicate or ambiguous JSON
+- empty and boundary-sized payloads
+- transformation larger than original
+- full or failed recovery store
+- unknown mode, provider, model, and grader
+- stream interruption
+- unsafe endpoint and redirect
+- secret-bearing headers
+- unsupported platform or upstream version
+
+The expected safe result is often original input or explicit rejection. Tests should assert that behavior, not only successful compression.

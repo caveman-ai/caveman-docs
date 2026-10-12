@@ -1,0 +1,291 @@
+---
+title: "Install Caveman: skill, proxy, and per-agent matrix"
+sidebarTitle: "Installation"
+description: "Install Caveman as a skill for 30+ agents, as a local proxy CLI, or both. Covers one-liners, per-agent commands, Windows, and uninstall."
+---
+
+Caveman ships a response-skill installer and a separate local-runtime CLI. Choose either one or install both. This page covers requirements, the unified one-liner, per-agent install commands, Windows notes, and how to remove Caveman completely.
+
+## Requirements
+
+| Surface | Minimum runtime |
+| --- | --- |
+| Skill installer | Node.js 18 |
+| `@caveman-ai/cli` | Node.js 22.13 |
+| Source build | Go version in `go.mod`, Node.js, and pnpm |
+| Browser extension development | Node.js plus pinned Playwright dependencies |
+
+Prebuilt companion binaries cover macOS, Linux, and Windows on amd64 and arm64. Run `caveman setup` to inspect current machine support.
+
+## Unified one-liner
+
+**macOS / Linux / WSL / Git Bash**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v3.2.0/install.sh | bash
+```
+
+**Windows (PowerShell 5.1+)**
+
+```powershell
+irm https://raw.githubusercontent.com/JuliusBrussee/caveman/v3.2.0/install.ps1 | iex
+```
+
+What it does:
+
+- Auto-detects every supported agent installed on your machine (Claude Code, Cursor, Codex, etc.).
+- For each one, runs that agent's native install path (plugin / extension / rule file / `npx skills add`).
+- Installs Cavecrew investigator, builder, and reviewer presets where the host supports native subagents.
+- Wires Claude Code hooks and statusline badge on top, plus a Codex start-of-session hook so Codex talks caveman without asking.
+- Skips anything you do not have. Safe to re-run. About 30 seconds end-to-end.
+
+Want to preview before installing? Use `--dry-run`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v3.2.0/install.sh | bash -s -- --dry-run
+```
+
+## Per-agent install matrix
+
+If you want to install for one agent (or want to know exactly what command runs under the hood), use the table below. Every row also works as `--only <id>` to the unified installer.
+
+> **On npm 12 or newer, add `--allow-git=root` to any bare `npx -y github:...` command below.** npm 12 turns off git package fetches by default, so a plain `npx -y github:JuliusBrussee/caveman` stops with `npm error code EALLOWGIT`. The flag opts in just the one package you asked for: `npx --allow-git=root -y github:JuliusBrussee/caveman -- --only <id>`. Check with `npx --version`. `install.sh` and `install.ps1` detect the npm major and add the flag themselves starting with v3.2.0, so those work on npm 12.
+
+> **Choose the install scope your agent reads.** `-g` installs into the agent's user skill directory. Without it, skills belong to the current project. The unified installer uses user scope except for Replit, whose documented filesystem location is the project's `.agents/skills`.
+
+| Agent | Install command | Auto-activates? |
+| --- | --- | :-: |
+| **Claude Code** | `claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman` | Yes |
+| **Gemini CLI** | `gemini extensions install https://github.com/JuliusBrussee/caveman` | Yes |
+| **opencode** | `node installer/install.js --only opencode` (or `npx -y github:JuliusBrussee/caveman -- --only opencode`) | Yes (plugin + AGENTS.md) |
+| **Oh My Pi (OMP)** | `npx -y github:JuliusBrussee/caveman -- --only omp` (or `node installer/install.js --only omp` from a clone) | Yes (native OMP plugin) |
+| **OpenClaw** | `npx -y github:JuliusBrussee/caveman -- --only openclaw` | Yes (workspace skill + SOUL.md) |
+| **Hermes Agent** | `npx -y github:JuliusBrussee/caveman -- --only hermes` (or `node installer/install.js --only hermes` from a clone) | Yes (native skills, enabled on load) |
+| **Antigravity CLI** (`agy`) | `npx -y github:JuliusBrussee/caveman -- --only antigravity-cli` | Yes ([agy plugin](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#antigravity-cli)) |
+| **Codex CLI** | `npx -y github:JuliusBrussee/caveman -- --only codex` (skills only, no hook: `npx skills add JuliusBrussee/caveman -a codex -g`) | Yes (SessionStart hook; skills-only: `$caveman`) |
+| **Cursor** | `npx -y github:JuliusBrussee/caveman -- --only cursor` (or the [Cursor plugin](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#cursor)) | Yes (session hook) |
+| **Windsurf** | `npx skills add JuliusBrussee/caveman -a windsurf -g` | Per-session by default; `--with-init` for an always-on rule file |
+| **Cline** | `npx skills add JuliusBrussee/caveman -a cline -g` | Per-session by default; `--with-init` for an always-on rule file |
+| **GitHub Copilot** | `npx -y github:JuliusBrussee/caveman -- --only copilot --with-init` | Copilot CLI: Yes (session hook). VS Code: repo-wide instructions via `--with-init` |
+| **Continue** | `npx -y github:JuliusBrussee/caveman -- --only continue` | No: invoke the Caveman skill |
+| **Kilo Code** | `npx skills add JuliusBrussee/caveman -a kilo -g` | No |
+| **Roo Code** | `npx skills add JuliusBrussee/caveman -a roo -g` | No |
+| **Augment Code** | `npx skills add JuliusBrussee/caveman -a augment -g` | No |
+| **AiderDesk** | `npx -y github:JuliusBrussee/caveman -- --only aider-desk` | No: enable Skills Tools |
+| **Sourcegraph Amp** | `npx skills add JuliusBrussee/caveman -a amp -g` | No |
+| **IBM Bob** | `npx skills add JuliusBrussee/caveman -a bob -g` | No |
+| **CodeBuddy Code** | `npx skills add JuliusBrussee/caveman -a codebuddy -g` | No |
+| **Crush** | `npx -y github:JuliusBrussee/caveman -- --only crush` | No |
+| **Devin (terminal)** | `npx skills add JuliusBrussee/caveman -a devin -g` | No |
+| **Droid (Factory)** | `npx skills add JuliusBrussee/caveman -a droid -g` | No |
+| **ForgeCode** | `npx skills add JuliusBrussee/caveman -a forgecode -g` | No |
+| **Block Goose** | `npx skills add JuliusBrussee/caveman -a goose -g` | No |
+| **Grok Build** | `npx -y github:JuliusBrussee/caveman -- --only grok` | Yes, per xAI docs (`~/.grok/AGENTS.md` block; not yet tested live) |
+| **iFlow CLI** | `npx -y github:JuliusBrussee/caveman -- --only iflow` | No |
+| **Kiro (IDE + CLI)** | `npx skills add JuliusBrussee/caveman -a kiro-cli -g` | No ([always-on steering](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#kiro-ide-and-cli)) |
+| **Mistral Vibe** | `npx skills add JuliusBrussee/caveman -a mistral-vibe -g` | No |
+| **OpenHands** | `npx skills add JuliusBrussee/caveman -a openhands -g` | No |
+| **Qwen Code** | `npx skills add JuliusBrussee/caveman -a qwen-code -g` | No |
+| **Atlassian Rovo Dev** | `npx skills add JuliusBrussee/caveman -a rovodev -g` | No |
+| **Tabnine CLI** | `npx skills add JuliusBrussee/caveman -a tabnine-cli -g` | No |
+| **Trae** | `npx skills add JuliusBrussee/caveman -a trae -g` | No |
+| **Warp** | `npx skills add JuliusBrussee/caveman -a warp -g` | No |
+| **Replit Agent** | From the project Shell: `npx skills add JuliusBrussee/caveman -a replit` | No |
+| **JetBrains Junie** (soft probe) | `npx skills add JuliusBrussee/caveman -a junie -g` | No |
+| **Qoder** (soft probe) | `npx skills add JuliusBrussee/caveman -a qoder -g` | No |
+| **Antigravity IDE** (soft probe) | `npx -y github:JuliusBrussee/caveman -- --only antigravity` | No |
+| **Antigravity 2.0** (explicit selection) | `npx -y github:JuliusBrussee/caveman -- --only antigravity-2` | No |
+
+Not in the table, with their own steps: [Claude apps (claude.ai, desktop, mobile, Cowork)](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#claude-apps-claudeai-desktop-mobile-cowork), [GitHub Copilot in VS Code](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#github-copilot-in-vs-code-agent-plugin), [nanocoder](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#nanocoder), and [dev containers](https://github.com/JuliusBrussee/caveman/blob/main/INSTALL.md#dev-containers-codespaces-remote-machines).
+
+For "auto-activates? No" agents, invoke the Caveman skill using the host's skill menu, `/caveman` where supported (`$caveman` in Codex), or a prompt naming the skill. Enable skills first if your host requires it.
+
+**Pick the mode new sessions start in.** Put `{"defaultMode": "ultracave"}` (or `"caveman"`, `"megacave"`, `"off"`) in `~/.config/caveman/config.json`, or in a `.caveman.json` at a project root for just that project.
+
+Scripted Claude Code runs (`claude -p` and the Agent SDK) start with caveman off whatever that file says, so tools that read Claude's reply get plain text. Type `/caveman` in the prompt, or set `CAVEMAN_DEFAULT_MODE=caveman` (or another mode) in their environment, to turn it on.
+
+## Local runtime install
+
+```bash
+npm install -g @caveman-ai/cli
+caveman setup --install
+```
+
+`setup --install` downloads the release checksum manifest and signature. It verifies the pinned public key, checks each artifact SHA-256, and installs by atomic rename under `~/.caveman/bin`. A failed verification leaves the candidate binary uninstalled.
+
+Inspect result:
+
+```bash
+caveman setup
+caveman setup --json
+```
+
+Required binaries power proxy, Engine, MCP recovery, and memory. Browser and tool-catalog shrink binaries are optional.
+
+## First run
+
+```bash
+caveman claude
+```
+
+The command persistently enables Claude's native Caveman integration, then runs Claude. Undo with `caveman disable claude`. Use `caveman wrap claude` for one ephemeral session with no persistent host-config changes. An interactive first run can install missing signed binaries and continue. Non-interactive runs never silently download a runtime; prepare them with `caveman setup --install`.
+
+Check direct pass-through before enabling transforms:
+
+```bash
+caveman wrap --off claude
+caveman status
+```
+
+Then use default recoverable compression:
+
+```bash
+caveman claude
+```
+
+No Caveman account is required for either local mode.
+
+## Build from source
+
+Clone repository and run platform installer:
+
+```bash
+git clone https://github.com/JuliusBrussee/caveman.git
+cd caveman
+./scripts/install-local-cli.sh
+```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/JuliusBrussee/caveman.git
+Set-Location caveman
+pwsh -File scripts/install-local-cli.ps1
+```
+
+Source build uses versions pinned by repository manifests. Do not mix an old CLI with newer companion binaries; `caveman setup` reports version drift.
+
+## Existing reviewed binaries
+
+Every companion accepts an environment override:
+
+```bash
+export CAVEMAN_PROXY_BIN=/reviewed/path/caveman-proxy
+export CAVEMAN_ENGINE_BIN=/reviewed/path/caveman-engine
+export CAVEMAN_MCP_BIN=/reviewed/path/caveman-mcp
+export CAVEMAN_BROWSE_BIN=/reviewed/path/caveman-browse
+export CAVEMAN_SHRINK_BIN=/reviewed/path/caveman-shrink
+```
+
+This bypasses download lookup and is useful for source builds or controlled deployment images.
+
+## Update
+
+Update JavaScript CLI through npm, then repair binary bundle:
+
+```bash
+npm install -g @caveman-ai/cli@latest
+caveman setup --install
+caveman setup
+```
+
+Skill/plugin updates follow the host's plugin or Skills CLI update flow. Re-running the GitHub installer is idempotent for installer-owned files.
+
+**Claude Code plugin update:** the plugin is `caveman@caveman`, so use the full name:
+
+```bash
+claude plugin update caveman@caveman
+```
+
+Restart Claude Code after an update. Hooks are read once at session start.
+
+## Uninstall
+
+Remove installer-managed skill integrations **and** native agent routing. Order matters: this step shells out to `caveman disable --all`, so it needs the CLI still installed.
+
+```bash
+npx -y github:JuliusBrussee/caveman -- --uninstall
+```
+
+Then remove global CLI through npm:
+
+```bash
+npm uninstall -g @caveman-ai/cli
+```
+
+Reversed, the native route survives. For Claude Code that leaves `ANTHROPIC_BASE_URL` and `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL` in `~/.claude/settings.json` and Remote Control unavailable. The installer names any agent still routed when it finds one; recover with `caveman disable --all` after reinstalling the CLI, or delete those two keys by hand.
+
+These commands do not delete local usage, CCR, or account state. Review [SECURITY.md](https://github.com/JuliusBrussee/caveman/blob/main/SECURITY.md#local-storage) before deleting `~/.caveman` or `~/.caveman-cloud`.
+
+Skills installed via `npx skills add` are managed by the `skills` CLI. Run `npx skills remove caveman` (or use your IDE's skill manager). Per-repo rule files written by `--with-init` (`.cursor/rules/`, `.windsurf/rules/`, `.clinerules/`, `.github/copilot-instructions.md`, `.opencode/AGENTS.md`, `AGENTS.md`) must be deleted by hand if you want them removed.
+
+## Windows notes
+
+PowerShell 5.1+ can run the root installer shim. Skills CLI may need `--copy` when symlink creation is unavailable. Native Windows supports local runtime binaries; tools that need OS-level network isolation should run in WSL2.
+
+If `irm | iex` fails, set up plugin-skill activation by hand. This does not install the standalone hooks or the statusline. For those, run the unified Node installer afterwards:
+
+```powershell
+npx -y github:JuliusBrussee/caveman -- --only claude
+```
+
+### Manual Windows plugin recovery
+
+```powershell
+$ClaudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
+$PluginSkillDir = Join-Path $ClaudeDir ".agents\plugins\caveman\skills\caveman"
+$MarketplaceDir = Join-Path $ClaudeDir ".agents\plugins"
+$MarketplaceFile = Join-Path $MarketplaceDir "marketplace.json"
+
+New-Item -ItemType Directory -Path $PluginSkillDir -Force | Out-Null
+Copy-Item ".\skills\caveman\SKILL.md" "$PluginSkillDir\SKILL.md" -Force
+
+New-Item -ItemType Directory -Path $MarketplaceDir -Force | Out-Null
+if (Test-Path $MarketplaceFile) {
+  $marketplace = Get-Content $MarketplaceFile -Raw | ConvertFrom-Json
+} else {
+  $marketplace = [pscustomobject]@{}
+}
+if (-not ($marketplace.PSObject.Properties.Name -contains "plugins")) {
+  $marketplace | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
+}
+$plugins = [ordered]@{}
+foreach ($p in $marketplace.plugins.PSObject.Properties) { $plugins[$p.Name] = $p.Value }
+$plugins["caveman"] = [ordered]@{ name = "caveman"; source = "JuliusBrussee/caveman"; version = "main" }
+$marketplace.plugins = [pscustomobject]$plugins
+$marketplace | ConvertTo-Json -Depth 10 | Set-Content -Path $MarketplaceFile -Encoding UTF8
+```
+
+Verify: `Test-Path "$PluginSkillDir\SKILL.md"` should print `True`. Restart Claude Code, then run `/caveman` to confirm the skill loads.
+
+### Codex on Windows
+
+1. Enable symlinks first: `git config --global core.symlinks true` (requires Developer Mode or admin).
+2. Clone repo, open VS Code, go to Codex Settings > Plugins, find "Caveman" under the local marketplace, install, and reload window.
+3. Codex hooks are currently disabled on Windows, so use `$caveman` to start the mode manually each session.
+
+### Symlink fallback
+
+`npx skills` uses symlinks by default. If symlinks fail, add `--copy`:
+
+```powershell
+npx skills add JuliusBrussee/caveman --copy
+```
+
+## Useful installer flags
+
+| Flag | Effect |
+| --- | --- |
+| `--dry-run` | Print commands and writes without changing state |
+| `--force` | Reinstall an existing target |
+| `--minimal` | Install plugin or extension without hooks or project rules |
+| `--with-hooks` / `--no-hooks` | Control Claude Code hooks |
+| `--with-init` | Write current-project rule files |
+| `--with-mcp-shrink="<command>"` | Wrap one upstream MCP server |
+| `--non-interactive` | Disable prompts |
+| `--config-dir <path>` | Select Claude Code hook/config directory |
+| `--only <id>` | One agent only. Repeatable. |
+| `--all` | Plugin + hooks + statusline + per-repo rule files in `$PWD` |
+| `--skip-skills` | Do not run the npx-skills auto-detect fallback |
+| `--list` | Print full agent matrix and exit |
+| `--uninstall` | Remove everything |

@@ -1,0 +1,81 @@
+---
+title: "Caveman SDKs and Packages for Developers"
+sidebarTitle: "SDKs and Packages"
+description: "Discover Caveman's TypeScript and Python SDKs, shared contracts, provider catalog, and benchmark tooling. Learn how to install, build, and integrate the packages that power local compression and middleware workflows."
+---
+
+Caveman distributes its developer surface as standalone packages for application integration, schemas, evaluation, and framework adapters. This page explains how the packages fit together, what each one covers, and how to build and test them.
+
+## TypeScript and Python SDKs
+
+The TypeScript SDK lives in `packages/sdk/typescript` and the Python SDK lives in `packages/sdk/python`. Both implement the same high-level operations:
+
+- Create a Caveman client
+- Configure provider calls
+- Define, defer, and search tools
+- Compress eligible context
+- Assemble a request from context parts
+- Create and consume context packs
+- Emit traces and OpenTelemetry data
+- Apply runtime policy
+
+Field names and `/sdk/v1/*` request contracts stay aligned across both languages. A contract change is incomplete until implementations, schemas, and tests agree in both SDKs.
+
+Install the TypeScript SDK:
+
+```bash
+npm install @caveman-ai/sdk
+```
+
+Install the Python SDK:
+
+```bash
+pip install caveman-sdk
+```
+
+Build and test the TypeScript package:
+
+```bash
+pnpm --dir packages/sdk/typescript build
+pnpm --dir packages/sdk/typescript test
+```
+
+Test the Python package:
+
+```bash
+python -m pytest -q packages/sdk/python
+```
+
+<Note>
+  Neither SDK guesses cost for an unknown model. Unknown pricing remains zero and is explicitly marked `unpriced`.
+</Note>
+
+## Shared contracts
+
+`packages/shared/contracts` stores JSON Schema wire contracts. The current schema set covers:
+
+- Adapter conformance and agent-run receipts
+- Cache guards and canonical spans
+- Cave builds and Cave Plans
+- Context intermediate representation
+- Continuous-improvement reports
+- Evaluation cases and grader registry
+- Harness events and policy
+- Practices
+- Transform capabilities and traces
+
+Generate and validate artifacts through package scripts rather than editing generated outputs independently.
+
+## Provider catalog
+
+`shared/provider-catalog` stores dated public list-price records and generated catalog outputs for local estimates. An unsupported model returns zero price plus an `unpriced` marker. The catalog does not represent invoice data.
+
+Catalog updates need source date, provider unit semantics, generated-artifact refresh, and tests. See [Accounting and evidence](/caveman/accounting-and-evidence) for how list-price subtotals relate to real billing.
+
+## Benchmark tooling
+
+`packages/subagent-tax` measures local context and delegation fixtures without issuing provider requests. Its output is benchmark evidence for exact fixtures and counterfactual implementation, not a general savings claim.
+
+## Package release model
+
+Registry packages release independently through scoped workflow inputs, while native binaries use a separate signed process. See [`PACKAGE_RELEASES.md`](https://github.com/JuliusBrussee/caveman/blob/main/PACKAGE_RELEASES.md) and [Installation](/caveman/installation) for details.

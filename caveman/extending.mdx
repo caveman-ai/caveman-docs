@@ -1,0 +1,115 @@
+---
+title: "Extend Caveman: Compressors, Providers, Profiles, and More"
+sidebarTitle: "Extending"
+description: "Add Engine compressors, provider adapters, agent profiles, SDK recipes, schemas, graders, and skills to Caveman, with the proof each extension point requires."
+---
+
+Caveman extensions should preserve original input on uncertainty, keep recovery exact, and label measurements by evidence source. This page maps the common extension points in the open source repository and the proof each one requires.
+
+## Add an Engine compressor
+
+Implement the compressor under `engine/compressors` and register it only after selection behavior is defined. See [Compression Engine](/caveman/engine) for how detection and safety classes work.
+
+Required properties:
+
+- Bounded parser and deterministic output
+- Declared safety class
+- Explicit automatic or forced-only selection
+- Original-byte fallback for malformed or unsupported input
+- Smaller-output gate
+- CCR integration for lossy output (see [Context recovery](/caveman/context-recovery))
+- Tests for recovery, boundary, failure, and non-winning input
+- Fixture-backed performance claim, if one is published
+
+Update the registry count and technical docs when the default registry changes.
+
+## Add a provider adapter
+
+A provider adapter belongs in the local proxy provider package. Keep transport shape, authentication, streaming, usage parsing, and capability rules inside the adapter instead of scattering provider-name branches through the runtime.
+
+<Steps>
+  <Step title="Routes">
+    Document routes and the default public endpoint.
+  </Step>
+  <Step title="Credentials">
+    Define credential precedence without secret logging.
+  </Step>
+  <Step title="Streaming and errors">
+    Add streaming and error pass-through tests.
+  </Step>
+  <Step title="SSRF">
+    Apply SSRF validation for configurable endpoints.
+  </Step>
+  <Step title="Usage">
+    Parse provider usage with unknown-field tolerance.
+  </Step>
+  <Step title="Capabilities">
+    Declare explicit cache, count, image, and tool capability data.
+  </Step>
+  <Step title="Pricing">
+    Fall back to zero plus `unpriced` for unknown pricing.
+  </Step>
+  <Step title="Record mode">
+    Add a record-mode byte-equivalence test.
+  </Step>
+</Steps>
+
+An OpenAI-compatible provider can use a named compatibility mount when the protocol matches. See [Local proxy and providers](/caveman/proxy-and-providers).
+
+<Warning>
+  Do not claim full provider support from one successful chat request.
+</Warning>
+
+## Add an agent profile
+
+Profiles live under `agents` and compile into CLI artifacts. Choose one supported wire protocol and injection method, then declare the executable, endpoint templates, extensions, and tested upstream version. The compiler rejects unsafe paths and unknown fields; reserved commands and unapproved environment templates are also rejected. See [Agent wrapping](/caveman/agent-wrapping).
+
+Profile proof should include:
+
+- Compiled artifact matches source
+- CLI launches the exact executable and preserves arguments
+- Record mode request bytes match the unwrapped request
+- Configured provider route receives the expected protocol
+- Hook or plugin install and removal are reversible
+- Unsupported upstream version produces a useful error
+
+## Add an SDK recipe
+
+Recipes live under `integrations`. Keep them small and executable. A recipe should show the endpoint, provider credential behavior, recovery integration where available, and the record-mode escape hatch.
+
+Do not copy SDK source into a recipe. Link public SDK documentation for provider semantics that change frequently.
+
+## Add a schema or SDK field
+
+Contract changes begin in `packages/shared/contracts`. Regenerate derived artifacts, then update the TypeScript and Python SDKs together. Add round-trip and rejection tests for both languages. See [SDKs and packages](/caveman/sdks-and-packages).
+
+Use additive fields when compatible. Do not make clients accept an unknown enum as a successful state when safe behavior is rejection.
+
+## Add a grader
+
+Add the type, schema, TypeScript implementation, fixtures, and fail-closed unknown handling. Output must identify the method and reproducible inputs; a grader pass is scoped evidence rather than a savings label. See [Accounting and evidence](/caveman/accounting-and-evidence).
+
+## Update the provider catalog
+
+A catalog change needs an authoritative public source, effective date, unit normalization, generator run, and fixture updates. Preserve old dated records when needed for historical calculations. Never infer a missing price from a nearby model name.
+
+## Add a skill, hook, or plugin
+
+- **Skill:** state behavior in plain language; avoid unsupported reduction or quality claims.
+- **Hook:** document the event, changed files, permissions, failure behavior, and removal.
+- **Plugin:** minimize host permissions and pin the tested host version.
+
+The installation preview should show the exact source. State whether the integration sends network traffic and where it stores local state. See [Skills and hooks](/caveman/skills).
+
+## Documentation required with code
+
+Update:
+
+- The nearest package README
+- The relevant page in this manual
+- CLI help for public commands
+- The [configuration reference](/caveman/configuration) for new keys
+- The [security](/caveman/security-and-privacy) or [evidence](/caveman/accounting-and-evidence) page when a trust boundary changes
+- The changelog or release note according to the package process
+
+Run the commands in [Benchmarks](/caveman/benchmarks#testing-and-benchmarks-in-the-repository). Report targeted proof separately from gates not run.
