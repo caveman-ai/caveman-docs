@@ -135,6 +135,18 @@ cvm projects list
 | `6` | Timeout, still running, or not enough data | Wait and retry, or check `runs.get` for status |
 | `7` | Rate limited (HTTP 429) | Retry with exponential backoff |
 
+## Uninstall
+
+Remove the `cvm` CLI with npm:
+
+```bash
+npm uninstall -g @caveman-ai/cloud
+```
+
+The `caveman` CLI is a separate package, `@caveman-ai/cli`. If you installed it too, follow [Uninstall Caveman](/caveman/installation#uninstall). That guide removes agent integrations before you remove the package.
+
+Uninstalling either package leaves your local config and credentials in place. These include `~/.caveman-cloud/config.json` and, when the OS keychain is unavailable, `~/.caveman/credentials`. Review [SECURITY.md](https://github.com/JuliusBrussee/caveman/blob/main/SECURITY.md#local-storage) before you delete `~/.caveman` or `~/.caveman-cloud`.
+
 ## Next steps
 
 <CardGroup>
