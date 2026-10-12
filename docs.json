@@ -9,6 +9,63 @@
   "navigation": {
     "products": [
       {
+        "product": "Caveman",
+        "icon": "terminal",
+        "description": "Open source skill, CLI, proxy, and Engine",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "caveman/index",
+              "caveman/quickstart",
+              "caveman/installation",
+              "caveman/product-model"
+            ]
+          },
+          {
+            "group": "Skills & Agents",
+            "pages": [
+              "caveman/skills",
+              "caveman/agent-wrapping",
+              "caveman/local-tools",
+              "caveman/exploration-and-delegation",
+              "caveman/learn"
+            ]
+          },
+          {
+            "group": "Proxy & Engine",
+            "pages": [
+              "caveman/architecture",
+              "caveman/engine",
+              "caveman/context-recovery",
+              "caveman/proxy-and-providers",
+              "caveman/toon-and-pixel",
+              "caveman/cache-planner",
+              "caveman/deploy"
+            ]
+          },
+          {
+            "group": "Build on Caveman",
+            "pages": [
+              "caveman/sdks-and-packages",
+              "caveman/middleware",
+              "caveman/extending"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "caveman/cli-reference",
+              "caveman/configuration",
+              "caveman/security-and-privacy",
+              "caveman/accounting-and-evidence",
+              "caveman/benchmarks",
+              "caveman/glossary"
+            ]
+          }
+        ]
+      },
+      {
         "product": "Caveman Cloud",
         "icon": "cloud",
         "description": "Hosted control plane for AI spend, routing, and governance",
@@ -141,63 +198,6 @@
                   "cli/mcp"
                 ]
               }
-            ]
-          }
-        ]
-      },
-      {
-        "product": "Caveman",
-        "icon": "terminal",
-        "description": "Open source skill, CLI, proxy, and Engine",
-        "groups": [
-          {
-            "group": "Get Started",
-            "pages": [
-              "caveman/index",
-              "caveman/quickstart",
-              "caveman/installation",
-              "caveman/product-model"
-            ]
-          },
-          {
-            "group": "Skills & Agents",
-            "pages": [
-              "caveman/skills",
-              "caveman/agent-wrapping",
-              "caveman/local-tools",
-              "caveman/exploration-and-delegation",
-              "caveman/learn"
-            ]
-          },
-          {
-            "group": "Proxy & Engine",
-            "pages": [
-              "caveman/architecture",
-              "caveman/engine",
-              "caveman/context-recovery",
-              "caveman/proxy-and-providers",
-              "caveman/toon-and-pixel",
-              "caveman/cache-planner",
-              "caveman/deploy"
-            ]
-          },
-          {
-            "group": "Build on Caveman",
-            "pages": [
-              "caveman/sdks-and-packages",
-              "caveman/middleware",
-              "caveman/extending"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "caveman/cli-reference",
-              "caveman/configuration",
-              "caveman/security-and-privacy",
-              "caveman/accounting-and-evidence",
-              "caveman/benchmarks",
-              "caveman/glossary"
             ]
           }
         ]
