@@ -113,7 +113,7 @@ export const REFERENCE: DocGroup = {
   title: "Reference",
   items: [
     { title: "Licensing", slug: "licensing", blurb: "Everything in Caveman 3.0.0 is Apache-2.0. What that lets you do, and what older releases shipped under.", license: "Apache-2.0" },
-    { title: "Telemetry", slug: "telemetry", blurb: "What the CLI sends, what it never sends, and how to turn it off.", capability: "cli", license: "Apache-2.0" },
+    { title: "Telemetry", slug: "telemetry", blurb: "What the CLI and Caveman Blocks send, what they never send, and how to turn it off.", capability: "cli", license: "Apache-2.0" },
     { title: "Eval graders", slug: "evals", blurb: "The graders that check a compressed answer still matches the original.", capability: "evals", license: "Apache-2.0" },
     { title: "Provider catalog", slug: "provider-catalog", blurb: "The model price table every token figure is read from.", capability: "provider-catalog", license: "Apache-2.0" },
     { title: "Troubleshooting", slug: "troubleshooting", blurb: "The symptom you see, what it means, and the fix, for the skill, the CLI, and the proxy.", capability: "cli", license: "Apache-2.0" },

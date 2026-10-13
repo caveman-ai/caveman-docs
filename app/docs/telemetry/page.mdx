@@ -4,7 +4,7 @@ export const metadata = docMetadata("telemetry");
 
 <DocSchema slug="telemetry" />
 
-The `caveman` CLI sends an anonymous event when a command finishes: which command ran, how long it took, whether it succeeded, and how many tokens the local proxy processed and cut since the last event. It is on by default in an interactive terminal, off everywhere else, and three switches turn it off for good. Prompts, code, file paths and model names are never part of it.
+The `caveman` CLI sends an anonymous event when a command finishes: which command ran, how long it took, whether it succeeded, and how many tokens the local proxy processed and cut since the last event. It is on by default in an interactive terminal, off everywhere else, and three switches turn it off for good. Prompts, code, file paths and model names are never part of it. Caveman Blocks sends its own usage counts and shares the CLI's consent; see [Caveman Blocks](#caveman-blocks).
 
 ```bash
 caveman telemetry status
@@ -112,3 +112,77 @@ caveman telemetry off      # and it stays off
 ```
 
 `status` is the one telemetry verb that leaves the decision unmade, so running it on a fresh machine shows you what would happen while leaving the machine as it was.
+
+## Caveman Blocks
+
+`caveman-blocks` sends its own usage counts under the `blocks/v1` schema. Like the CLI, it is on by default and stays silent until a disclosure has been shown and the choice saved. Every field is a number, a boolean, or a string checked against a fixed list or format, so scripts, shape fingerprints, commands your agent ran, file paths, repository names or remotes, block parameters, block output and the names of blocks you wrote have nowhere to go. Names of first-party blocks such as `json-peek` and `test-summary` are sent, because that list is public and fixed.
+
+```bash
+caveman-blocks telemetry status   # on or off, why, and your install ID
+caveman-blocks telemetry off      # off for good on this machine
+caveman-blocks telemetry on       # only works from a terminal
+```
+
+### Off switches, in precedence order
+
+1. `DO_NOT_TRACK` set to anything except empty or `0`.
+2. `CAVEMAN_BLOCKS_TELEMETRY` set to anything except empty, `1`, `true` or `on`.
+3. `CAVEMAN_TELEMETRY`, the CLI's switch, read the same way. It can turn Blocks off, never on.
+4. `CI` set to anything except empty, `0` or `false`.
+5. A choice saved with `caveman-blocks telemetry on|off`. A saved `off` is honoured forever.
+6. An opt-out saved by the CLI with `caveman telemetry off`.
+
+Anything not on that list leaves the default, on. Only a person at a terminal can turn it on: `telemetry on` refuses anywhere else, while an agent or a script can always turn it off. When an interactive command sees switch 1, 2 or 3, Blocks also saves a lasting `off`, because hooks started by desktop apps often never read your shell profile.
+
+Off also covers what was counted while it was off. Any `caveman-blocks` process that finds telemetry off, the hook included, marks the day, and a marked day is never sent, nor any day before it, even after telemetry is back on. `CI` on its own is the exception: it stops that process from sending and marks nothing, because some agent harnesses set it for every command.
+
+### The disclosure and shared consent with the CLI
+
+The first interactive command, meaning stdin and stderr are both a terminal and no agent harness variable such as `CLAUDECODE`, `CURSOR_AGENT` or `GEMINI_CLI` is set, prints this line once on stderr and saves the choice:
+
+```text
+usage counts on · commands, hints shown and followed, block runs, a random install ID, OS and your IP address · never scripts, file paths, repo names or names of blocks you wrote · this is what keeps Blocks free · off: caveman-blocks telemetry off · https://github.com/caveman-ai/blocks/blob/main/docs/TELEMETRY.md
+```
+
+Commands without a terminal, including the hook and anything an agent runs, never save the default on their own. `help`, `version`, `telemetry status` and `telemetry off` never print the line.
+
+The CLI's notice covers Blocks from disclosure version 6 onwards. While the CLI has telemetry on under that notice, any `caveman-blocks` process saves the default silently and reuses the CLI's install ID. That includes the hook and `hooks install` run by `caveman on scripts`. One notice means one opt-out: `caveman telemetry off` turns both off, and `caveman-blocks telemetry status` reports `covered by the Caveman CLI's telemetry`.
+
+When the CLI has telemetry on, a Blocks install enrolled from its own disclosure reuses the CLI's install ID too, and the disclosure line adds `shares the Caveman CLI install ID`. If the CLI later turns telemetry off or replaces its ID, Blocks drops the shared ID at once, marks the day off, and sends nothing until the default is saved again. `caveman-blocks telemetry off` deletes the install ID from disk and prints it once, because it is the only key to a deletion request.
+
+### Events
+
+Each flush is one HTTPS `POST` of a JSON array of at most 20 events. Every event carries these fields:
+
+| Field | What it is |
+|---|---|
+| `schema` | The event schema, `blocks/v1`. |
+| `event` | `first_run`, `command_run`, or `daily_usage`. |
+| `ts` | An RFC 3339 UTC timestamp. |
+| `anonymous_id` | The install ID. |
+| `cli_version`, `os`, `arch` | The build and the platform. |
+| `install_channel` | `npx`, `brew`, `direct`, or `source`. |
+| `linked` | `true` when the install ID is shared with the CLI. |
+
+- **`first_run`** is sent once when telemetry starts under an install ID. An install enrolled under the CLI's notice sends exactly one, from whichever process enrols first. It has no further fields.
+- **`command_run`** is sent after each interactive command. Commands run by agents or scripts send none. It adds `command` (from a fixed list, otherwise `unknown`), `subcommand`, `block` (for `add` and `run`, only when the block is first-party), `duration_ms`, `exit_class` (`ok` or `error`), `error_class` (`usage` for exit 2, `failed` for any other non-zero exit) and, for a successful `scan`, `scan_*` counts of commands, scripts and shapes.
+- **`daily_usage`** is one row per install per UTC day with activity, summed across every repo on the machine from the `stats.jsonl` files the hook and runner already write. Only complete past days are sent, oldest first, at most 7 days back.
+
+| `daily_usage` field | What it is |
+|---|---|
+| `day` | The UTC day counted, `YYYY-MM-DD`. |
+| `repos_active`, `sessions` | Repos with activity, and agent sessions the hook saw. |
+| `scripts`, `scripts_bytes` | Inline scripts captured, and their size in bytes. The scripts stay on the machine. |
+| `hints`, `hints_followed`, `promote_hints` | Hints shown, hints followed by a call of the hinted block, and promotion suggestions shown. |
+| `calls`, `runs`, `runs_failed`, `runs_user` | Block calls, runs, failed runs, and runs of blocks that are not first-party. |
+| `verify_pass`, `verify_fail` | Verify outcomes. |
+| `bytes_full`, `bytes_returned` | Output bytes blocks produced, and bytes returned to the agent. |
+| `blocks_first_party`, `blocks_user` | Distinct first-party and other blocks run. Only the count of other blocks is sent. |
+| `first_party_runs` | First-party block name to run count. |
+| `harness_sessions` | Harness (`claude`, `codex`, `cursor`, `generic`) to distinct sessions. |
+
+### How it is sent
+
+After an interactive command, `caveman-blocks` starts a detached `caveman-blocks telemetry flush` and exits. The hook starts the same process at most once every 24 hours. The flush hands the JSON to the system `curl` with a 10 second timeout, so a machine without `curl` sends nothing. A failed send never fails or slows a command, and unsent days are retried on the next flush. `CAVEMAN_BLOCKS_TELEMETRY_URL` overrides the destination for testing; it must be an `https://` URL or `http://` to `127.0.0.1` or `localhost`.
+
+Events land in the same backend as the CLI's telemetry, which stores them with the time received and the sender's IP address, used to rate-limit. IP addresses are cleared after 90 days and events are deleted after 13 months. To have every stored event for your install deleted, send the install ID to security@caveman.so with "telemetry deletion" in the subject.
