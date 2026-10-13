@@ -1,32 +1,30 @@
 ---
 title: "Install the cvm CLI to manage Caveman Cloud in terminal"
 sidebarTitle: "cvm CLI"
-description: "Install cvm with npm, authenticate with caveman login, bind a project, and run traces, SQL, and Cloud operations from your terminal."
+description: "Install cvm with one npx command that signs you in and connects your coding agents, then run traces, SQL, and Cloud operations from your terminal."
 ---
 
 The `cvm` CLI is the terminal interface for Caveman Cloud. It wraps every control plane operation so you can list projects, search traces, run SQL, start improvement attempts, and drive evals without leaving your shell.
 
 ## Install and sign in
 
-<Steps>
-  <Step title="Install the CLI">
-    ```bash
-    npm i -g @caveman-ai/cloud
-    ```
-  </Step>
-  <Step title="Sign in">
-    ```bash
-    cvm login
-    ```
+One command installs `cvm`, signs you in and connects your coding agents. Copy it from **Connect your coding agent** in the console, with your project filled in:
 
-    `cvm login` runs `caveman login` under the hood. One sign-in works for both the `caveman` and `cvm` CLIs. If `caveman` is not installed, `cvm login` fetches it once with `npx`.
-  </Step>
-  <Step title="Verify the session">
-    ```bash
-    cvm auth status
-    ```
-  </Step>
-</Steps>
+```bash
+npx -y @caveman-ai/cloud@rc setup --project PROJECT_ID
+```
+
+It installs `cvm` globally, signs you in through your browser, saves the project as your default, and gives Claude Code, Codex, Cursor, VS Code, Windsurf, Gemini CLI and OpenCode the Caveman Cloud skill and MCP server. See [Connect your coding agent](/guides/connect-coding-agent) for each step and flag.
+
+To install and sign in by hand instead:
+
+```bash
+npm i -g @caveman-ai/cloud@rc
+cvm login         # prints a code and opens your browser
+cvm auth status   # exits 0 when signed in, 3 when not
+```
+
+`cvm login` and `caveman login` save the same sign-in, so signing in with either signs in both. The `@rc` tag matters for now: npm's `latest` is still an early build without `setup`.
 
 ## Project binding and context
 
@@ -137,11 +135,15 @@ cvm projects list
 
 ## Uninstall
 
-Remove the `cvm` CLI with npm:
+Take the skills and MCP entries out of your coding agents first, then remove the CLI:
 
 ```bash
+cvm setup --remove
+cvm logout
 npm uninstall -g @caveman-ai/cloud
 ```
+
+`cvm setup --remove` deletes only what `cvm` wrote: the `caveman-cloud` skill folders it installed and the `caveman-cloud` MCP entries it added. Other servers and skills stay.
 
 The `caveman` CLI is a separate package, `@caveman-ai/cli`. If you installed it too, follow [Uninstall Caveman](/caveman/installation#uninstall). That guide removes agent integrations before you remove the package.
 
@@ -158,7 +160,7 @@ Uninstalling either package leaves your local config and credentials in place. T
     Search traces, inspect spans, and understand spend attribution.
   </Card>
 
-  <Card title="Connect a coding agent" icon="robot" href="/cli/mcp">
-    Use MCP to let Claude Code or Cursor operate Caveman Cloud.
+  <Card title="Connect a coding agent" icon="robot" href="/guides/connect-coding-agent">
+    One command gives your coding agents the Caveman Cloud skill and MCP server.
   </Card>
 </CardGroup>
