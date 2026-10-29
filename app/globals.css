@@ -162,7 +162,8 @@
     font-family: var(--font-mono), ui-monospace, monospace;
     font-size: 0.84em;
     color: rgb(var(--foreground));
-    overflow-wrap: anywhere;
+    /* break-word, not anywhere: anywhere shrinks a table column to one letter. */
+    overflow-wrap: break-word;
   }
 
   /* Tables: one rounded hairline frame, a quiet header row, rules between

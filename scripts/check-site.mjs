@@ -70,7 +70,12 @@ let anchors = 0;
 const queue = [...index.pages];
 await Promise.all(
   Array.from({ length: 4 }, async () => {
-    for (let page = queue.shift(); page; page = queue.shift()) anchors += await check(page);
+    for (let page = queue.shift(); page; page = queue.shift()) {
+      // Await first, then add: `anchors += await x` reads the total before the
+      // await, so concurrent workers would overwrite each other's counts.
+      const checked = await check(page);
+      anchors += checked;
+    }
   }),
 );
 console.log(`PASS ${index.pages.length} pages: HTML, Markdown twin, 303 negotiation, structured data, ${anchors} anchors, indexes.`);

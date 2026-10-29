@@ -9,6 +9,34 @@ import { cn } from "@/lib/cn";
 export function TabsView({ labels, panels }: { labels: string[]; panels: React.ReactNode[] }) {
   const [active, setActive] = React.useState(0);
   const id = React.useId();
+  const panelRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+
+  // An anchor can point inside a tab that is not showing: a search result, a
+  // contents link, a shared URL. Open the tab that owns it, then scroll to it,
+  // because the browser could not scroll to an element that was hidden.
+  // Clicks on in-page links count too: following a link to the hash already
+  // in the URL fires no `hashchange`.
+  React.useEffect(() => {
+    const reveal = (target: string) => {
+      if (!target) return;
+      const owner = panelRefs.current.findIndex((panel) => panel?.querySelector(`[id="${CSS.escape(target)}"]`));
+      if (owner < 0) return;
+      setActive(owner);
+      requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+    };
+    const fromHash = () => reveal(decodeURIComponent(window.location.hash.slice(1)));
+    const fromClick = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+      if (link) reveal(decodeURIComponent(link.getAttribute("href")!.slice(1)));
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    document.addEventListener("click", fromClick);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      document.removeEventListener("click", fromClick);
+    };
+  }, []);
 
   return (
     <div className="my-6">
@@ -38,6 +66,9 @@ export function TabsView({ labels, panels }: { labels: string[]; panels: React.R
       {panels.map((panel, i) => (
         <div
           key={i}
+          ref={(el) => {
+            panelRefs.current[i] = el;
+          }}
           role="tabpanel"
           id={`${id}-panel-${i}`}
           aria-labelledby={`${id}-tab-${i}`}
