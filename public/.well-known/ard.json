@@ -12,13 +12,15 @@
       "type": "text/markdown",
       "mediaType": "text/markdown",
       "url": "https://docs.caveman.so/llms.txt",
-      "description": "Every documentation page with a one-line summary, grouped by layer, plus when-to-use guidance and the measurement vocabulary.",
+      "description": "Every documentation page for Caveman and Caveman Cloud with a one-line summary, grouped by product and group, each linking to its Markdown twin.",
       "tags": ["documentation", "token-efficiency", "ai-agents", "llm-cost"],
       "representativeQueries": [
         "how do I install the caveman skill",
         "how does the caveman proxy compress tool output",
         "what does inferred mean in caveman",
-        "how do I use caveman with litellm"
+        "how do I use caveman with litellm",
+
+"how do I route my app through the caveman cloud gateway"
       ],
       "trustManifest": {
         "identity": "did:web:docs.caveman.so",
@@ -50,7 +52,7 @@
       "type": "application/json",
       "mediaType": "application/json",
       "url": "https://docs.caveman.so/llms-index.json",
-      "description": "Every page with its headings, anchors, licence, capability id and last-changed date, for choosing which page to fetch without fetching any.",
+      "description": "Every page with its title, description, product, group, headings, anchors and last-changed date, for choosing which page to fetch without fetching any.",
       "tags": ["documentation", "index"],
       "trustManifest": {
         "identity": "did:web:docs.caveman.so",

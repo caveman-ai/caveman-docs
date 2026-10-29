@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import createMDX from "@next/mdx";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -21,30 +20,54 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // Content is authored as app/docs/<slug>/page.mdx, so .mdx must be a route ext.
-  pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
-  // The plain-text mirror route reads the .mdx sources by path. Next only traces
-  // what it can see in the import graph, so name them explicitly or the route
-  // works in `next dev` and ENOENTs in production.
-  outputFileTracingIncludes: {
-    "/raw/[[...slug]]": ["./app/docs/**/page.mdx"],
-    "/llms-full.txt": ["./app/docs/**/page.mdx"],
-  },
   turbopack: { root: process.cwd() },
   async redirects() {
-    // The engine used to be a top-level product. It is the compressor the
-    // proxy calls, so it now lives inside the proxy. These URLs were published,
-    // are in old sitemaps and in llms.txt caches, and are cheap to keep alive.
-    // Order matters: Next takes the first match, so the moved-out page has to
-    // come before the catch-all that would sweep it into /docs/proxy.
-    const engine: [string, string][] = [
-      ["/docs/engine", "/docs/proxy/engine"],
-      ["/docs/engine.md", "/docs/proxy/engine.md"],
-      ["/docs/engine/shrink", "/docs/shrink"],
-      ["/docs/engine/shrink.md", "/docs/shrink.md"],
-      ["/docs/engine/:rest*", "/docs/proxy/:rest*"],
+    // Mintlify served `x/index` pages at `/x/index` as well as `/x`, and its
+    // root page at `/index`. The root page, the Cloud introduction, now lives
+    // at `/cloud` because `/` is the product chooser. `/index.md` is not
+    // redirected: it is the home page's own Markdown twin.
+    const indexes: [string, string][] = [
+      ["/index", "/cloud"],
+      ["/caveman/index", "/caveman"],
+      ["/caveman/index.md", "/caveman.md"],
     ];
-    const moved = engine.map(([source, destination]) => ({ source, destination, permanent: true }));
+    // The self-hosted site that came before Mintlify served its pages under
+    // /docs. caveman.so, old sitemaps, old llms.txt copies and a few pages here
+    // still link to them. Each goes to the current page that covers the same
+    // ground; anything unlisted lands on the home page. Each `.md` twin follows
+    // its page. Order matters: Next takes the first match, so the catch-all
+    // stays last.
+    const legacy: [string, string][] = [
+      ["/docs", "/"],
+      ["/docs/quickstart", "/caveman/quickstart"],
+      ["/docs/skill", "/caveman/skills"],
+      ["/docs/skill/learn", "/caveman/learn"],
+      ["/docs/skill/explore", "/caveman/exploration-and-delegation"],
+      ["/docs/sdk", "/caveman/sdks-and-packages"],
+      ["/docs/sdk/middleware", "/caveman/middleware"],
+      ["/docs/sdk/middleware/vercel-ai-sdk", "/caveman/middleware"],
+      ["/docs/sdk/middleware/python", "/caveman/middleware"],
+      ["/docs/sdk/middleware/deployment", "/caveman/deploy"],
+      ["/docs/proxy", "/caveman/proxy-and-providers"],
+      ["/docs/proxy/recoverable", "/caveman/context-recovery"],
+      ["/docs/proxy/wrap", "/caveman/agent-wrapping"],
+      ["/docs/proxy/engine", "/caveman/engine"],
+      ["/docs/engine", "/caveman/engine"],
+      ["/docs/counting", "/caveman/benchmarks"],
+      ["/docs/mcp", "/caveman/local-tools"],
+      ["/docs/router", "/guides/model-routing"],
+      ["/docs/licensing", "/caveman/product-model"],
+      ["/docs/cli", "/caveman/cli-reference"],
+      ["/docs/architecture", "/caveman/architecture"],
+      ["/docs/cloud", "/cloud"],
+    ];
+    const twin = (path: string) => (path === "/" ? "/index.md" : `${path}.md`);
+    const moved: [string, string][] = [
+      ...indexes,
+      ...legacy.flatMap(([from, to]): [string, string][] => [[from, to], [twin(from), twin(to)]]),
+      ["/docs/llms.txt", "/llms.txt"],
+      ["/docs/:path*", "/"],
+    ];
     // Product-level surfaces live on the product site. A reader who guesses
     // the conventional path here is sent to the real one rather than a 404,
     // and never to a copy that could drift.
@@ -57,21 +80,21 @@ const nextConfig: NextConfig = {
       ["/privacy", "https://caveman.so/privacy"],
       ["/terms", "https://caveman.so/terms"],
     ];
-    return [...moved, ...productSite.map(([source, destination]) => ({ source, destination, permanent: true }))];
+    return [...productSite, ...moved].map(([source, destination]) => ({ source, destination, permanent: true }));
   },
   async rewrites() {
-    // /docs/proxy.md serves the same page as raw Markdown for agents and
-    // crawlers. Keeping it a rewrite rather than a second tree means one source.
+    // `/caveman/quickstart.md` serves that page as raw Markdown for agents and
+    // crawlers, from the same source as the HTML. A rewrite rather than a
+    // second tree means one source. Public files are checked before
+    // `afterFiles`, so a real `.md` file under public/ still wins.
     return {
       // Checked before the filesystem, or the front page would always win.
-      // A machine asking for the agent view of the front page gets the Markdown mirror.
+      // A machine asking for the agent view of the front page gets its twin.
       beforeFiles: [{ source: "/", has: [{ type: "query", key: "mode", value: "agent" }], destination: "/raw" }],
       afterFiles: [
-        { source: "/docs.md", destination: "/raw" },
+        // Before the general rule, which would send it to /raw/index.
         { source: "/index.md", destination: "/raw" },
-        { source: "/docs/:slug*.md", destination: "/raw/:slug*" },
-        // One llms.txt per section is the convention; the whole site is one section.
-        { source: "/docs/llms.txt", destination: "/llms.txt" },
+        { source: "/:path*.md", destination: "/raw/:path*" },
       ],
       fallback: [],
     };
@@ -89,7 +112,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: [...securityHeaders, discovery] },
       { source: "/index.md", headers: [{ key: "Vary", value: "Accept" }] },
-      { source: "/docs/:slug*.md", headers: [{ key: "Vary", value: "Accept" }] },
+      { source: "/:path*.md", headers: [{ key: "Vary", value: "Accept" }] },
       {
         source: "/.well-known/:path*",
         headers: [
@@ -106,9 +129,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Highlighting is done by a server `Code` component (Shiki, build time), so the
-// only plugin needed is remark-gfm for tables. It MUST be passed by string name
-// so the MDX options stay serializable across the turbopack boundary.
-const withMDX = createMDX({ options: { remarkPlugins: [["remark-gfm"]] } });
-
-export default withMDX(nextConfig);
+export default nextConfig;

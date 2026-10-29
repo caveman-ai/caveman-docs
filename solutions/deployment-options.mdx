@@ -4,7 +4,7 @@ sidebarTitle: "Deployment Options"
 description: "Choose between hosted Caveman Cloud, a customer-owned install in AWS or GCP, or on-prem deployment. Compare data residency, key custody, backups, and control."
 ---
 
-Caveman Cloud offers three deployment shapes: a fully hosted managed gateway, a customer-owned install in your AWS or GCP account, or an on-premises deployment. All three run the same signed release and the same Helm chart. Your choice determines where data lives, who holds the keys, and who operates the infrastructure.
+Caveman Cloud offers three deployment shapes: fully hosted by Caveman, a customer-owned install in your AWS or GCP account, or an on-premises deployment. All three run the same signed release and the same Helm chart. Your choice determines where data lives, who holds the keys, and who operates the infrastructure.
 
 ## Deployment shapes at a glance
 
@@ -53,10 +53,10 @@ The customer-owned install runs the full stack in your AWS or GCP account, opera
 
 Terraform roots are provided for AWS and GCP private installs:
 
-| Path | Purpose |
+| Cloud | What the Terraform root provisions |
 | --- | --- |
-| `deploy/terraform/aws` | AWS EKS, RDS, ElastiCache (Valkey), S3, IRSA, WAF, ALB |
-| `deploy/terraform/gcp-private` | GCP GKE, Cloud SQL, Memorystore, GCS, workload identity |
+| AWS | EKS, RDS, ElastiCache (Valkey), S3, IRSA, WAF, ALB |
+| GCP | GKE, Cloud SQL, Memorystore, GCS, workload identity |
 
 One Helm chart deploys the application. The installer is a signed release archive; no source checkout or build is required. You provide a small `site.yaml` for admin CIDRs, identity-provider origins, and ingress TLS Secret names.
 

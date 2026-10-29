@@ -1,77 +1,67 @@
-import { pageRecord } from "@/lib/page-index";
-import { glossaryJsonLd } from "@/lib/glossary";
+import { getProduct, type DocPage } from "@/lib/content";
+import { compilePage } from "@/lib/mdx";
+import { markdownUrl } from "@/lib/raw-page";
 import { SITE } from "@/lib/site";
+import { lastChanged } from "@/lib/updated";
 
 /* ==========================================================================
- *  Per-page structured data.
+ *  Per-page structured data: a TechArticle and a BreadcrumbList
+ *  (Docs → product → page).
  *
  *  A server component, so the JSON-LD is in the HTML source. A scraper that
- *  does not run JavaScript still gets the title, the summary, the licence, the
- *  last change, the position in the site, and the Markdown twin.
+ *  does not run JavaScript still gets the title, the description, the last
+ *  change, the position in the site, the sections, and the Markdown twin.
  *
- *  One line per page, in the page itself, rather than derived from the URL in
- *  a layout: reading the path at request time would make every page dynamic
- *  and lose static prerendering for the sake of saving a line.
+ *  Headings come from `compilePage`, which caches per process, so asking for
+ *  them here costs nothing the page did not already pay.
  * ======================================================================== */
 
-const SPDX: Record<string, string> = {
-  "Apache-2.0": "https://spdx.org/licenses/Apache-2.0.html",
-};
+/** JSON for a <script> body. `<` is escaped so no string can close the tag. */
+function json(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
 
-export function DocSchema({ slug, glossary = false }: { slug: string; glossary?: boolean }) {
-  const page = pageRecord(slug);
-  if (!page) return null;
+export async function DocSchema({ page }: { page: DocPage }) {
+  const product = getProduct(page.product);
+  const { headings } = await compilePage(page);
+  const url = `${SITE.url}${page.href}`;
+  const updated = lastChanged(page.file);
 
   const article = {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "@id": `${page.url}#article`,
+    "@id": `${url}#article`,
     headline: page.title,
     name: page.title,
-    description: page.summary,
-    url: page.url,
-    dateModified: page.updated,
+    description: page.description,
+    url,
+    ...(updated ? { dateModified: updated } : {}),
     inLanguage: "en",
-    wordCount: page.words,
     isPartOf: { "@type": "WebSite", "@id": `${SITE.url}#website`, name: SITE.name, url: SITE.url },
     publisher: { "@type": "Organization", name: "Caveman", url: SITE.app },
-    ...(page.license && SPDX[page.license] ? { license: SPDX[page.license] } : {}),
     // The plain-text twin, declared where a machine will look for it.
-    encoding: { "@type": "MediaObject", encodingFormat: "text/markdown", contentUrl: page.markdown },
-    // Headings as addressable sections, so a citation can be specific.
-    hasPart: page.headings
-      .filter((h) => h.level === 2)
-      .map((h) => ({
-        "@type": "WebPageElement",
-        "@id": `${page.url}#${h.anchor}`,
-        name: h.text,
-        url: `${page.url}#${h.anchor}`,
-      })),
+    encoding: { "@type": "MediaObject", encodingFormat: "text/markdown", contentUrl: markdownUrl(page) },
+    // Sections as addressable parts, so a citation can be specific.
+    hasPart: headings
+      .filter((h) => h.depth === 2)
+      .map((h) => ({ "@type": "WebPageElement", "@id": `${url}#${h.id}`, name: h.text, url: `${url}#${h.id}` })),
   };
+
+  // A product's introduction is the product's own page, so its trail stops there.
+  const crumbs: { name: string; item: string }[] = [{ name: "Docs", item: `${SITE.url}/` }];
+  if (product && product.href !== page.href) crumbs.push({ name: product.name, item: `${SITE.url}${product.href}` });
+  crumbs.push({ name: page.href === product?.href ? product.name : page.navTitle, item: url });
 
   const breadcrumb = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Documentation", item: `${SITE.url}/docs` },
-      ...(page.section && page.slug !== ""
-        ? [{ "@type": "ListItem", position: 2, name: page.section, item: `${SITE.url}/docs` }]
-        : []),
-      { "@type": "ListItem", position: page.section && page.slug !== "" ? 3 : 2, name: page.title, item: page.url },
-    ],
+    itemListElement: crumbs.map((crumb, i) => ({ "@type": "ListItem", position: i + 1, ...crumb })),
   };
-
-  const graph = glossary ? [article, breadcrumb, glossaryJsonLd()] : [article, breadcrumb];
 
   return (
     <>
-      {graph.map((node, i) => (
-        <script
-          key={i}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(node) }}
-        />
-      ))}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(article) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(breadcrumb) }} />
     </>
   );
 }
