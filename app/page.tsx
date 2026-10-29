@@ -48,9 +48,9 @@ const CHOOSER = [
   {
     id: "cloud",
     summary:
-      "A managed LLM gateway with traces, evals and improvements for teams running agents and LLM apps. It proves a saving with labeled evidence before anything ships.",
+      "See what your agents cost. Cut it, with proof. Cloud records the coding agents your team runs and the agents you ship, ties their cost to the work they did, tests each fix against your own traffic, and counts a saving only once production proves it.",
     lang: "typescript",
-    label: "Point your client at the gateway",
+    label: "Connect an app with a base-URL swap",
     snippet: [
       'import OpenAI from "openai";',
       "",
@@ -67,8 +67,8 @@ const CHOOSER = [
 const COMPARE: { label: string; caveman: React.ReactNode; cloud: React.ReactNode }[] = [
   { label: "Where it runs", caveman: "On your machine, with your provider keys", cloud: "Hosted, in your own VPC, or on-premises" },
   { label: "Account", caveman: "None for local use", cloud: "Required; sign-up creates a Free workspace" },
-  { label: "What it changes", caveman: "What your agent writes and what it reads", cloud: "How traffic is routed, measured, evaluated and rolled out" },
-  { label: "Built for", caveman: "A developer and their coding agent", cloud: "Teams running AI agents and LLM traffic at scale" },
+  { label: "What it does", caveman: "Shrinks what your agent writes and what it reads", cloud: "Shows what your agents cost, finds waste, and proves each fix" },
+  { label: "Built for", caveman: "A developer and their coding agent", cloud: "Teams with coding agents and agents in production" },
   {
     label: "Pricing",
     caveman: "Free, Apache-2.0 licensed",
@@ -133,7 +133,7 @@ export default async function Home() {
           <h1 className="text-balance text-[28px] font-semibold leading-[1.12] tracking-[-0.028em] text-foreground sm:text-[42px]">
             Caveman docs.{" "}
             <span className="text-muted-foreground">
-              Open-source tools that make your agent say less and read less, and a hosted gateway that proves the savings.
+              Open-source tools that make your agent say less and read less, and Caveman Cloud, which shows what your agents cost and cuts it, with proof.
             </span>
           </h1>
           <SearchButton className="group mt-8 flex h-11 w-full max-w-[520px] items-center gap-3 rounded-[10px] border border-border bg-card px-3.5 text-left text-[14px] text-muted-foreground transition-colors hover:border-input hover:text-foreground">

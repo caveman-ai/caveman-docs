@@ -68,7 +68,7 @@
       {
         "product": "Caveman Cloud",
         "icon": "cloud",
-        "description": "Hosted control plane for AI spend, routing, and governance",
+        "description": "See what your agents cost. Cut it, with proof.",
         "tabs": [
           {
             "tab": "Documentation",

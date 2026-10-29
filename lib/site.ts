@@ -11,7 +11,7 @@ export const SITE = {
   console: "https://app.caveman.so",
   github: "https://github.com/JuliusBrussee/caveman",
   description:
-    "Documentation for Caveman and Caveman Cloud. Caveman is open source: a skill that makes AI coding agents say less, and a CLI, local proxy and Engine that shrink what they read, on your machine with your keys. Caveman Cloud is the hosted control plane for AI spend, routing and governance: a managed LLM gateway with traces, evals, and savings labeled by evidence.",
+    "Documentation for Caveman and Caveman Cloud. Caveman is open source: a skill that makes AI coding agents say less, and a CLI, local proxy and Engine that shrink what they read, on your machine with your keys. Caveman Cloud is the hosted product that shows what your agents cost and cuts it, with proof: traces, evals and improvements, with every saving labeled by its evidence.",
 } as const;
 
 export function ogUrl(title: string, summary: string, eyebrow?: string): string {

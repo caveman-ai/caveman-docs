@@ -5,8 +5,8 @@ The public documentation for Caveman and Caveman Cloud, at
 
 - **Caveman**: the open source skill, CLI, proxy and Engine that make AI agents
   say less and read less, on your machine.
-- **Caveman Cloud**: the hosted control plane for AI spend, routing and
-  governance. Described at the level of what it does, never how it is built.
+- **Caveman Cloud**: the hosted product that shows what your agents cost
+  and cuts it, with proof. Described at the level of what it does, never how it is built.
 
 The content is Mintlify's format: `docs.json` is the navigation and each page
 is an `.mdx` file beside it (`caveman/*.mdx` for Caveman, the rest for Cloud).

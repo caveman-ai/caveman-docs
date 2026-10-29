@@ -10,7 +10,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", displ
 
 const TITLE = "Caveman docs";
 const SUMMARY =
-  "Guides and reference for Caveman, the open-source skill, CLI and proxy, and Caveman Cloud, the hosted control plane for AI spend.";
+  "Guides and reference for Caveman, the open-source skill, CLI and proxy, and Caveman Cloud, which shows what your agents cost and cuts it, with proof.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),

@@ -38,7 +38,7 @@ export const PRODUCT_META: Record<string, { tag: string; where: string; link: { 
   },
   cloud: {
     tag: "Hosted",
-    where: "Managed for your team",
+    where: "Cost and proof for your agents",
     link: { label: "Open console", href: "https://app.caveman.so" },
   },
 };

@@ -24,7 +24,7 @@ export function GET() {
     "",
     `Caveman is open source under Apache-2.0, at ${SITE.github}. The response skill makes a coding agent answer with less filler and leaves code, commands, paths and error messages untouched. The CLI installs it and launches agents through a local proxy, where the Engine compresses logs, JSON, diffs, web pages and other tool output before the model reads it, and keeps every original on disk so the agent can fetch it back. It runs on your machine with your keys and needs no account to use locally.`,
     "",
-    "Caveman Cloud is the hosted product: a managed LLM gateway with traces, spend, evals, model routing, budgets and governance for teams running LLM traffic. Changes ship only after they clear eval gates. Every number carries an evidence label (measured, inferred, tested or verified), and verified savings stay zero until the evidence exists.",
+    "Caveman Cloud is the hosted product. It shows what your agents cost and cuts it, with proof: it records the coding agents a team runs and the agents it ships, ties their cost to the work they did, and offers traces, spend, evals, model routing, budgets and governance. Changes ship only after they clear eval gates. Every number carries an evidence label (measured, inferred, tested or verified), and verified savings stay zero until the evidence exists.",
     "",
     "How to read this site without HTML:",
     "",
