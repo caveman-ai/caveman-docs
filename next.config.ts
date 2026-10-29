@@ -53,6 +53,9 @@ const nextConfig: NextConfig = {
       ["/docs/proxy/wrap", "/caveman/agent-wrapping"],
       ["/docs/proxy/engine", "/caveman/engine"],
       ["/docs/engine", "/caveman/engine"],
+      // `caveman tools shrink` is documented under the output shrinker.
+      ["/docs/engine/shrink", "/caveman/local-tools"],
+      ["/docs/shrink", "/caveman/local-tools"],
       ["/docs/counting", "/caveman/benchmarks"],
       ["/docs/mcp", "/caveman/local-tools"],
       ["/docs/router", "/guides/model-routing"],
@@ -66,6 +69,9 @@ const nextConfig: NextConfig = {
       ...indexes,
       ...legacy.flatMap(([from, to]): [string, string][] => [[from, to], [twin(from), twin(to)]]),
       ["/docs/llms.txt", "/llms.txt"],
+      // The per-compressor pages folded into the Engine page.
+      ["/docs/engine/:path*", "/caveman/engine"],
+      ["/docs/proxy/compressors/:path*", "/caveman/engine"],
       ["/docs/:path*", "/"],
     ];
     // Product-level surfaces live on the product site. A reader who guesses

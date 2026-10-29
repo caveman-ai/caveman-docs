@@ -23,6 +23,9 @@ export function Toc({ headings }: { headings: Heading[] }) {
       const line = 140;
       let current = elements[0]?.id ?? "";
       for (const el of elements) {
+        // A heading in a hidden tab has no box and measures 0; skip it rather
+        // than treat it as scrolled past.
+        if (el.getClientRects().length === 0) continue;
         if (el.getBoundingClientRect().top - line <= 0) current = el.id;
         else break;
       }

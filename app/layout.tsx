@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-export const viewport: Viewport = { themeColor: "#09090a", colorScheme: "dark" };
+export const viewport: Viewport = { colorScheme: "dark" };
 
 /* Told once, at the root, so every page inherits it: what this site is, who
  * publishes it, and that it documents two products. */

@@ -131,6 +131,13 @@ export function SearchDialog({ open, onClose, nav }: { open: boolean; onClose: (
   const go = (result: Result | undefined) => {
     if (!result) return;
     onClose();
+    // A heading on this same page: set the hash so `hashchange` fires and a
+    // tab that hides the heading can open itself. The router would not fire it.
+    const [path, hash] = result.href.split("#");
+    if (hash && path === window.location.pathname) {
+      window.location.hash = hash;
+      return;
+    }
     router.push(result.href);
   };
 

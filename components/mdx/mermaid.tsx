@@ -6,34 +6,50 @@ import * as React from "react";
  * the few pages that carry a diagram. Until it draws (or without JavaScript)
  * the reader sees the diagram's source, which is still the full meaning. */
 
-const THEME = {
-  darkMode: true,
-  background: "#1a1a1b",
-  fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-  fontSize: "13px",
-  primaryColor: "#232325",
-  primaryTextColor: "#e3e4e6",
-  primaryBorderColor: "#3a3a3e",
-  secondaryColor: "#1f1f21",
-  tertiaryColor: "#18181a",
-  lineColor: "#6e6e72",
-  textColor: "#c9cacc",
-  edgeLabelBackground: "#1a1a1b",
-  clusterBkg: "#18181a",
-  clusterBorder: "#2e2e31",
-  actorBkg: "#232325",
-  actorBorder: "#3a3a3e",
-  actorTextColor: "#e3e4e6",
-  actorLineColor: "#3a3a3e",
-  signalColor: "#959597",
-  signalTextColor: "#e3e4e6",
-  labelBoxBkgColor: "#232325",
-  labelBoxBorderColor: "#3a3a3e",
-  labelTextColor: "#e3e4e6",
-  noteBkgColor: "#232325",
-  noteBorderColor: "#3a3a3e",
-  noteTextColor: "#e3e4e6",
-};
+/* Mermaid wants literal colours, so the theme is read off the design tokens
+ * at draw time (they are RGB channels, see app/globals.css) rather than
+ * restated here. */
+function tokenHex(name: string): string {
+  const channels = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim().split(/\s+/).map(Number);
+  return `#${channels.map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function themeFromTokens() {
+  const card = tokenHex("card");
+  const raised = tokenHex("secondary");
+  const sunk = tokenHex("muted");
+  const edge = tokenHex("input");
+  const ink = tokenHex("foreground");
+  const quiet = tokenHex("muted-foreground");
+  return {
+    darkMode: true,
+    background: card,
+    fontFamily: getComputedStyle(document.body).fontFamily,
+    fontSize: "13px",
+    primaryColor: raised,
+    primaryTextColor: ink,
+    primaryBorderColor: edge,
+    secondaryColor: raised,
+    tertiaryColor: sunk,
+    lineColor: tokenHex("ring"),
+    textColor: ink,
+    edgeLabelBackground: card,
+    clusterBkg: sunk,
+    clusterBorder: edge,
+    actorBkg: raised,
+    actorBorder: edge,
+    actorTextColor: ink,
+    actorLineColor: edge,
+    signalColor: quiet,
+    signalTextColor: ink,
+    labelBoxBkgColor: raised,
+    labelBoxBorderColor: edge,
+    labelTextColor: ink,
+    noteBkgColor: raised,
+    noteBorderColor: edge,
+    noteTextColor: ink,
+  };
+}
 
 export function Mermaid({ chart }: { chart: string }) {
   const id = React.useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -43,7 +59,7 @@ export function Mermaid({ chart }: { chart: string }) {
     let cancelled = false;
     import("mermaid")
       .then(async ({ default: mermaid }) => {
-        mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: THEME, securityLevel: "strict" });
+        mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: themeFromTokens(), securityLevel: "strict" });
         const result = await mermaid.render(`mermaid-${id}`, chart);
         if (!cancelled) setSvg(result.svg);
       })

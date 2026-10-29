@@ -9,6 +9,24 @@ import { cn } from "@/lib/cn";
 export function TabsView({ labels, panels }: { labels: string[]; panels: React.ReactNode[] }) {
   const [active, setActive] = React.useState(0);
   const id = React.useId();
+  const panelRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+
+  // An anchor can point inside a tab that is not showing: a search result, a
+  // contents link, a shared URL. Open the tab that owns it, then scroll to it,
+  // because the browser could not scroll to an element that was hidden.
+  React.useEffect(() => {
+    const reveal = () => {
+      const target = decodeURIComponent(window.location.hash.slice(1));
+      if (!target) return;
+      const owner = panelRefs.current.findIndex((panel) => panel?.querySelector(`[id="${CSS.escape(target)}"]`));
+      if (owner < 0) return;
+      setActive(owner);
+      requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
+  }, []);
 
   return (
     <div className="my-6">
@@ -38,6 +56,9 @@ export function TabsView({ labels, panels }: { labels: string[]; panels: React.R
       {panels.map((panel, i) => (
         <div
           key={i}
+          ref={(el) => {
+            panelRefs.current[i] = el;
+          }}
           role="tabpanel"
           id={`${id}-panel-${i}`}
           aria-labelledby={`${id}-tab-${i}`}
