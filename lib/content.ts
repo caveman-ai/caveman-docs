@@ -1,5 +1,4 @@
 import "server-only";
-import docsConfig from "@/docs.json";
 import generatedContent from "@/.generated/content.json";
 import type { Heading } from "@/lib/mdx";
 import type { NavProduct } from "@/lib/nav";
@@ -18,9 +17,9 @@ import type { NavProduct } from "@/lib/nav";
  *  appears everywhere at once and a page missing from disk stops the build.
  *
  *  Nothing here touches the filesystem: the site runs on Workers, which have
- *  none. `scripts/build-content.mjs` reads the front matter, bodies, anchors
- *  and commit dates before every dev, build and type-check run, and this
- *  module imports the result.
+ *  none. `scripts/build-content.mjs` reads the navigation, front matter,
+ *  bodies, anchors and commit dates before every dev, build and type-check
+ *  run, and this module imports the result.
  * ======================================================================== */
 
 interface GeneratedPage {
@@ -32,7 +31,11 @@ interface GeneratedPage {
   updated?: string;
 }
 
-const generated = generatedContent as unknown as { siteUpdated?: string; pages: Record<string, GeneratedPage> };
+const generated = generatedContent as unknown as {
+  siteUpdated?: string;
+  navigation: { products: MintlifyProduct[] };
+  pages: Record<string, GeneratedPage>;
+};
 
 /** Mintlify serves its root page, the Cloud introduction, at `/`. Our root is
  * the product chooser, so the Cloud introduction moves to `/cloud`, where the
@@ -141,9 +144,7 @@ function readGroup(group: MintlifyGroup, product: ProductId, tab: string | null)
 }
 
 function build(): { products: Product[]; pages: DocPage[] } {
-  const config = docsConfig as { navigation: { products: MintlifyProduct[] } };
-
-  const products = config.navigation.products.map((p): Product => {
+  const products = generated.navigation.products.map((p): Product => {
     const id = productId(p.product);
     const rawTabs: { name: string | null; groups: MintlifyGroup[] }[] = p.tabs
       ? p.tabs.map((t) => ({ name: t.tab, groups: t.groups }))

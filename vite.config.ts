@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, normalizePath, type Plugin } from "vite";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { staticAssetsAdapter } from "@vinext/cloudflare/cache/static-assets-adapter";
@@ -30,9 +30,11 @@ function contentBuild(): Plugin {
           }
         });
       };
-      server.watcher.on("all", (_event, file) => {
+      const docsJson = normalizePath(`${server.config.root}/docs.json`);
+      server.watcher.on("all", (_event, path) => {
+        const file = normalizePath(path);
         if (file.includes("/node_modules/") || file.includes("/.generated/")) return;
-        if (file.endsWith(".mdx") || file.endsWith("/docs.json")) run();
+        if (file.endsWith(".mdx") || file === docsJson) run();
       });
     },
   };

@@ -6,11 +6,15 @@
  *  refuse to evaluate code from strings. So everything the site knows about
  *  its pages is worked out here, in Node, once:
  *
- *    .generated/content.json   every page in docs.json: front matter, the MDX
- *                              body (for the Markdown twins), its h2/h3
- *                              anchors, and the date of its last commit
+ *    .generated/content.json   docs.json's navigation, and every page in it:
+ *                              front matter, the MDX body (for the Markdown
+ *                              twins), its h2/h3 anchors, and the date of its
+ *                              last commit
  *    .generated/mdx/*.js       each page compiled to an ES module
  *    .generated/mdx/index.ts   slug → lazy import of that module
+ *
+ *  The navigation is copied in rather than imported from docs.json, so the
+ *  site sees a new page in the navigation and its compiled content together.
  *
  *  lib/content.ts and lib/mdx.ts import these instead of reading files or
  *  calling `evaluate`, so the same code runs under `next dev`, vinext and the
@@ -38,9 +42,8 @@ function slugsIn(group) {
   return group.pages.flatMap((entry) => (typeof entry === "string" ? [entry] : slugsIn(entry)));
 }
 
-function allSlugs() {
-  const config = JSON.parse(readFileSync(join(ROOT, "docs.json"), "utf8"));
-  const slugs = config.navigation.products.flatMap((product) =>
+function allSlugs(navigation) {
+  const slugs = navigation.products.flatMap((product) =>
     (product.tabs ?? [{ groups: product.groups ?? [] }]).flatMap((tab) => tab.groups.flatMap(slugsIn)),
   );
   return [...new Set(slugs)];
@@ -69,12 +72,13 @@ const lastChanged = (file) => (historyUsable ? git(["log", "-1", "--format=%cI",
 // Prefixed so the page whose slug is `index` cannot collide with index.ts.
 const moduleName = (slug) => `page.${slug.replaceAll("/", "__")}.js`;
 
+const { navigation } = JSON.parse(readFileSync(join(ROOT, "docs.json"), "utf8"));
 const errors = [];
 const pages = {};
 const modules = new Map();
 let siteUpdated;
 
-for (const slug of allSlugs()) {
+for (const slug of allSlugs(navigation)) {
   const file = `${slug}.mdx`;
   let source;
   try {
@@ -143,6 +147,6 @@ function writeIfChanged(path, content) {
 mkdirSync(MDX_OUT, { recursive: true });
 for (const [name, content] of modules) writeIfChanged(join(MDX_OUT, name), content);
 for (const name of readdirSync(MDX_OUT)) if (!modules.has(name)) rmSync(join(MDX_OUT, name));
-writeIfChanged(join(OUT, "content.json"), JSON.stringify({ ...(siteUpdated ? { siteUpdated } : {}), pages }));
+writeIfChanged(join(OUT, "content.json"), JSON.stringify({ ...(siteUpdated ? { siteUpdated } : {}), navigation, pages }));
 
 console.log(`content: ${Object.keys(pages).length} pages compiled${historyUsable ? "" : " (shallow clone: no last-changed dates)"}.`);
