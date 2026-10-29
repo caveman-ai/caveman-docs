@@ -1,7 +1,7 @@
 import "server-only";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
+import docsConfig from "@/docs.json";
+import generatedContent from "@/.generated/content.json";
+import type { Heading } from "@/lib/mdx";
 import type { NavProduct } from "@/lib/nav";
 
 /* ==========================================================================
@@ -16,11 +16,23 @@ import type { NavProduct } from "@/lib/nav";
  *  Everything that lists pages (sidebar, pager, search, sitemap, llms.txt,
  *  the Markdown mirror) reads this module, so a page added to `docs.json`
  *  appears everywhere at once and a page missing from disk stops the build.
+ *
+ *  Nothing here touches the filesystem: the site runs on Workers, which have
+ *  none. `scripts/build-content.mjs` reads the front matter, bodies, anchors
+ *  and commit dates before every dev, build and type-check run, and this
+ *  module imports the result.
  * ======================================================================== */
 
-// Read at build time only: every route is prerendered, so nothing here needs
-// tracing into the server bundle.
-const ROOT = process.cwd();
+interface GeneratedPage {
+  title: string;
+  sidebarTitle?: string;
+  description?: string;
+  body: string;
+  headings: Heading[];
+  updated?: string;
+}
+
+const generated = generatedContent as unknown as { siteUpdated?: string; pages: Record<string, GeneratedPage> };
 
 /** Mintlify serves its root page, the Cloud introduction, at `/`. Our root is
  * the product chooser, so the Cloud introduction moves to `/cloud`, where the
@@ -44,6 +56,10 @@ export interface DocPage {
   product: ProductId;
   tab: string | null;
   group: string;
+  /** Its h2/h3 anchors, in order. */
+  headings: Heading[];
+  /** ISO date of the last commit touching the file; absent when git cannot say. */
+  updated: string | undefined;
 }
 
 export interface NavGroup {
@@ -95,39 +111,21 @@ function productId(name: string): ProductId {
   return rest.replace(/[^a-z0-9]+/g, "-");
 }
 
-export interface Frontmatter {
-  title?: string;
-  sidebarTitle?: string;
-  description?: string;
-  [key: string]: unknown;
-}
-
-/** Split an `.mdx` source into its front matter and body. */
-export function splitFrontmatter(source: string): { data: Frontmatter; body: string } {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(source);
-  if (!match) return { data: {}, body: source };
-  const data = (parseYaml(match[1] ?? "") ?? {}) as Frontmatter;
-  return { data, body: source.slice(match[0].length) };
-}
-
 function readPage(slug: string, product: ProductId, tab: string | null, group: string): DocPage {
-  const file = `${slug}.mdx`;
-  const path = join(/*turbopackIgnore: true*/ ROOT, file);
-  if (!existsSync(path)) {
-    throw new Error(`docs.json lists "${slug}" but ${file} does not exist.`);
-  }
-  const { data } = splitFrontmatter(readFileSync(path, "utf8"));
-  if (!data.title) throw new Error(`${file} has no front matter title.`);
+  const data = generated.pages[slug];
+  if (!data) throw new Error(`docs.json lists "${slug}" but the content build has no such page. Run: node scripts/build-content.mjs`);
   return {
     slug,
     href: hrefForSlug(slug),
-    file,
-    title: String(data.title),
-    navTitle: String(data.sidebarTitle ?? data.title),
-    description: String(data.description ?? ""),
+    file: `${slug}.mdx`,
+    title: data.title,
+    navTitle: data.sidebarTitle ?? data.title,
+    description: data.description ?? "",
     product,
     tab,
     group,
+    headings: data.headings,
+    updated: data.updated,
   };
 }
 
@@ -143,9 +141,7 @@ function readGroup(group: MintlifyGroup, product: ProductId, tab: string | null)
 }
 
 function build(): { products: Product[]; pages: DocPage[] } {
-  const config = JSON.parse(readFileSync(join(/*turbopackIgnore: true*/ ROOT, "docs.json"), "utf8")) as {
-    navigation: { products: MintlifyProduct[] };
-  };
+  const config = docsConfig as { navigation: { products: MintlifyProduct[] } };
 
   const products = config.navigation.products.map((p): Product => {
     const id = productId(p.product);
@@ -210,7 +206,12 @@ export function getPageByHref(href: string): DocPage | undefined {
 
 /** The page's `.mdx` body, front matter removed. */
 export function readPageSource(page: DocPage): string {
-  return splitFrontmatter(readFileSync(join(/*turbopackIgnore: true*/ ROOT, page.file), "utf8")).body;
+  return generated.pages[page.slug]?.body ?? "";
+}
+
+/** The newest commit date across all pages, if git could say. */
+export function siteUpdated(): string | undefined {
+  return generated.siteUpdated;
 }
 
 /** The navigation as plain data for client components. */

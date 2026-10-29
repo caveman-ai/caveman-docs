@@ -1,5 +1,4 @@
 import { getProduct, type DocPage } from "@/lib/content";
-import { compilePage } from "@/lib/mdx";
 import { markdownUrl } from "@/lib/raw-page";
 import { SITE } from "@/lib/site";
 import { lastChanged } from "@/lib/updated";
@@ -12,8 +11,7 @@ import { lastChanged } from "@/lib/updated";
  *  does not run JavaScript still gets the title, the description, the last
  *  change, the position in the site, the sections, and the Markdown twin.
  *
- *  Headings come from `compilePage`, which caches per process, so asking for
- *  them here costs nothing the page did not already pay.
+ *  Headings come from the content build, the same anchors the page renders.
  * ======================================================================== */
 
 /** JSON for a <script> body. `<` is escaped so no string can close the tag. */
@@ -23,7 +21,7 @@ function json(value: unknown): string {
 
 export async function DocSchema({ page }: { page: DocPage }) {
   const product = getProduct(page.product);
-  const { headings } = await compilePage(page);
+  const { headings } = page;
   const url = `${SITE.url}${page.href}`;
   const updated = lastChanged(page.file);
 

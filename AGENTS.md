@@ -66,16 +66,19 @@ The content is Mintlify's format, and this site renders it unchanged:
 |---|---|
 | `docs.json` | **The navigation.** Products, tabs, groups and page order, in Mintlify's format. A page that is not listed here does not exist. |
 | `<dir>/<name>.mdx` | One page. `caveman/*.mdx` is Caveman; `index.mdx`, `concepts/`, `guides/` and the other directories are Caveman Cloud. |
-| `lib/content.ts` | **The content index.** Reads `docs.json` and each page's front matter. The sidebar, pager, search, sitemap, `llms.txt` and the Markdown mirror all list pages through it. |
-| `lib/mdx.ts` | Compiles a page and returns its heading ids, the anchors every surface uses. |
+| `lib/content.ts` | **The content index.** `docs.json` plus the generated content. The sidebar, pager, search, sitemap, `llms.txt` and the Markdown mirror all list pages through it. |
+| `scripts/build-content.mjs` | **The content build.** Runs before dev, build and type-check: reads every page, compiles it, records its headings and last commit, and writes `.generated/`. Nothing at request time reads a file. |
+| `lib/mdx-plugins.mjs` | The two plugins the Mintlify dialect needs: code fence meta, and GitHub-slugged heading ids. |
+| `lib/mdx.ts` | Loads a page's compiled module. |
 | `lib/markdown-source.ts` | Mintlify MDX to plain Markdown, for the mirror. |
 | `lib/raw-page.ts` | The Markdown mirror: each page's `.md` twin, `/index.md` and `/llms-full.txt`. |
 | `lib/site.ts` | Site constants and `docMetadata(page)`. Server-only. |
-| `lib/updated.ts` | Last-changed dates from git, for the sitemap, JSON-LD and machine index. |
+| `lib/updated.ts` | Last-changed dates (from git, at build time), for the sitemap, JSON-LD and machine index. |
 | `app/[...slug]/page.tsx`, `components/shell/`, `components/mdx/` | The HTML: the page route, the shell, and the Mintlify components. |
 | `components/seo/doc-schema.tsx` | Per-page JSON-LD. |
 | `proxy.ts` | Content negotiation. |
 | `next.config.ts` | The `.md` rewrites, redirects (old URLs included) and headers. |
+| `vite.config.ts`, `cloudflare.config.ts` | The vinext build and the `caveman-docs` Worker. |
 | `content/capabilities.public.json` | Generated from the registry. Public capabilities plus a denylist of private ids. |
 | `scripts/sync-capabilities.mjs` | Regenerates that file. |
 | `scripts/check-public.mjs` | The build gate. |
@@ -139,11 +142,14 @@ A component missing from this table renders only after it is added to
 ## Commands
 
 ```bash
-npm run dev          # port 3010
-npm run lint         # tsc
+npm run dev          # port 3010, vinext in workerd
+npm run lint         # content build, then tsc
 npm test             # the Markdown mirror, example links, the capability sync
-npm run build        # gate, then a full static build
+npm run build        # content build, gate, then the Worker build
+npm run start        # the production build in workerd, port 3010
+npm run deploy       # build, then deploy the Worker with the cf CLI
 npm run check:public # the gate on its own
+npm run content      # the content build on its own
 
 node scripts/check-site.mjs [origin]   # every page, twin, index and redirect on a running site
 node scripts/sync-capabilities.mjs "$CAVEMAN_ROOT/PRODUCTS.yaml"
@@ -197,8 +203,9 @@ Full rules are in the authoring skill's `references/writing-rules.md`.
 ## For machines
 
 This is a first-class surface, not an afterthought. Everything below is
-prerendered at build time from `docs.json` and the `.mdx` files, the same
-source the HTML renders from, so nothing can drift and nothing reads the file
+built from `docs.json` and the `.mdx` files, the same source the HTML renders
+from, so nothing can drift. The route handlers run in the Worker, but they
+read only what `scripts/build-content.mjs` generated: nothing reads the file
 system at request time.
 
 | Path | What |
@@ -234,8 +241,8 @@ component emitting `TechArticle` (with the Markdown twin and the page's
 sections) and `BreadcrumbList` (Docs, product, page) JSON-LD, so it is in the
 HTML source for scrapers that do not run JavaScript.
 
-**Anchors.** Heading ids come from one place: `compilePage` in `lib/mdx.ts`,
-using GitHub's slugger, the algorithm Mintlify used, so published `#anchors`
+**Anchors.** Heading ids come from one place: `rehypeHeadings` in
+`lib/mdx-plugins.mjs`, run by the content build, using GitHub's slugger, the algorithm Mintlify used, so published `#anchors`
 keep working. The rendered ids, the contents rail, the JSON-LD sections and
 `llms-index.json` all read them. The gate recomputes them the same way to check
 `#anchor` links. Change one, change the other.
@@ -248,9 +255,22 @@ sitemaps and llms.txt copies.
 
 ## Deploying
 
-A standard Next.js build. Set `NEXT_PUBLIC_SITE_URL` to the deployed origin, or
-canonical URLs and the sitemap point at the default `https://docs.caveman.so`.
-Last-changed dates need the git history: in a shallow clone they are left out
-rather than guessed. For container hosting, add `output: "standalone"` to
-`next.config.ts` and serve `node .next/standalone/server.js`. It is
-deliberately off so `next start` works.
+Cloudflare Workers, through [vinext](https://github.com/cloudflare/vinext),
+the Next.js API on Vite. `npm run deploy` builds and deploys the
+`caveman-docs` Worker with the `cf` CLI, and `docs.caveman.so` is its custom
+domain. `cloudflare.config.ts` is the Worker; `vite.config.ts` is the build.
+
+Workers have no file system and refuse to evaluate code from strings, so the
+content build does that work in Node first and writes `.generated/` (ignored
+by git). Pages are prerendered. The route handlers (`/raw`, `/llms*`,
+`/search-index.json`, `/og`, `/.well-known/api-catalog`) run in the Worker.
+Do not add `fs`, `evaluate` or `new Function` to anything that runs at request
+time: it works under `next dev` and fails in production.
+
+Before deploying, `npm run start` and point `scripts/check-site.mjs` at
+`http://localhost:3010`. `npm run dev:next` and `npm run build:next` still run
+plain Next.js, for comparing behaviour.
+
+Set `NEXT_PUBLIC_SITE_URL` to the deployed origin, or canonical URLs and the
+sitemap point at the default `https://docs.caveman.so`. Last-changed dates need
+the git history: in a shallow clone they are left out rather than guessed.

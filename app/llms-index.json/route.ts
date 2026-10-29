@@ -1,6 +1,5 @@
 import capabilities from "@/content/capabilities.public.json";
 import { getPages, getProduct, getProducts } from "@/lib/content";
-import { compilePage } from "@/lib/mdx";
 import { markdownUrl } from "@/lib/raw-page";
 import { SITE } from "@/lib/site";
 import { lastChanged, siteLastChanged } from "@/lib/updated";
@@ -22,7 +21,7 @@ export async function GET() {
   const pages = await Promise.all(
     getPages().map(async (page) => {
       const url = `${SITE.url}${page.href}`;
-      const { headings } = await compilePage(page);
+      const { headings } = page;
       const updated = lastChanged(page.file);
       return {
         url,

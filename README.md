@@ -10,7 +10,8 @@ The public documentation for Caveman and Caveman Cloud, at
 
 The content is Mintlify's format: `docs.json` is the navigation and each page
 is an `.mdx` file beside it (`caveman/*.mdx` for Caveman, the rest for Cloud).
-A Next.js app renders it; `lib/content.ts` is the index everything reads.
+A Next.js app renders it, built with [vinext](https://github.com/cloudflare/vinext)
+and served from Cloudflare Workers; `lib/content.ts` is the index everything reads.
 
 ## Run it
 
@@ -22,10 +23,14 @@ npm run dev     # http://127.0.0.1:3010
 ## Build it
 
 ```bash
-npm run build
+npm run build   # content build, gate, Worker build
+npm run start   # serve the production build locally in workerd
+npm run deploy  # build and deploy to Cloudflare with the cf CLI
 ```
 
-The build runs `scripts/check-public.mjs` first. It refuses to compile if a page
+`scripts/build-content.mjs` compiles every page into `.generated/` first,
+because a Worker cannot read files at request time. Then the build runs
+`scripts/check-public.mjs`. It refuses to compile if a page
 listed in `docs.json` is missing, an internal link or anchor points at nothing,
 or any content names a capability or path that is not public in the Caveman
 product registry.
