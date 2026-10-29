@@ -135,7 +135,9 @@ export function SearchDialog({ open, onClose, nav }: { open: boolean; onClose: (
     // tab that hides the heading can open itself. The router would not fire it.
     const [path, hash] = result.href.split("#");
     if (hash && path === window.location.pathname) {
-      window.location.hash = hash;
+      // Setting the hash it already has fires nothing, so announce it.
+      if (window.location.hash === `#${hash}`) window.dispatchEvent(new HashChangeEvent("hashchange"));
+      else window.location.hash = hash;
       return;
     }
     router.push(result.href);

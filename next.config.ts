@@ -69,7 +69,10 @@ const nextConfig: NextConfig = {
       ...indexes,
       ...legacy.flatMap(([from, to]): [string, string][] => [[from, to], [twin(from), twin(to)]]),
       ["/docs/llms.txt", "/llms.txt"],
-      // The per-compressor pages folded into the Engine page.
+      // The per-compressor pages folded into the Engine page. Markdown twins
+      // first, so a `.md` request lands on the Markdown twin.
+      ["/docs/engine/:path*.md", "/caveman/engine.md"],
+      ["/docs/proxy/compressors/:path*.md", "/caveman/engine.md"],
       ["/docs/engine/:path*", "/caveman/engine"],
       ["/docs/proxy/compressors/:path*", "/caveman/engine"],
       ["/docs/:path*", "/"],

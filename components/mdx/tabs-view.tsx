@@ -14,18 +14,28 @@ export function TabsView({ labels, panels }: { labels: string[]; panels: React.R
   // An anchor can point inside a tab that is not showing: a search result, a
   // contents link, a shared URL. Open the tab that owns it, then scroll to it,
   // because the browser could not scroll to an element that was hidden.
+  // Clicks on in-page links count too: following a link to the hash already
+  // in the URL fires no `hashchange`.
   React.useEffect(() => {
-    const reveal = () => {
-      const target = decodeURIComponent(window.location.hash.slice(1));
+    const reveal = (target: string) => {
       if (!target) return;
       const owner = panelRefs.current.findIndex((panel) => panel?.querySelector(`[id="${CSS.escape(target)}"]`));
       if (owner < 0) return;
       setActive(owner);
       requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
     };
-    reveal();
-    window.addEventListener("hashchange", reveal);
-    return () => window.removeEventListener("hashchange", reveal);
+    const fromHash = () => reveal(decodeURIComponent(window.location.hash.slice(1)));
+    const fromClick = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+      if (link) reveal(decodeURIComponent(link.getAttribute("href")!.slice(1)));
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    document.addEventListener("click", fromClick);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      document.removeEventListener("click", fromClick);
+    };
   }, []);
 
   return (
