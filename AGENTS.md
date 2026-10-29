@@ -142,7 +142,7 @@ A component missing from this table renders only after it is added to
 ## Commands
 
 ```bash
-npm run dev          # port 3010, vinext in workerd
+npm run dev          # port 3010, vinext in workerd; reruns the content build on save
 npm run lint         # content build, then tsc
 npm test             # the Markdown mirror, example links, the capability sync
 npm run build        # content build, gate, then the Worker build

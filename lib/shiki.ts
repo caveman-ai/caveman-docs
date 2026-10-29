@@ -1,5 +1,6 @@
 import "server-only";
 import { createHighlighter, type Highlighter, type ThemeRegistration } from "shiki";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 /* ==========================================================================
  *  Shiki: build-time syntax highlighting.
@@ -102,6 +103,9 @@ function getHighlighter(): Promise<Highlighter> {
     highlighterPromise = createHighlighter({
       themes: [onyx],
       langs: DOC_LANGS as unknown as string[],
+      // The JavaScript engine, not the default WASM one: workerd refuses to
+      // compile WebAssembly at runtime, which breaks `vite dev`.
+      engine: createJavaScriptRegexEngine(),
     });
   }
   return highlighterPromise;
