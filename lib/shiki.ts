@@ -91,6 +91,7 @@ export const DOC_LANGS = [
   "html",
   "css",
   "ini",
+  "powershell",
   "text",
 ] as const;
 
@@ -118,6 +119,8 @@ const ALIAS: Record<string, string> = {
   curl: "bash",
   console: "bash",
   txt: "text",
+  ps1: "powershell",
+  pwsh: "powershell",
   "": "text",
 };
 

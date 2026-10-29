@@ -28,8 +28,15 @@ import { NextResponse, type NextRequest } from "next/server";
  *     to fail in.
  * ======================================================================== */
 
+/* Every page path, and nothing else: not Next's own assets, not the Markdown
+ * mirror and the machine indexes (already Markdown or JSON), not the social
+ * card, not static files. Anything whose last segment has a file extension is
+ * a file, `.md` twins included, so it is skipped too. `/docs/*` never gets
+ * here: next.config.ts redirects those first. */
 export const config = {
-  matcher: ["/", "/docs/:path*"],
+  matcher: [
+    "/((?!_next/|raw(?:/|$)|og(?:/|$)|llms|\\.well-known(?:/|$)|search-index\\.json|favicon|brand(?:/|$)|images(?:/|$)|examples(?:/|$)|.*\\.[^/]+$).*)",
+  ],
 };
 
 /** Mirrors the discovery set in next.config.ts for routes this middleware answers. */
@@ -51,12 +58,14 @@ function quality(accept: string, type: string): number {
   return -1;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // The `.md` twin is served by a rewrite in next.config.ts. Leave it alone.
+  // The `.md` twin is served by a rewrite in next.config.ts. The matcher
+  // already skips it; this keeps a matcher edit from looping.
   if (pathname.endsWith(".md")) return NextResponse.next();
 
+  // The home page's twin is /index.md; every other page's is its path plus `.md`.
   const markdownPath = pathname === "/" ? "/index.md" : `${pathname.replace(/\/$/, "")}.md`;
   const accept = request.headers.get("accept") ?? "";
   const markdown = quality(accept, "text/markdown");

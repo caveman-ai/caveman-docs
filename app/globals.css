@@ -3,104 +3,129 @@
 @tailwind utilities;
 
 /* ==========================================================================
- *  Tokens. These are the Caveman Cloud deck tokens verbatim (DESIGN.md §1):
- *  one flat neutral canvas, hairline borders, almost no colour. Docs add
- *  exactly one thing the console does not have: a reading measure, because a
- *  docs page IS prose and the console's no-prose law does not apply here.
+ *  Tokens. The Cloud console's deck tokens verbatim (its DESIGN.md §1, the
+ *  Linear-modelled shell and panel): the shell is the darkest surface, the
+ *  page is a panel one step lighter inside it, cards sit one step above the
+ *  panel, menus float above with a shadow. Hairlines do the rest. Chroma is
+ *  semantic only: green verified, amber caution, red danger.
  *
- *  Dark is the hero theme and the default. Light mirrors the same
- *  relationships on white and follows the reader's system setting.
+ *  Channels, not hex, so Tailwind's opacity modifiers work on every token.
+ *  Dark only, like the console and the product site.
  * ======================================================================== */
 
 @layer base {
   :root {
-    --background: 0 0% 8.6%;      /* #161616 */
-    --foreground: 0 0% 93%;       /* #ededed */
-    --card: 0 0% 11%;             /* #1c1c1c */
-    --popover: 0 0% 12%;          /* #1f1f1f */
-    --primary: 0 0% 93%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 12.5%;      /* #202020 */
-    --muted: 0 0% 11.8%;
-    --muted-foreground: 0 0% 61%; /* #9b9b9b */
-    --accent: 0 0% 13.7%;         /* #232323 */
-    --border: 0 0% 15.7%;         /* #282828 */
-    --input: 0 0% 18.8%;          /* #303030 */
-    --ring: 0 0% 56%;
-    --success: 145 60% 53%;       /* #3ecf7a — live/verified state only */
-    --warning: 34 87% 56%;
-    --destructive: 356 71% 64%;
-    --ember: 20 91% 52%;          /* #f36716 — brand secondary */
-    --shadow-overlay: 0 8px 28px -8px hsl(0 0% 0% / 0.6), 0 1px 3px hsl(0 0% 0% / 0.4);
+    --shell: 9 9 10;                /* #09090a sidebar and the ring around the panel */
+    --background: 18 18 19;         /* #121213 the panel */
+    --card: 26 26 27;               /* #1a1a1b */
+    --popover: 27 28 29;            /* #1b1c1d */
+    --secondary: 35 35 37;          /* #232325 quiet fills, kbd, code chips */
+    --accent: 34 34 36;             /* #222224 hover fill */
+    --muted: 24 24 26;              /* #18181a */
+    --border: 35 36 38;             /* #232426 every hairline */
+    --input: 46 46 49;              /* #2e2e31 */
+    --foreground: 227 228 230;      /* #e3e4e6 */
+    --muted-foreground: 149 149 151;/* #959597 */
+    --primary: 227 228 230;
+    --primary-foreground: 18 18 19;
+    --sidebar-foreground: 146 146 148; /* #929294 */
+    --sidebar-accent: 35 35 37;     /* #232325 selected nav row */
+    --success: 62 207 122;          /* #3ecf7a */
+    --warning: 240 161 46;          /* #f0a12e */
+    --destructive: 229 99 106;      /* #e5636a */
+    --ring: 142 142 146;            /* #8e8e92 */
+    --shadow-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.65), 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-frame: 0 1px 2px rgb(0 0 0 / 0.4);
+    --sidebar-width: 264px;
     color-scheme: dark;
   }
 
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --background: 0 0% 98%;
-      --foreground: 0 0% 10%;
-      --card: 0 0% 100%;
-      --popover: 0 0% 100%;
-      --primary: 0 0% 12%;
-      --primary-foreground: 0 0% 98%;
-      --secondary: 0 0% 94%;
-      --muted: 0 0% 94%;
-      --muted-foreground: 0 0% 42%;
-      --accent: 0 0% 92%;
-      --border: 0 0% 90%;
-      --input: 0 0% 84%;
-      --ring: 0 0% 44%;
-      --success: 145 60% 32%;
-      --warning: 32 90% 40%;
-      --destructive: 358 65% 48%;
-      --ember: 20 88% 44%;
-      --shadow-overlay: 0 4px 16px -4px hsl(0 0% 0% / 0.12), 0 1px 3px hsl(0 0% 0% / 0.08);
-      color-scheme: light;
-    }
-  }
+  * { border-color: rgb(var(--border)); }
 
-  * { border-color: hsl(var(--border)); }
+  html { background-color: rgb(var(--shell)); }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: rgb(var(--shell));
+    color: rgb(var(--foreground));
+    font-feature-settings: "cv01", "cv02", "cv03", "cv04", "cv11", "ss03";
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  ::selection { background: hsl(var(--foreground) / 0.16); }
+  ::selection { background: rgb(var(--foreground) / 0.18); }
 
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid rgb(var(--ring));
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
   /* Anchored headings land below the sticky header instead of under it. */
-  [id] { scroll-margin-top: 6rem; }
+  [id] { scroll-margin-top: 5.5rem; }
+
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
 }
 
 @layer components {
   /* ------------------------------------------------------------------
-   *  The reading measure. 15px/1.68 at 68ch is the same prose contract the
-   *  console grants its two briefings; a docs page is the third surface that
-   *  earns it. Everything here is spacing and rhythm — colour still comes
-   *  from tokens.
+   *  The reading measure. The console grants prose to exactly one surface;
+   *  a docs page is all prose, so it earns the same contract: 15px, long
+   *  leading, ink slightly under full white so headings and code lead.
    * ---------------------------------------------------------------- */
   .prose-docs {
     font-size: 15px;
-    line-height: 1.68;
-    color: hsl(var(--foreground) / 0.86);
+    line-height: 1.72;
+    color: rgb(var(--foreground) / 0.84);
   }
-  .prose-docs > * { max-width: 68ch; }
-  .prose-docs > figure,
-  .prose-docs > .full-measure { max-width: none; }
+  .prose-docs > :first-child { margin-top: 0; }
 
-  .prose-docs p { margin-block: 1.05em; }
-  .prose-docs strong { color: hsl(var(--foreground)); font-weight: 500; }
+  .prose-docs p { margin-block: 1em; }
+  .prose-docs strong { color: rgb(var(--foreground)); font-weight: 600; }
+  .prose-docs em { color: rgb(var(--foreground) / 0.92); }
+  .prose-docs sub { font-size: 12px; color: rgb(var(--muted-foreground)); vertical-align: baseline; }
+
+  .prose-docs h2 {
+    margin-top: 2.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 21px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    color: rgb(var(--foreground));
+  }
+  .prose-docs h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+    font-size: 16.5px;
+    line-height: 1.4;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+    color: rgb(var(--foreground));
+  }
+  .prose-docs h4 {
+    margin-top: 1.6rem;
+    margin-bottom: 0.4rem;
+    font-size: 15px;
+    font-weight: 600;
+    color: rgb(var(--foreground));
+  }
+
+  .prose-docs a:not([data-card]):not([data-heading-anchor]) {
+    color: rgb(var(--foreground));
+    text-decoration: underline;
+    text-decoration-color: rgb(var(--foreground) / 0.28);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+    transition: text-decoration-color 150ms;
+  }
+  .prose-docs a:not([data-card]):not([data-heading-anchor]):hover {
+    text-decoration-color: rgb(var(--foreground) / 0.8);
+  }
+
   .prose-docs ul,
-  .prose-docs ol { margin-block: 1.05em; padding-left: 1.15rem; }
+  .prose-docs ol { margin-block: 1em; padding-left: 1.25rem; }
   .prose-docs ul { list-style: none; }
   .prose-docs ul > li { position: relative; }
   .prose-docs ul > li::before {
@@ -108,90 +133,144 @@
     position: absolute;
     left: -0.95rem;
     top: 0.72em;
-    width: 4px;
-    height: 4px;
-    border-radius: 1px;
-    background: hsl(var(--muted-foreground) / 0.6);
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgb(var(--muted-foreground) / 0.55);
   }
   .prose-docs ol { list-style: decimal; }
-  .prose-docs ol > li::marker { color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
-  .prose-docs li { margin-block: 0.38em; }
+  .prose-docs ol > li::marker { color: rgb(var(--muted-foreground)); font-variant-numeric: tabular-nums; font-size: 0.93em; }
+  .prose-docs li { margin-block: 0.4em; padding-left: 0.15rem; }
   .prose-docs li > ul,
-  .prose-docs li > ol { margin-block: 0.38em; }
+  .prose-docs li > ol { margin-block: 0.35em; }
+  .prose-docs li > p { margin-block: 0.4em; }
 
-  .prose-docs hr {
-    margin-block: 2.5rem;
-    border: 0;
-    border-top: 1px solid hsl(var(--border));
-  }
+  .prose-docs hr { margin-block: 2.5rem; border: 0; border-top: 1px solid rgb(var(--border)); }
 
   .prose-docs blockquote {
     margin-block: 1.4em;
     padding-left: 1rem;
-    border-left: 2px solid hsl(var(--border));
-    color: hsl(var(--muted-foreground));
+    border-left: 2px solid rgb(var(--border));
+    color: rgb(var(--muted-foreground));
   }
 
-  /* Tables carry the console register: 12px muted header, hairline rules,
-     no zebra, no outer box heavier than one line. */
-  .prose-docs table { width: 100%; border-collapse: collapse; margin-block: 1.6em; font-size: 13px; }
-  .prose-docs thead th {
-    text-align: left;
-    font-weight: 400;
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-    padding: 0 0.75rem 0.5rem 0;
-    border-bottom: 1px solid hsl(var(--border));
+  /* Inline code. Fenced code never reaches this: <pre> is replaced. */
+  .prose-docs :not(pre) > code {
+    border-radius: 5px;
+    background: rgb(var(--secondary));
+    padding: 0.12em 0.38em;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.84em;
+    color: rgb(var(--foreground));
+    overflow-wrap: anywhere;
   }
-  .prose-docs tbody td {
-    padding: 0.55rem 0.75rem 0.55rem 0;
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+
+  /* Tables: one rounded hairline frame, a quiet header row, rules between
+     rows, no zebra. Wide tables scroll inside their frame. */
+  .docs-table {
+    margin-block: 1.6em;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border: 1px solid rgb(var(--border));
+    border-radius: 10px;
+  }
+  .docs-table table { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.55; }
+  .docs-table thead th {
+    background: rgb(var(--card));
+    text-align: left;
+    font-weight: 500;
+    font-size: 12.5px;
+    color: rgb(var(--muted-foreground));
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid rgb(var(--border));
+    white-space: nowrap;
+  }
+  .docs-table tbody td {
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid rgb(var(--border));
     vertical-align: top;
   }
-  .prose-docs tbody tr:last-child td { border-bottom: 0; }
-  .prose-docs th:last-child,
-  .prose-docs td:last-child { padding-right: 0; }
+  .docs-table tbody tr:last-child td { border-bottom: 0; }
+  .docs-table th[align="right"],
+  .docs-table td[align="right"] { text-align: right; font-variant-numeric: tabular-nums; }
+  .docs-table th[align="center"],
+  .docs-table td[align="center"] { text-align: center; }
 
-  /* Components rendered inside the prose column opt out of its list and table
-   * rhythm with `not-prose`. Without this, a component that happens to use a
-   * <ul> inherits the prose bullet and pays for it twice. */
+  /* Components inside the prose column opt out of its list rhythm. */
   .not-prose ul,
-  .not-prose ol,
-  ul.not-prose,
-  ol.not-prose {
-    list-style: none;
-    margin: 0;
-    padding-left: 0;
-  }
-  .not-prose li,
-  ul.not-prose > li,
-  ol.not-prose > li { margin: 0; }
-  .not-prose ul > li::before,
-  ul.not-prose > li::before { content: none; }
-  .not-prose table { margin: 0; }
+  .not-prose ol { list-style: none; margin: 0; padding-left: 0; }
+  .not-prose li { margin: 0; padding-left: 0; }
+  .not-prose ul > li::before { content: none; }
 
-  /* The dot field behind diagrams. One device, used only inside figures. */
-  .dotgrid {
-    background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
-    background-size: 16px 16px;
-    background-position: -1px -1px;
+  /* Component bodies are prose too, a step tighter. */
+  .prose-docs .component-body > :first-child { margin-top: 0; }
+  .prose-docs .component-body > :last-child { margin-bottom: 0; }
+
+  /* <Steps>: a numbered rail. The number sits in a quiet chip and a hairline
+     joins it to the next one. */
+  .prose-docs .docs-steps { list-style: none; padding-left: 0; margin-block: 1.75rem; counter-reset: step; }
+  .prose-docs .docs-steps > li {
+    position: relative;
+    margin: 0;
+    padding: 0 0 1.75rem 2.75rem;
+    counter-increment: step;
   }
+  .prose-docs .docs-steps > li:last-child { padding-bottom: 0.25rem; }
+  .prose-docs .docs-steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgb(var(--input));
+    background: rgb(var(--secondary));
+    font-size: 12px;
+    font-weight: 500;
+    color: rgb(var(--foreground));
+    font-variant-numeric: tabular-nums;
+  }
+  .prose-docs .docs-steps > li::after {
+    content: "";
+    position: absolute;
+    left: 12.5px;
+    top: 34px;
+    bottom: 8px;
+    width: 1px;
+    background: rgb(var(--border));
+  }
+  .prose-docs .docs-steps > li:last-child::after { display: none; }
+  .prose-docs .docs-step-title {
+    margin: 0 0 0.35rem;
+    font-size: 15.5px;
+    line-height: 26px;
+    font-weight: 600;
+    color: rgb(var(--foreground));
+  }
+
+  /* <Accordion>: one hairline frame alone, one shared frame in a group. */
+  .docs-accordion { margin-block: 0.75rem; border: 1px solid rgb(var(--border)); border-radius: 10px; overflow: hidden; }
+  .docs-accordion-group { margin-block: 1.5rem; border: 1px solid rgb(var(--border)); border-radius: 10px; overflow: hidden; }
+  .docs-accordion-group > .docs-accordion { margin: 0; border: 0; border-radius: 0; }
+  .docs-accordion-group > .docs-accordion + .docs-accordion { border-top: 1px solid rgb(var(--border)); }
+
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--border)) transparent; }
 }
 
 @layer utilities {
   .tnum { font-variant-numeric: tabular-nums; }
-
-  /* The one bit of celebration on the site: the tick overshoots slightly and
-   * settles. Short enough to register as feedback rather than as an effect. */
-  @keyframes check-pop {
-    0% { transform: scale(0.4); opacity: 0; }
-    55% { transform: scale(1.18); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
-  }
-  .animate-check { animation: check-pop 260ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
-  /* Long code samples and tables scroll inside themselves, never the page. */
   .scroll-x { overflow-x: auto; overscroll-behavior-x: contain; }
 }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+.animate-pop { animation: fade-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

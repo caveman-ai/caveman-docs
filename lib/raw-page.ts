@@ -1,98 +1,113 @@
 import "server-only";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { DOCS_LIVE, docPath, findDoc, layerOf } from "@/lib/docs-nav";
-import { pageRecord } from "@/lib/page-index";
-import { TERMS } from "@/lib/glossary";
+import { stringify } from "yaml";
+import { getPages, getProduct, getProducts, readPageSource, type DocPage } from "@/lib/content";
+import { toMarkdown } from "@/lib/markdown-source";
 import { SITE } from "@/lib/site";
 
 /* ==========================================================================
  *  The plain-text mirror.
  *
- *  Every page is also served as Markdown at the same path plus `.md`, and the
- *  whole site as one file at /llms-full.txt. Agents get the text without
- *  paying for the chrome, and there is exactly one source: the .mdx file the
- *  HTML page renders from. A second copy would drift.
+ *  Every page is also served as Markdown at its own path plus `.md`, the
+ *  home page at /index.md, and the whole site as one file at /llms-full.txt.
+ *  Agents get the text without paying for the chrome, and there is exactly
+ *  one source: the `.mdx` file the HTML page renders from. A second copy
+ *  would drift.
  * ======================================================================== */
 
-import { toMarkdown } from "@/lib/markdown-source";
+/** Absolute URL of a page's Markdown twin. */
+export function markdownUrl(page: DocPage): string {
+  return `${SITE.url}${page.href}.md`;
+}
 
-/** The Markdown for one page, with a short header naming what it is. */
-export async function rawPage(slug: string): Promise<string | null> {
-  const doc = findDoc(slug);
-  if (!doc || doc.soon) return null;
+/* YAML front matter rather than prose. Every Markdown toolchain already parses
+ * it, so the metadata survives being pasted into something else. */
+function frontMatter(fields: Record<string, string | null | undefined>): string {
+  const present = Object.fromEntries(Object.entries(fields).filter(([, v]) => v));
+  return `---\n${stringify(present, { lineWidth: 0 })}---\n`;
+}
 
-  const file = join(process.cwd(), "app/docs", slug, "page.mdx");
-  let source: string;
-  try {
-    source = await readFile(file, "utf8");
-  } catch {
-    return null;
-  }
-
-  // A layer's overview page is called "Overview" in the sidebar, where the
-  // group heading supplies the rest. Standing alone it needs the layer's name.
-  const layer = layerOf(doc.layer);
-  const title = layer && doc.slug === layer.id ? `${layer.name}: ${doc.title}` : doc.title;
-
-  const record = pageRecord(slug);
-
-  /* YAML front matter rather than prose. Every Markdown toolchain already
-   * parses it, so the metadata survives being pasted into something else. */
+/** One page as Markdown, with front matter naming what it is and where it lives. */
+export function rawPage(page: DocPage): string {
   const header = [
-    "---",
-    `title: ${quote(title)}`,
-    `summary: ${quote(doc.blurb)}`,
-    `canonical: ${SITE.url}${docPath(slug)}`,
-    doc.layer ? `layer: ${doc.layer}` : null,
-    doc.license ? `license: ${doc.license}` : null,
-    doc.capability ? `capability: ${doc.capability}` : null,
-    record ? `updated: ${record.updated}` : null,
-    "basis: inferred",
-    "---",
+    frontMatter({
+      title: page.title,
+      description: page.description,
+      canonical: `${SITE.url}${page.href}`,
+      product: getProduct(page.product)?.name ?? page.product,
+      tab: page.tab,
+      group: page.group,
+    }),
+    `# ${page.title}`,
     "",
-    `# ${title}`,
+    ...(page.description ? [`> ${page.description}`, ""] : []),
+  ].join("\n");
+  return `${header}\n${toMarkdown(readPageSource(page))}\n`;
+}
+
+const HOW_TO_READ = [
+  "How to read this site without HTML:",
+  "",
+  "- Append `.md` to any page URL, or send `Accept: text/markdown` to the page URL itself.",
+  `- ${SITE.url}/llms.txt is the reading index; ${SITE.url}/llms-full.txt is every page in one file.`,
+  `- ${SITE.url}/llms-index.json is the routing index: every page with its headings and anchors.`,
+];
+
+/** `- [navTitle](twin URL): description`, the line every index uses for a page. */
+export function linkLine(page: DocPage): string {
+  return `- [${page.navTitle}](${markdownUrl(page)})${page.description ? `: ${page.description}` : ""}`;
+}
+
+/** Products, tabs, groups and pages as nested Markdown link lists. */
+function contentsLines(): string[] {
+  const lines: string[] = [];
+  for (const product of getProducts()) {
+    lines.push(`## ${product.name}`, "");
+    if (product.description) lines.push(`${product.description}.`, "");
+    const tabbed = product.tabs.length > 1;
+    for (const tab of product.tabs) {
+      if (tabbed && tab.name) lines.push(`### ${tab.name}`, "");
+      for (const group of tab.groups) {
+        lines.push(`${tabbed ? "####" : "###"} ${group.name}`, "");
+        lines.push(...group.pages.map(linkLine), "");
+      }
+    }
+  }
+  return lines;
+}
+
+/** The home page's twin: what the site covers, then every product, group and page. */
+export function rawIndex(): string {
+  return [
+    frontMatter({ title: "Caveman documentation", description: SITE.description, canonical: `${SITE.url}/` }),
+    "# Caveman documentation",
     "",
-    `> ${doc.blurb}`,
+    `> ${SITE.description}`,
     "",
+    ...HOW_TO_READ,
+    "",
+    ...contentsLines(),
   ]
-    .filter((l) => l !== null)
-    .join("\n");
-
-  return header + toMarkdown(source) + "\n";
+    .join("\n")
+    .trimEnd()
+    .concat("\n");
 }
 
-/* YAML scalars that could be misread as structure get quoted. Colons in a
- * summary are common and would otherwise break the parse. */
-function quote(value: string): string {
-  return /[:#\-{}[\]&*!|>'"%@`]/.test(value) ? JSON.stringify(value) : value;
-}
-
-/** Every page, concatenated. Used by /llms-full.txt. */
-export async function rawSite(): Promise<string> {
-  const parts = await Promise.all(DOCS_LIVE.map((d) => rawPage(d.slug)));
-  const body = parts.filter((p): p is string => Boolean(p)).join("\n\n---\n\n");
-
+/** Every page, concatenated in reading order. Served at /llms-full.txt. */
+export function rawSite(): string {
+  const pages = getPages();
   /* A contents list first. A reader that only needs one section can find it
    * without scanning the whole file, and a reader that needs all of it loses
-   * nothing by skipping twenty lines. */
-  const contents = DOCS_LIVE.map((d) => {
-    const rec = pageRecord(d.slug);
-    return `- ${rec?.title ?? d.title} (${SITE.url}${docPath(d.slug)}): ${d.blurb}`;
-  });
-
+   * nothing by skipping eighty lines. */
+  const contents = pages.map((p) => `- ${p.title} (${SITE.url}${p.href}): ${p.description}`);
   return [
     "# Caveman documentation",
     "",
     `> ${SITE.description}`,
     "",
-    `Every page of ${SITE.url} in one file, in reading order. Each page is also available on its own`,
-    "at its canonical URL with `.md` appended, or by sending `Accept: text/markdown` to that URL.",
-    `A machine index with headings, anchors and last-changed dates is at ${SITE.url}/llms-index.json`,
+    `Every page of ${SITE.url} in one file, in reading order. Each page below starts with YAML front matter`,
+    "naming its canonical URL, product and group.",
     "",
-    "Measurement vocabulary, which the pages below assume:",
-    "",
-    ...TERMS.filter((t) => t.id !== "recoverable").map((t) => `- ${t.term}: ${t.definition} ${t.notThis}`),
+    ...HOW_TO_READ,
     "",
     "## Contents",
     "",
@@ -100,6 +115,6 @@ export async function rawSite(): Promise<string> {
     "",
     "===",
     "",
-    body,
+    pages.map(rawPage).join("\n\n"),
   ].join("\n");
 }

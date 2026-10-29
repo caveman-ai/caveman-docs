@@ -1,39 +1,43 @@
 import Link from "next/link";
-import { SiteHeader } from "@/components/site/header";
-import { SiteFooter } from "@/components/site/footer";
+import { HeaderRow, Panel } from "@/components/shell/panel";
+import { SearchButton } from "@/components/shell/nav-button";
+import { ProductGlyph } from "@/components/shell/shell";
+import { getProducts } from "@/lib/content";
 
 export default function NotFound() {
+  const products = getProducts();
   return (
-    <>
-      <SiteHeader />
-      <main id="main" className="mx-auto max-w-[92rem] px-4 py-24 sm:px-6 lg:px-8">
-        <p className="font-mono text-2xs text-muted-foreground">404</p>
-        <h1 className="mt-3 text-[28px] font-medium tracking-[-0.02em]">This page is not here.</h1>
-        <p className="mt-2 max-w-measure text-[15px] text-muted-foreground">
-          It may be a page that is planned but not written yet. The sidebar marks those as soon.
+    <Panel
+      header={
+        <HeaderRow>
+          <span className="text-[13px] text-muted-foreground">Not found</span>
+        </HeaderRow>
+      }
+    >
+      <main id="main" className="mx-auto max-w-[720px] px-5 py-20 sm:px-8 lg:py-28">
+        <p className="font-mono text-[12px] text-muted-foreground">404</p>
+        <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.02em] text-foreground">This page is not here.</h1>
+        <p className="mt-2 text-[15px] text-muted-foreground">It may have moved. Search, or start from a product.</p>
+        <div className="mt-8 flex flex-wrap gap-2">
+          <SearchButton className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-[13.5px] font-medium text-primary-foreground">
+            Search the docs
+          </SearchButton>
+          {products.map((p) => (
+            <Link
+              key={p.id}
+              href={p.href}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-border px-4 text-[13.5px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+            >
+              <ProductGlyph id={p.id} className="size-3.5" />
+              {p.name}
+            </Link>
+          ))}
+        </div>
+        <p className="mt-10 text-[13px] text-muted-foreground">
+          Agents: <a href="/llms.txt" className="text-foreground/80 hover:text-foreground">/llms.txt</a> lists every page, and any
+          page is Markdown at its URL plus <code className="font-mono">.md</code>.
         </p>
-        <Link
-          href="/docs"
-          className="mt-6 inline-flex h-9 items-center rounded-md border border-input px-3.5 text-[13px] transition-colors hover:bg-accent"
-        >
-          Go to the documentation index
-        </Link>
-        <ul className="mt-8 max-w-measure space-y-1.5 text-[13px] text-muted-foreground">
-          <li>
-            <a href="/llms.txt" className="underline-offset-4 hover:underline">/llms.txt</a>: every page with a one-line summary.
-          </li>
-          <li>
-            <a href="/sitemap.xml" className="underline-offset-4 hover:underline">/sitemap.xml</a>: every page that exists.
-          </li>
-          <li>
-            <a href="/llms-full.txt" className="underline-offset-4 hover:underline">/llms-full.txt</a>: the whole site as one Markdown file.
-          </li>
-          <li>
-            Any page is also Markdown at its URL plus <code className="font-mono">.md</code>.
-          </li>
-        </ul>
       </main>
-      <SiteFooter />
-    </>
+    </Panel>
   );
 }

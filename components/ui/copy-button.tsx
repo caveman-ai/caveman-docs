@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Check, Copy } from "lucide-react";
+import { cn } from "@/lib/cn";
 
-export function CopyButton({ value }: { value: string }) {
+export function CopyButton({ value, label = "Copy code", className }: { value: string; label?: string; className?: string }) {
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -18,8 +19,11 @@ export function CopyButton({ value }: { value: string }) {
       onClick={() => {
         void navigator.clipboard.writeText(value).then(() => setCopied(true));
       }}
-      aria-label={copied ? "Copied" : "Copy code"}
-      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      aria-label={copied ? "Copied" : label}
+      className={cn(
+        "flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.96]",
+        className,
+      )}
     >
       {copied ? <Check className="size-3.5 text-success" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
     </button>

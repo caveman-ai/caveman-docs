@@ -1,10 +1,16 @@
 # caveman-docs
 
-The public documentation for Caveman, at [docs.caveman.so](https://docs.caveman.so).
+The public documentation for Caveman and Caveman Cloud, at
+[docs.caveman.so](https://docs.caveman.so).
 
-Covers the open layers of the stack: the agent skill, the compression engine,
-and cavemem. Caveman Cloud is described at the level of what it is for, never
-how it works.
+- **Caveman**: the open source skill, CLI, proxy and Engine that make AI agents
+  say less and read less, on your machine.
+- **Caveman Cloud**: the hosted control plane for AI spend, routing and
+  governance. Described at the level of what it does, never how it is built.
+
+The content is Mintlify's format: `docs.json` is the navigation and each page
+is an `.mdx` file beside it (`caveman/*.mdx` for Caveman, the rest for Cloud).
+A Next.js app renders it; `lib/content.ts` is the index everything reads.
 
 ## Run it
 
@@ -20,17 +26,21 @@ npm run build
 ```
 
 The build runs `scripts/check-public.mjs` first. It refuses to compile if a page
-names a capability that is not public in the Caveman product registry, points at
-a path inside a private tree, or links to a page that does not exist.
+listed in `docs.json` is missing, an internal link or anchor points at nothing,
+or any content names a capability or path that is not public in the Caveman
+product registry.
 
 ## Read it without a browser
 
 | Path | What |
 |---|---|
-| `/llms.txt` | Index, one line per page, grouped by layer |
+| `/llms.txt` | Index, one line per page, grouped by product and group |
 | `/llms-full.txt` | The whole site in one file |
-| `/docs/<slug>.md` | Any page as Markdown |
+| `/llms-index.json` | Every page with its headings and anchors |
+| `/<path>.md` | Any page as Markdown, for example `/caveman/quickstart.md` |
+| `/index.md` | The home page as Markdown |
 
+Sending `Accept: text/markdown` to any page URL redirects to its `.md` twin.
 The Markdown is generated from the same `.mdx` source the page renders from, so
 there is no second copy to go stale.
 
@@ -42,4 +52,5 @@ monorepo at `.agents/skills/caveman-docs/SKILL.md`.
 ## Licence
 
 Documentation content is published for public use. The Caveman software it
-describes is licensed separately: see [Licensing](https://docs.caveman.so/docs/licensing).
+describes is licensed separately: see
+[the product model](https://docs.caveman.so/caveman/product-model).
