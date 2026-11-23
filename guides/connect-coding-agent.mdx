@@ -1,0 +1,172 @@
+---
+title: "Connect your local coding agent to Caveman Cloud"
+sidebarTitle: "Connect Coding Agent"
+description: "Pair Claude Code, Codex, Cursor, or other coding agents with Caveman Cloud over remote MCP, or route their LLM traffic through the gateway for telemetry."
+---
+
+Caveman Cloud gives your local coding agent two ways to work with your project: let the agent read Cloud evidence and act on your behalf through a remote MCP connection, or route the agent's own LLM traffic through the gateway so every request is measured and attributed. Most teams start with MCP, then add gateway routing when they want full spend visibility for the agent itself.
+
+<CardGroup cols={2}>
+  <Card title="Give your agent Cloud access" icon="robot" href="#connect-over-mcp">
+    Install the remote MCP so your agent can search traces, run SQL, read reports, and manage evals. The human approves every project binding and permission scope.
+  </Card>
+
+  <Card title="Measure your agent" icon="gauge" href="#route-agent-traffic-through-the-gateway">
+    Run your coding agent through the Caveman gateway with zero code changes. Spend, latency, and traces show up attributed to the agent.
+  </Card>
+</CardGroup>
+
+## Connect over MCP
+
+The remote MCP endpoint lives at your installation's `/mcp` path. It exposes Cloud operations as tools the agent can call. This connection manages evidence and evals; it does not route LLM traffic.
+
+### Install the MCP server
+
+Open **Connect your coding agent** in the Caveman Cloud console, select your agent, and copy the install command. You can also browse the connection page at `/mcp/connect`.
+
+Keep existing MCP servers when editing configuration. Credentials stay in the host's OAuth storage, never in chat logs or repository files.
+
+<Tabs>
+  <Tab title="Claude Code">
+    Run this command in your repository, then open `/mcp` in Claude Code and authenticate Caveman Cloud.
+
+    ```bash
+    claude mcp add --transport http --scope local --client-id caveman-claude caveman-cloud 'https://your-installation.example/mcp'
+    ```
+  </Tab>
+  <Tab title="Codex">
+    Run these commands in your terminal. Codex opens your browser for project approval.
+
+    ```bash
+    codex mcp add caveman-cloud --url 'https://your-installation.example/mcp' --oauth-client-id caveman-codex
+    codex mcp login caveman-cloud
+    ```
+  </Tab>
+  <Tab title="Cursor">
+    Merge this JSON into `.cursor/mcp.json`, keeping existing servers. Then open Cursor Settings, go to Tools & MCP, and connect Caveman Cloud.
+
+    ```json
+    {
+      "mcpServers": {
+        "caveman-cloud": {
+          "url": "https://your-installation.example/mcp",
+          "auth": {
+            "CLIENT_ID": "caveman-cursor"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Approve the connection
+
+After installing, authenticate from the host's MCP settings. A browser OAuth flow asks you to approve the intended project and access level.
+
+Metadata reads are selected by default. Captured content, authoring, and paid runs require separate choices. Do not approve your own connection, change retention consent, or bypass a refusal.
+
+### Verify with caveman_context
+
+Copying a command does not prove the connection is live. Call `caveman_context` after connecting and confirm the intended project and endpoint before the agent reads or writes anything.
+
+If the project, endpoint, or access does not match what you expect, stop project reads and writes immediately. Continue only independent repository inspection while blocked.
+
+### What the agent can do once connected
+
+Once verified, the agent can call Cloud operations through six stable tools: `caveman_context`, `caveman_search`, `caveman_describe`, `caveman_read`, `caveman_write`, and `caveman_draft`. Exact operation schemas require authorized search and describe calls.
+
+Common next steps:
+
+- [Set up automated project setup](/guides/ai-setup)
+- [Query traces and spend with SQL](/guides/query-with-sql)
+- [Run evals to build quality evidence](/guides/evals)
+- [Review and approve improvement proposals](/guides/improvements)
+
+### Permissions and revoking
+
+MCP respects the same permission model as the console and CLI. An agent connection defaults to metadata reads. Access to billing data, payloads, authoring, and paid execution must be granted explicitly.
+
+To review or revoke a connection, see [Team and Admin](/guides/team-and-admin). For the full tool reference and protocol details, see [MCP](/cli/mcp).
+
+## Route agent traffic through the gateway
+
+If you want the coding agent's own model calls to flow through Caveman Cloud so spend, traces, and attribution show up in your project, use the open-source `caveman` CLI. This is a separate CLI from `cvm`.
+
+### Install the caveman CLI
+
+```bash
+npm i -g @caveman-ai/cli
+```
+
+The CLI exposes both `caveman` and `cave`. It is one TypeScript file with no runtime dependencies.
+
+### Run a registered agent
+
+Use the agent shortcut:
+
+```bash
+caveman claude
+```
+
+Or the generic form:
+
+```bash
+caveman run -- claude
+caveman run -- my-agent --project checkout
+```
+
+Both enter the same runtime pipeline. The CLI resolves config, applies entitlement, starts or adopts the local proxy, injects the agent profile, installs the loadout, and prints an honest session result.
+
+There are seven supported profiles today: `aider`, `claude`, `codex`, `gemini`, `hermes`, `openclaw`, and `opencode`. Each profile declares the agent's binaries, wire protocol, and how to inject the gateway base URL. The injection method is one of three: literal environment variables, inline config env content, or a temporary config file overlay. The wire protocol must be one the proxy speaks natively: `anthropic-messages`, `openai-chat`, `openai-responses`, or `gemini-generatecontent`.
+
+### Attribution header
+
+The profile sets the `x-cave-agent` header so telemetry knows which agent made the request. You can also label the session with a workflow:
+
+```bash
+x-cave-workflow: refactor-auth
+```
+
+This makes the agent's spend rows attributable in traces and reports.
+
+### How it works with Claude Code
+
+Claude Code reads `ANTHROPIC_BASE_URL` from the environment. The CLI sets this to the gateway URL and injects your Caveman API key. No code changes are required inside Claude Code itself.
+
+```bash
+export ANTHROPIC_BASE_URL="${CAVE_GATEWAY_URL}/anthropic"
+export ANTHROPIC_AUTH_TOKEN=cave_live_...
+```
+
+For Codex, the CLI configures a custom model provider that routes through the gateway. Other agents follow their own profile rules, all declared as data in the registry.
+
+<Tip>
+  To see this traffic per person, per agent, and per repository, follow [Coding agent analytics](/analytics/coding-agents).
+</Tip>
+
+<Warning>
+  Wrapping changes only the agent's base URL through its own configuration. The proxy is byte-safe: in record mode and on any transform error it forwards the original bytes unchanged, and every spend row it records is inferred, never verified.
+</Warning>
+
+## Troubleshooting
+
+<Accordion title="The agent cannot find the MCP server after installation">
+  Keep existing MCP servers when editing config. Make sure the endpoint URL ends in `/mcp` with no query string, hash, or credentials embedded. Restart the agent after adding the server.
+</Accordion>
+
+<Accordion title="caveman_context reports a project mismatch">
+  Stop project reads and writes immediately. Confirm the intended project ID and endpoint in the console, then reinstall if the connection was bound to the wrong project. Copying a command is not proof of a valid connection.
+</Accordion>
+
+<Accordion title="The agent sees no Cloud operations">
+  Permissions are checked live. If the connection was approved with metadata reads only, content reads, authoring, and paid runs will not appear. Re-authenticate from the host's MCP settings and grant the additional scopes.
+</Accordion>
+
+<Accordion title="caveman claude says the binary is missing">
+  Install the agent itself first. Each profile includes an install hint, such as `npm i -g @anthropic-ai/claude-code`. The `caveman` CLI wraps the agent, it does not replace it.
+</Accordion>
+
+<Accordion title="I do not see spend attribution for the agent">
+  Make sure the agent routes through the gateway on your personal key, either with `caveman <agent>` or `caveman run -- <agent>`, or with the direct-connect settings from **Developers → Connect an agent**. Launches that do not route through the gateway will not emit attributed telemetry. Verify the `x-cave-agent` header is present in your trace headers. See [Coding agent analytics](/analytics/coding-agents) for per-agent setup.
+</Accordion>

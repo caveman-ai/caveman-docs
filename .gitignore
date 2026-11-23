@@ -1,0 +1,12 @@
+node_modules
+.next
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+.env*.local
+.env*
+/dist/
+.vinext/
+.cloudflare/
+.generated/

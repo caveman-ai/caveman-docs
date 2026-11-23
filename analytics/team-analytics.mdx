@@ -1,0 +1,106 @@
+---
+title: "Team and developer analytics for AI coding agents"
+sidebarTitle: "Team Analytics"
+description: "Use the Developers space to see coding agent usage by team, person, and agent, inspect sessions, and link agent spend to merged pull requests on GitHub."
+---
+
+The **Developers** space in Caveman Cloud turns personal-key traffic into team analytics: who is using which coding agents, what it costs at catalog prices, which sessions drove the spend, and which merged changes those sessions led to. Every view is scoped by the reporting window and project pickers at the top of the page. Set up personal keys first with [Coding agent analytics](/analytics/coding-agents).
+
+| View | Answers |
+| --- | --- |
+| [Team](#team) | How many people are active, and how much of the project's spend is linked to them? |
+| [Individual](#individual) | What does one person use, and how does it compare to the team? |
+| [Agent usage](#agent-usage) | How do Claude Code, Codex, and other agents compare on volume and cost per request? |
+| [Your agents](#your-agents) | Which machines are running agents, and what is the wrapper doing on each? |
+| [Sessions](#sessions) | Which sessions cost the most, and what happened inside them? |
+| [Repositories](#repositories) and [Delivery](#delivery) | What did agent spend turn into on GitHub? |
+
+## Team
+
+**Developers → Team** treats each project as a team. For sub-teams, create more projects.
+
+- **Active people**: people with attributed requests in the window, including observed contributors.
+- **Requests**: model calls on personal keys attributed to verified people. A request is a model call, not finished work.
+- **Catalog spend**: personal-key spend at catalog list prices, not the provider invoice.
+- **Cache read**: input served from the provider cache. This is reuse, not a verified saving.
+
+Panels below break this down by **Requests by person**, **Coding agents**, **Attribution**, and **Seats used**. **Attribution** shows the share of catalog-priced project spend that is linked to people. The rest is app traffic or keys no person holds.
+
+## Individual
+
+**Developers → Individual** shows one person's activity. Pick an assigned member, an observed contributor, or a former member.
+
+- Tiles: **Requests**, **Catalog spend**, **Coding agents**, **Cache read**, **Share of team**, and **Active days** (UTC days with at least one request, not time worked).
+- Panels: **Coding agents**, **Models** (by catalog spend), **Work types** (the label the router classifier inferred), and **Daily requests**.
+
+Developers can see their own data any time in **My usage**, including their keys and machines.
+
+## Agent usage
+
+**Developers → Agent usage** compares coding agents side by side.
+
+- Tiles: **Coding agents**, **Requests**, **Catalog spend**, and **Cost / request**. Cost per request moves with the model and task mix, so a drop is not proof of a saving.
+- **Cache read by work type** shows where reuse happens.
+- **Coding agents compared** lists each agent's requests and per-request cost, with **View traces** to drill into the calls.
+
+## Your agents
+
+**Developers → Your agents** shows machines that run the caveman CLI wrapper. Use **Whose agents** to switch between people. Tiles show **Machines**, **Requests**, **Measured tokens**, and **Kept out of context**, and the **Machines and agents** table breaks down routing, model mix, and measured tokens per machine. Machines appear after you run `caveman login`.
+
+## Sessions
+
+**Developers → Sessions** lists coding sessions in the window. A session appears once it runs through the gateway with a personal key.
+
+- Sort by **Recent activity** or **Highest cost**, choose columns, and switch between **Everyone** and **Only mine**.
+- Search by ID, repository, or model, and add filters.
+- Tiles show **Sessions**, **Requests** (errors are HTTP status 400 or higher), **Priced cost**, and **Cache read**.
+- **Peak context** is the largest provider-reported input token count in the session, not a percentage of the context window.
+
+Open a session to see its timeline and inspect individual requests.
+
+<Note>
+  Roles without organization access can only inspect sessions on their own personal keys.
+</Note>
+
+## Repositories
+
+**Developers → Repositories** joins GitHub pull requests to agent sessions.
+
+<Steps>
+  <Step title="Register the GitHub App">
+    An organization owner or admin registers the GitHub App from **Settings**.
+  </Step>
+  <Step title="Connect GitHub to the project">
+    An owner or admin connects GitHub to each project that should report on repositories.
+  </Step>
+  <Step title="Send repository and branch tags">
+    Developers set `CAVE_TAGS` so sessions carry `repo` and `branch`. See [Tag sessions](/analytics/coding-agents#tag-sessions-with-repository-and-branch).
+  </Step>
+</Steps>
+
+Once connected, tiles show **Merged changes**, **Linked to usage**, **Open to merge** (median time from opening a pull request to merging it), and **Linked spend**. A change is linked when its branch matches session usage in the same project and repository. Linking does not say which lines an agent wrote.
+
+Below the tiles, the **Time to merge** chart, a per-repository list, and the **Merged changes** table show each change's open-to-merge time, sessions, and evidence. Sort by **Recently merged** or **Longest open-to-merge**, and search by title, branch, or GitHub author.
+
+## Delivery
+
+**Developers → Delivery** follows the money from session spend to outcomes. It needs GitHub connected and sessions that carry repository and branch metadata.
+
+- Tiles: **Session spend**, **Linked merges**, **Median linked cost**, and **Branch context**.
+- **Where the spend went** traces spend through branch context to an outcome: **Still moving**, **No merge observed**, or **Needs evidence**.
+- **Branches** summarizes branches that are still moving or quiet with no merge, plus P90 linked cost and median sessions.
+- **Change size** and **Merged work** group merged changes by size and kind (read from pull request and branch names).
+- **Quiet branches** lists branches with no activity for 48 hours and no merge. A quiet branch is not automatically waste.
+- **Optimizer cohorts** compare observed outcomes with and without optimizers. These are observations, not causal results.
+
+If sessions are missing work context, send `repo=owner/name,branch=<branch>` in `x-cave-tags` together with an `x-cave-session` ID.
+
+## Who can see what
+
+Viewers without billing access see **Active people**, **Requests**, **Attributed**, and **Members**, but no money values. Grant billing access in [Access and limits](/governance/access-and-limits).
+
+## Next steps
+
+- [Chart coding agent spend on a custom dashboard](/analytics/custom-dashboards)
+- [Set budgets per person or key](/governance/budgets)
+- [Allocate spend to teams and cost centers](/governance/cost-allocation)

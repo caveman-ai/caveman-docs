@@ -1,0 +1,111 @@
+---
+title: "Connect coding agents to Caveman Cloud over MCP"
+sidebarTitle: "MCP"
+description: "Connect Claude Code, Cursor, or Codex to Caveman Cloud over MCP. Discover exposed tools, permissions, and how stdio and remote MCP work."
+---
+
+Caveman Cloud exposes a Model Context Protocol (MCP) server so coding agents such as Claude Code, Cursor, and Codex can inspect traces, run SQL, read reports, and manage evals directly from your editor. You can connect through the dashboard's remote MCP endpoint or launch the local stdio server with `cvm mcp`.
+
+## Connect through the dashboard (remote MCP)
+
+The simplest approach is to use **Connect your coding agent** in the Caveman Cloud dashboard. This installs a remote `/mcp` endpoint and authenticates with browser OAuth. No CLI, gateway key, or skill pack is required. For a full walkthrough, see [Connect your coding agent](/guides/connect-coding-agent).
+
+1. Open the Caveman Cloud dashboard and choose **Connect your coding agent**.
+2. Select your client: Claude Code, Codex, or Cursor.
+3. Approve the connection. The approval binds one project and defaults to metadata reads. Content, authoring, and paid execution stay opt-in.
+
+The connection supplies a `streamable-http` transport at the installation's `/mcp` endpoint. It uses S256 PKCE and issuer-bound authorization responses. Public client IDs are not credentials; the OAuth flow is what authenticates you.
+
+<Warning>
+  Copying setup instructions does not verify a connection. Call `caveman_context` after connecting and confirm the intended project before using any evidence.
+</Warning>
+
+## Connect with cvm mcp (stdio)
+
+If you prefer a local stdio connection, use the `cvm` CLI:
+
+```bash
+cvm mcp
+```
+
+This starts the Cloud MCP server over stdio. The host (for example, Claude Code) launches `cvm mcp` as a subprocess and communicates over stdin/stdout.
+
+Stdio refreshes discovery for every tool call, so revoked access or a client/server contract mismatch blocks discovery and execution immediately.
+
+## The six stable tools
+
+Every MCP connection surfaces six compact tool schemas first. Exact operation schemas require authorized `caveman_search` and `caveman_describe` calls.
+
+| Tool | What it does |
+| --- | --- |
+| `caveman_context` | Start here: verify who you are, which project you are bound to, and which families are available. Every other tool assumes this context. |
+| `caveman_search` | Find Cloud operations by keyword or family. Returns compact descriptors; fetch exact schemas with `caveman_describe`. |
+| `caveman_describe` | Get the exact input schema, required permissions, effects, and retry rules for one operation. Large schemas are paged. |
+| `caveman_read` | Read a Cloud operation result. Start with metadata; payload reads require explicit permission. Supports JSON Pointer and snapshot-bound paging. |
+| `caveman_write` | Execute an allowed Cloud mutation. Describe first. Receipted writes require an `idempotency_key`; reuse it only for identical retries. |
+| `caveman_draft` | Build a regression dataset or scenario draft from selected trace captures. Reads only; persists nothing. Requires payload permission. |
+
+## What operations are exposed
+
+`caveman_search` and `caveman_describe` return only the operations your connection is authorized to call. Permission is checked live, so the same agent may see different tools across projects or after a policy change.
+
+Example families you may discover include:
+
+- `sql` (`sql.schema`, `sql.query`) for read-only ClickHouse SELECT
+- `traces` (`traces.search`, `traces.get`, `traces.spans`) for request and span inspection
+- `reports` (`reports.overview`, `reports.agents`) for spend and usage summaries
+- `evals` and `evals_write` for evaluation datasets, evaluators, and runs
+- `briefs` and `briefs_write` for the Improvements workspace
+- `workflows` and `workflows_write` for agent and workflow registration
+- `inbox` and `inbox_write` for the decision queue
+- `alerts` and `alerts_write` for metric alerts
+
+## Permissions and grants
+
+MCP respects the same permission model as the console and CLI. An agent connection defaults to metadata reads. Access to billing data, payloads, authoring, and paid execution must be granted explicitly.
+
+Key permission labels:
+
+- `trace:read_metadata` for basic trace and SQL access
+- `billing:read` for per-person spend columns
+- `payload:read` plus `trace:read_payload` for captured request/response bodies
+- `sql:read` for project-scoped SQL queries via a project key
+
+Agent connections and `sql:read` keys get tighter limits than people: 101 rows, 128 KiB, and 15 seconds for SQL queries.
+
+## SQL through MCP
+
+The SQL tool is one of the most common reasons to connect an agent. It runs read-only ClickHouse SELECT over the bound project's tables (requests, spans, tool events, evals, logs, errors, events). Operation schemas are reached through `caveman_search` / `caveman_describe`, the CLI (`cvm sql`), and the generated SDKs.
+
+Important SQL behavior with MCP:
+
+- `sql.query` is never paged by re-running. If a result is too large for one reply, it keeps the rows that fit, sets `truncated`, and adds a notice such as `k of n rows shown; aggregate or select fewer columns`.
+- `sql.schema` reads no clock, so its pages are one snapshot and page normally.
+- Query results are citable evidence by their `query_digest`.
+
+## MCP protocol details
+
+- MCP returns compact JSON once in a text content block, without a duplicate `structuredContent` payload. Consumers parse `result.content[0].text`.
+- The protocol version is the pinned SDK's `2025-11-25` revision.
+- There is no dynamic client registration. Clients are pre-registered by the installation operator.
+- Portless registered HTTP loopback callbacks accept an ephemeral port, with exact host, path, and query matching.
+
+## Honesty note
+
+The six compact tool schemas and workflow prompts are designed to reduce context overhead. This is a protocol efficiency, not a claim about end-to-end model billing or task completion cost.
+
+## Next steps
+
+<CardGroup>
+  <Card title="cvm CLI" icon="terminal" href="/cli/cvm">
+    Install `cvm`, sign in, and run Cloud commands from your terminal.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Learn the SQL schema, limits, and how to join telemetry with console entities.
+  </Card>
+
+  <Card title="Evals" icon="flask" href="/guides/evals">
+    Author datasets, evaluators, and strict suites to evaluate changes with evidence.
+  </Card>
+</CardGroup>

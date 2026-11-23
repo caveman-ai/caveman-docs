@@ -1,0 +1,212 @@
+{
+  "generatedFrom": "PRODUCTS.yaml",
+  "public": [
+    {
+      "id": "agent-profiles",
+      "name": "Native agent profile registry",
+      "path": "public/agents",
+      "language": "js",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "agent-sdk",
+      "name": "Caveman Agent SDK",
+      "path": "external:caveman-ai/agent-sdk",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "binary-installer",
+      "name": "Shared binary installer",
+      "path": "public/shared/binary-installer",
+      "language": "js",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "browse",
+      "name": "caveman-browse",
+      "path": "public/browse",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "cli",
+      "name": "Caveman CLI",
+      "path": "public/cli",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "code",
+      "name": "caveman-code",
+      "path": "external:JuliusBrussee/caveman-code",
+      "language": "ts",
+      "license": "MIT",
+      "status": "live"
+    },
+    {
+      "id": "contracts",
+      "name": "Wire Contracts",
+      "path": "public/shared/contracts",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "create-agent",
+      "name": "Caveman Agent initializer",
+      "path": "external:caveman-ai/agent-sdk/packages/create-caveman-agent",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "engine",
+      "name": "Caveman Engine",
+      "path": "public/engine",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "evals",
+      "name": "Eval Graders",
+      "path": "public/evals",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "integration-recipes",
+      "name": "Framework integration recipe registry",
+      "path": "public/integrations",
+      "language": "js",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "litellm-connector",
+      "name": "Caveman LiteLLM connector",
+      "path": "public/integrations/litellm",
+      "language": "python",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "mcp",
+      "name": "Caveman MCP Server",
+      "path": "public/mcp",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "mem",
+      "name": "cavemem",
+      "path": "public/mem",
+      "language": "mixed",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "platform",
+      "name": "Platform (Go shared libs)",
+      "path": "public/shared/platform",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "provider-catalog",
+      "name": "Provider Catalog",
+      "path": "public/shared/provider-catalog",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "rewriter",
+      "name": "Aged-zone reflection rewriter",
+      "path": "public/rewriter",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "sdk-python",
+      "name": "Caveman SDK (Python)",
+      "path": "public/sdk/python",
+      "language": "python",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "sdk-ts",
+      "name": "Caveman SDK (TypeScript)",
+      "path": "public/sdk/typescript",
+      "language": "ts",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "shrink",
+      "name": "caveman-shrink",
+      "path": "public/shrink",
+      "language": "go",
+      "license": "Apache-2.0",
+      "status": "partial"
+    },
+    {
+      "id": "skill",
+      "name": "Caveman Skill",
+      "path": "external:JuliusBrussee/caveman",
+      "language": "md",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "skill-caveman-explore",
+      "name": "caveman-explore skill",
+      "path": "public/skills/caveman-explore",
+      "language": "md",
+      "license": "Apache-2.0",
+      "status": "live"
+    },
+    {
+      "id": "skill-caveman-learn",
+      "name": "caveman-learn skill",
+      "path": "public/skills/caveman-learn",
+      "language": "md",
+      "license": "Apache-2.0",
+      "status": "partial"
+    }
+  ],
+  "privateIds": [
+    "agent-sandbox",
+    "catalog",
+    "cave-agent",
+    "cavebench",
+    "control-api",
+    "database",
+    "deployment",
+    "emailkit",
+    "gateway",
+    "identity",
+    "metering",
+    "native-agents",
+    "ops-tunnel",
+    "optimizer",
+    "planengine",
+    "provider-backend",
+    "proxy",
+    "router-classifier",
+    "scenario-runner",
+    "web",
+    "worker"
+  ]
+}

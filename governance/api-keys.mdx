@@ -1,0 +1,118 @@
+---
+title: "Create, limit, rotate, and revoke Caveman gateway API keys"
+sidebarTitle: "API Keys"
+description: "Manage Caveman gateway API keys: personal vs shared keys, scopes, model allowlists, rate limits, budgets, expiry, IP allowlists, rotation, and revocation."
+---
+
+Apps and agents authenticate to the Caveman gateway with an API key. Each key carries its own limits, and every request it signs is attributed to it, which makes keys the foundation of both access control and cost attribution. Manage keys in **Governance → Keys**.
+
+For how to send a key with a request, see [Authentication](/authentication).
+
+## Create a key
+
+<Steps>
+  <Step title="Open Governance → Keys">
+    Select the project the key belongs to, then choose **Create key**.
+  </Step>
+  <Step title="Name the key and choose an owner">
+    Under **Belongs to**, pick a member to create a **personal key**: its traffic appears under that person's name on **People**. Pick **No one (shared key)** for services, CI, and production apps. Binding a key to a member requires the Owner or Platform admin role.
+  </Step>
+  <Step title="Set a spend limit and expiry">
+    Optionally set a **Spend limit** with a reset period of **Day**, **Week**, **Month**, or **Total**, and an expiry of **Never**, **7 days**, **30 days**, or **90 days**.
+  </Step>
+  <Step title="Configure more options (optional)">
+    Under **More options**, set a **default workflow** and the key's **scopes**. Requests that do not send an `x-cave-workflow` header are attributed to the default workflow.
+  </Step>
+  <Step title="Copy the key">
+    The full key and the gateway base URL are shown **once**. Store the key in your secret manager. Afterwards, the console only shows the key prefix.
+  </Step>
+</Steps>
+
+<Warning>
+  Treat keys like passwords. Never commit them to source control, paste them into prompts, or include them in support reports. If a key leaks, revoke it immediately.
+</Warning>
+
+## Scopes
+
+Scopes decide what a key can do. New keys get the two defaults.
+
+| Scope | Default | Allows |
+| --- | --- | --- |
+| `proxy:write` | Yes | Route model traffic through the gateway |
+| `sdk:write` | Yes | Send traces from the SDKs |
+| `router:write` | No | Pick models through the router |
+| `plan:read` | No | Read the runtime plan |
+| `sql:read` | No | Run server-side SQL over this project's telemetry. Keys with this scope must expire: choose 7 days, 30 days, 90 days, or 1 year. |
+| `admin:bypass_budget` | No | Skip spend limits entirely. The gateway never meters or blocks this key against budgets. |
+
+<Warning>
+  Use `admin:bypass_budget` sparingly. Traffic on a bypass key is never stopped by project or key budgets. Only an Owner can rotate a key whose only scope is `admin:bypass_budget`.
+</Warning>
+
+## Per-key limits
+
+Open a key to set its limits. A value of `0` means unlimited. Key limits only narrow what the project allows in **Governance → Access**; they never widen it. Changes take effect on the next request.
+
+| Limit | Behavior |
+| --- | --- |
+| **Allowed models** | Comma-separated list such as `gpt-4o, openai:gpt-4o, claude-*`. Narrows the project allowlist. |
+| **Requests/min** | Per-key cap, applied on top of the project cap. |
+| **Tokens/min** | Input plus output tokens over a rolling 60-second window. |
+| **Parallel** | Maximum concurrent in-flight requests. |
+| **Hard budget** | Dollar cap at catalog prices. Each request reserves its maximum possible cost, then settles to the actual cost. Requests over the cap are refused. |
+| **Soft budget** | Warns through response headers and an alert, but never blocks. |
+| **Resets** | Budget period: daily, weekly, monthly, or total. Periods follow UTC. |
+| **Tags** | Lowercase labels used in spend reports and imports, such as `team`, `env`, or `cost-center`. |
+| **Expiry** | A duration such as `30d`, `12h`, or `45m`. Editing it extends the key. |
+| **Allowed IPs/CIDRs** | Source addresses the key may be used from. Empty means anywhere. |
+
+<Note>
+  IP allowlists only work when your Caveman operator has configured the trusted proxy ranges for the gateway's ingress. Without that, the gateway sees the load balancer's address and an allowlisted key refuses every request. The refusal message names the address the gateway observed.
+</Note>
+
+A key's budget counter starts when the budget is set: spend before then is not included.
+
+### Budget headers
+
+When a key has a budget, gateway responses include its position so your app can react before it is cut off:
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-key-budget-spend-usd` | Spend on this key in the current period |
+| `x-cave-key-budget-usd` | The key's soft budget, or its hard budget if no soft budget is set |
+| `x-cave-key-budget-soft-exceeded` | `true` once the soft budget is crossed |
+
+## Key status and lifecycle
+
+Each key shows a status: **Active**, **Near limit**, **At limit**, **Blocked**, **Expired**, or **Revoked**. The list also shows when a key was last used and flags keys with no use in 90 days.
+
+| Action | Effect |
+| --- | --- |
+| **Block** | Requests return `401` until you unblock the key. Reversible. |
+| **Unblock** | Restores a blocked key. |
+| **Rotate** | Issues a new secret. The old secret stops working immediately. |
+| **Revoke** | Disables the key permanently. Immediate and irreversible. |
+
+You can also manage keys through the API:
+
+```bash
+# Block a key
+curl -X POST "${CAVE_API_URL}/api/v1/projects/$PROJECT_ID/keys/$KEY_ID/block" \
+  -H "Authorization: Bearer $CAVE_TOKEN"
+```
+
+The same path accepts `unblock`, `rotate`, and `revoke`. Use `PATCH /api/v1/projects/{id}/keys/{keyId}` to update limits.
+
+## Best practices
+
+- Issue one key per person and one per service, so spend and incidents trace back to an owner.
+- Use separate keys for production, staging, and CI.
+- Give experimental and autonomous-agent keys a hard budget and a spend-rate quota.
+- Set an expiry on every key that does not need to live forever, and review keys flagged as unused.
+- Rotate on a schedule and immediately after anyone with access leaves.
+
+## Next steps
+
+- [Restrict models and set project limits](/governance/access-and-limits)
+- [Set project budgets and spend-rate quotas](/governance/budgets)
+- [Allocate spend to teams and cost centers](/governance/cost-allocation)

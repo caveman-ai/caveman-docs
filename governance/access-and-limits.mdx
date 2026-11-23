@@ -1,0 +1,61 @@
+---
+title: "Control project access, model allowlists, and rate limits"
+sidebarTitle: "Access and Limits"
+description: "Restrict which providers and models a Caveman Cloud project can use, set request, concurrency, and size limits, and add guardrails before prompts leave."
+---
+
+Project access policy in Caveman Cloud sets the outer boundary for every key in a project: which providers and models are reachable, how much traffic the project can send, and which content checks run before a prompt reaches a provider. Configure it under **Governance → Access** and **Governance → Guardrails**. Per-key settings can tighten these limits but never exceed them.
+
+## Providers and models
+
+Under **Governance → Access**, the **Project access** panel controls:
+
+- **Providers**: which connected providers this project may route to.
+- **Models**: one model per line. Leave it empty to allow every model. Use exact names (`gpt-4o-mini`), provider-qualified names (`anthropic:claude-*`), wildcards, or `cave-auto` for automatic routing.
+
+```text Example model allowlist
+gpt-4o-mini
+anthropic:claude-*
+cave-auto
+```
+
+Restricting models is the simplest cost control there is: keeping premium models off a project prevents expensive calls entirely rather than catching them after the fact. Use [per-key allowed models](/governance/api-keys#per-key-limits) to narrow further for individual workloads.
+
+## Project request limits
+
+| Limit | Behavior |
+| --- | --- |
+| **Requests / min** | Across every key in the project. `0` uses the deployment default. |
+| **Parallel requests** | In-flight requests across the project. `0` uses the deployment default. |
+| **Max size (MiB)** | Request bodies above this size get `413`. The gateway's own size limit still applies. `0` uses the deployment default. |
+
+Key-level **Requests / min**, **Tokens / min**, and **Parallel** limits apply on top of these, so a single runaway key cannot exhaust the project's capacity.
+
+## Guardrails
+
+**Governance → Guardrails** blocks secrets, masks PII, denies patterns, or calls your own service before a prompt reaches the provider.
+
+| Rule type | What it does |
+| --- | --- |
+| **PII** | Detects emails, card numbers, and SSNs. Mask or block. |
+| **Secrets** | Detects API keys, tokens, and private keys. |
+| **Deny patterns** | Blocks when any RE2 regex matches. |
+| **Allow patterns** | Blocks unless a regex matches. |
+| **Banned words** | Blocks on any listed word (case-insensitive). |
+| **External service** | Calls your own or a vendor guardrail over HTTPS. Choose whether a service failure blocks the request or lets it through. |
+
+Turn on **Use as a project default** to run a rule on every request. When it is off, only keys that name the guardrail run it.
+
+<Warning>
+  Rules that check the model's answer buffer a streamed response until the verdict, then send it whole. For that project, time to first token becomes time to last token.
+</Warning>
+
+Use **Test your rules** to try input against your rules before publishing. Testing never changes configuration. A saved rule is published as a policy version that the gateway applies on the next request; re-read state after publishing to confirm delivery.
+
+## Who can change access
+
+Owners, Admins, and Engineers can edit access policy and guardrails. Viewers and Billing contacts can view them but not change them. Every change is recorded in **Governance → Audit**.
+
+<Note>
+  Project access control is part of the **Boost** package and above. See [Billing](/governance/billing#packages).
+</Note>

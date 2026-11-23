@@ -1,0 +1,183 @@
+---
+title: "Integrate Caveman with LiteLLM via OpenTelemetry"
+sidebarTitle: "LiteLLM"
+description: "Keep LiteLLM as your gateway and send OpenTelemetry traces to Caveman Cloud for usage analysis, debugging, and investigations. Credentials stay in LiteLLM."
+---
+
+If your team already routes LLM traffic through LiteLLM, you can keep your existing endpoint, provider keys, budgets, and fallbacks. Enable LiteLLM's native OpenTelemetry exporter and send traces to Caveman Cloud for usage analysis, debugging, evaluations, and agent investigations. Provider credentials never leave LiteLLM.
+
+## What the integration covers
+
+LiteLLM's OpenTelemetry exporter sends trace and log data to Caveman Cloud's OTLP endpoints. The gateway ingests these spans, builds request rows, and makes them available in Traces, SQL, and Evals. This applies to LiteLLM SDK calls, Router usage, and proxy traffic.
+
+| What stays in LiteLLM | What Caveman Cloud adds |
+| --- | --- |
+| Provider keys and authentication | Spend analysis per agent, workflow, and model |
+| Model aliases, retries, fallbacks | Trace inspection and span search |
+| Budgets and rate limits | SQL queries over aggregated telemetry |
+| Request forwarding to providers | Evaluations and improvement proposals on real traffic |
+
+## OTLP endpoints
+
+Send LiteLLM's OpenTelemetry exporter to these endpoints on your Caveman gateway:
+
+| Endpoint | Path | Content type |
+| --- | --- | --- |
+| Traces | `POST /v1/traces` | `application/json` |
+| Logs | `POST /v1/logs` | `application/json` |
+
+Authenticate with your Cave API key in the `x-cave-api-key` header or `authorization: Bearer` header. The gateway also accepts `x-cave-source-system: litellm` to tag the ingest source.
+
+## Send traces from LiteLLM
+
+LiteLLM supports OpenTelemetry export natively. Configure the OTLP exporter in your LiteLLM proxy `config.yaml` or via environment variables.
+
+### Environment variables (LiteLLM / OpenTelemetry standard)
+
+Set these environment variables in the environment where LiteLLM runs. These are standard OTLP exporter settings; confirm the endpoint URL in your Caveman Cloud console.
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://gateway.caveman.so"
+export OTEL_EXPORTER_OTLP_HEADERS="x-cave-api-key=${CAVE_API_KEY}"
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/json"
+```
+
+For the LiteLLM proxy, you can also set callback or logging configurations that point to the OTLP endpoint. LiteLLM's callback system has first-class OpenTelemetry support.
+
+### LiteLLM proxy config example
+
+In your LiteLLM proxy `config.yaml`, add or merge an OpenTelemetry callback:
+
+```yaml
+litellm_settings:
+  callbacks:
+    - otel
+  
+  # Optional: tag traffic for Caveman attribution
+  metadata:
+    x-cave-agent: "my-agent"
+    x-cave-workflow: "my-workflow"
+```
+
+LiteLLM sends OTLP traces to the endpoint configured in its environment. The Caveman gateway reads the span attributes, maps `gen_ai.*` fields to request rows, and stores them under your project.
+
+<Tip>
+  Confirm the exact `OTEL_EXPORTER_OTLP_ENDPOINT` and header format in your Caveman Cloud console under **Gateway, Connect**. The endpoint should not have a trailing slash.
+</Tip>
+
+## What is stored
+
+The gateway stores metadata from every OTLP span by default: model, provider, tokens, latency, cost estimates, agent and workflow labels, and GenAI event names. When your project stores payloads, the gateway also keeps redacted request and response captures.
+
+| Mode | What is stored |
+| --- | --- |
+| Metadata only (default for spans) | Span names, model, provider, token counts, latency, cost estimates, labels, cache status |
+| Payload storage on | Redacted request/response bodies as replayable captures, envelope-encrypted under `capture/{org}/` |
+| Refused by exporter | Metadata only; no content captured |
+
+OTLP span attributes carry prompt, completion, tool and retrieval attributes, plus GenAI message events (`gen_ai.user.message`, `gen_ai.choice`, ...). In metadata-only, ZDR, or storage-off modes, these content attributes leave the row and only the server-owned link stays.
+
+## Refuse content storage per export
+
+Any exporter, LiteLLM's included, can refuse payload storage by sending the header `x-cave-capture-content: false`. When this header is present, the gateway stores metadata only and skips capture entirely, regardless of the project's payload storage setting.
+
+```bash
+# Example: curl to the OTLP endpoint with content refusal
+curl "${CAVE_GATEWAY_URL}/v1/traces" \
+  -H "content-type: application/json" \
+  -H "x-cave-api-key: ${CAVE_API_KEY}" \
+  -H "x-cave-capture-content: false" \
+  -H "x-cave-source-system: litellm" \
+  -d @traces.json
+```
+
+This is honored on every plan. It is useful when you want traces in Caveman for analysis but do not want prompt or response text stored.
+
+## Request labels from LiteLLM spans
+
+The gateway resolves the agent and workflow labels from the OTLP span attributes and headers:
+
+- `cave.agent` span attribute names the agent
+- `x-cave-agent` header on the export request names the agent
+- `x-cave-workflow` header on the export request names the workflow
+- If no workflow is specified, the source system default (`litellm`) is used
+
+LiteLLM's `metadata` field can carry these values so they are attached to every span automatically.
+
+## liteLLM chat spans become replayable requests
+
+When the gateway ingests a LiteLLM chat span with both input and output token counts, a catalog price, and payload storage enabled, it writes a `gateway_requests` row that is eligible for replay. The row carries:
+
+- `capture_request_handle` and `capture_response_handle` for the stored bodies
+- `workflow_fingerprint` for grouping similar requests
+- `price_catalog_version` and cost estimates
+- Ingest tags such as `cave_ingest_source=otel` and `cave_source_system=litellm`
+
+This lets you select real traffic for evaluation and improvement workflows.
+
+## What LiteLLM traffic is not replayable
+
+The gateway skips replay capture for spans that do not meet the criteria:
+
+- Spans without both input and output token counts
+- Spans for unknown or unpriced models
+- Spans older than 30 days (to prevent backfill stacking)
+- Spans whose `server.address` indicates they were already proxied through this gateway
+- Non-OpenAI-backed spans (for example, native Anthropic spans) capture metadata but not replayable bodies
+- Spans from a telemetry-only key (without `proxy:write` scope)
+
+These spans are still observed and visible in Traces; they simply do not get a replay capture.
+
+## Provider credentials stay in LiteLLM
+
+Your provider keys never leave LiteLLM. The Caveman gateway receives only the OTLP spans LiteLLM exports. If you use `x-cave-upstream-key` on direct gateway calls, that is a separate path; the LiteLLM integration does not require it.
+
+## Data retention and consent
+
+Captured LiteLLM payloads follow the same retention and consent rules as proxied traffic:
+
+- Stored under the org-keyed `capture/{org}/` prefix
+- Envelope-encrypted with AES-256-GCM per object, wrapped by KMS
+- Redacted by the built-in floor and project redaction rules before storage
+- Subject to the organization's `raw_payload_retention_days` window and payload storage settings
+- ZDR or metadata-only modes store no content
+
+For the full retention policy, see [Data and Privacy](/concepts/data-and-privacy).
+
+## Troubleshooting
+
+<Accordion title="Traces do not appear in Caveman">
+  Check that `OTEL_EXPORTER_OTLP_ENDPOINT` points to your Caveman gateway URL with no trailing slash. Confirm the `x-cave-api-key` header is present and the key is active. Verify LiteLLM is configured to export OpenTelemetry, not just internal logging.
+</Accordion>
+
+<Accordion title="Spans show as observed but have no request row">
+  Request rows require both input and output token counts, a known model, and a gateway key with `proxy:write` scope. Telemetry-only keys keep spans observed but do not write request rows. Check the span attributes for `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`.
+</Accordion>
+
+<Accordion title="Content is not captured even with payload storage on">
+  The exporter may be sending `x-cave-capture-content: false`. Check your LiteLLM or exporter configuration for that header. Also verify the project's payload storage is enabled and replay consent is granted.
+</Accordion>
+
+<Accordion title="Spans appear duplicated">
+  A re-exported span reuses the first export's capture handles and request ID, so duplicate rows collapse to one in the console. If you see multiple distinct rows, check that the span ID and trace ID are stable across exports.
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Traces and Spend" icon="chart-line" href="/guides/traces-and-spend">
+    Search traces, inspect spans, and understand spend attribution.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Run read-only SELECT over requests, spans, and evals.
+  </Card>
+
+  <Card title="Evals" icon="flask" href="/guides/evals">
+    Author datasets and evaluate changes against your traffic.
+  </Card>
+
+  <Card title="Connect a Workload" icon="plug" href="/guides/connect-workload">
+    Route direct gateway traffic alongside LiteLLM exports.
+  </Card>
+</CardGroup>

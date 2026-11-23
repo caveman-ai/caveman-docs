@@ -1,0 +1,176 @@
+---
+title: "Set up analytics for Claude Code, Codex, and other agents"
+sidebarTitle: "Coding Agents"
+description: "Route Claude Code, Codex, Gemini CLI, opencode, Aider, and other coding agents through Caveman Cloud on personal keys so spend maps to each person."
+---
+
+Coding agent analytics in Caveman Cloud depend on one thing: each developer's agent sends its model calls through the gateway on that developer's **personal key**. Once it does, every request is attributed to the person, labeled with the agent that made it, and grouped into sessions you can trace back to a repository and branch. This guide covers the two ways to connect each supported agent and how to roll it out across a team.
+
+## Choose a connection method
+
+| Method | Agents | What you run |
+| --- | --- | --- |
+| **Direct connect** | Claude Code, Codex | Environment variables copied from **Developers → Connect an agent**. No extra tooling. |
+| **caveman CLI wrapper** | Claude Code, Codex, Gemini CLI, opencode, Aider, Hermes Agent, OpenClaw | `caveman <agent>` starts the agent through a local proxy and injects the gateway settings for you. |
+
+Both methods produce the same attribution in the Developers space. The wrapper also reports per-machine data to **Your agents** (routing decisions, model mix, measured tokens, and tokens kept out of context).
+
+<Info>
+  Cursor connects to Caveman Cloud over MCP so it can read traces and reports, but it is not a supported routed agent, so its own model calls do not appear in coding agent analytics. See [Connect your coding agent](/guides/connect-coding-agent#connect-over-mcp).
+</Info>
+
+## Before you start
+
+- An owner or admin has connected the provider your agent uses (Anthropic for Claude Code, OpenAI for Codex) under **Gateway → Providers** in the project. If not, the connect page shows **Connect first**.
+- You know your gateway origin. Set it once:
+
+```bash
+export CAVE_GATEWAY_URL="https://gateway.caveman.so"
+```
+
+## Get your personal key
+
+<Steps>
+  <Step title="Open Connect an agent">
+    In the console, go to **Developers → Connect an agent** and pick the project you want your usage attributed to.
+  </Step>
+  <Step title="Reveal the key">
+    Click **Get my key**. The key is shown once, so copy it now. If you already have one, **Rotate & reveal** issues a new key and revokes the old one.
+  </Step>
+  <Step title="Export it">
+    ```bash
+    export CAVE_API_KEY="<your personal key>"
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  A personal key belongs to one person in one project. To report on sub-teams separately, create a project per team; each project is a team in the Developers space.
+</Tip>
+
+## Tag sessions with repository and branch
+
+Set `CAVE_TAGS` in the shell before starting the agent. The gateway records `repo` and `branch` on each request, which is what links sessions to merged pull requests in [Repositories and Delivery](/analytics/team-analytics#repositories).
+
+```bash
+export CAVE_TAGS="repo=$(git remote get-url origin 2>/dev/null | sed -E 's#\.git$##; s#.*[:/]([^/:]+/[^/]+)$#\1#'),branch=$(git branch --show-current 2>/dev/null)"
+```
+
+The value is sent in the `x-cave-tags` header. The gateway drops a `repo` value that is not in `owner/name` form. Repository and branch are caller-reported metadata; no prompts or source code are needed to link them.
+
+## Connect each agent
+
+<Tabs>
+  <Tab title="Claude Code">
+    **Direct connect.** Claude Code reads its base URL, token, and extra headers from the environment.
+
+    ```bash
+    export ANTHROPIC_BASE_URL="${CAVE_GATEWAY_URL}/w/claude"
+    export ANTHROPIC_AUTH_TOKEN="$CAVE_API_KEY"
+    export ANTHROPIC_CUSTOM_HEADERS="x-cave-upstream-key: $ANTHROPIC_API_KEY\nx-cave-tags: $CAVE_TAGS"
+    claude
+    ```
+
+    If your project uses a stored Anthropic credential, leave out the `x-cave-upstream-key` line.
+
+    **Wrapper.**
+
+    ```bash
+    npm i -g @anthropic-ai/claude-code
+    caveman claude
+    ```
+  </Tab>
+  <Tab title="Codex">
+    **Direct connect.** Codex ignores `OPENAI_BASE_URL`, so define a custom model provider on the command line.
+
+    ```bash
+    codex -c model_provider=caveman -c 'model_providers.caveman={name="Caveman",base_url="'"$CAVE_GATEWAY_URL"'/w/codex/openai/v1",env_key="CAVE_API_KEY",wire_api="responses",env_http_headers={"x-cave-upstream-key"="OPENAI_API_KEY","x-cave-tags"="CAVE_TAGS"}}'
+    ```
+
+    `env_http_headers` maps each header to the environment variable that holds its value. If your project uses a stored OpenAI credential, drop the `x-cave-upstream-key` entry.
+
+    **Wrapper.**
+
+    ```bash
+    npm i -g @openai/codex
+    caveman codex
+    ```
+  </Tab>
+  <Tab title="Gemini CLI">
+    Use the wrapper. It sets `GOOGLE_GEMINI_BASE_URL` (and `GOOGLE_VERTEX_BASE_URL` for Vertex) to the local proxy.
+
+    ```bash
+    npm i -g @google/gemini-cli
+    caveman gemini
+    ```
+  </Tab>
+  <Tab title="opencode">
+    Use the wrapper. It passes its provider config through `OPENCODE_CONFIG_CONTENT`, so your `opencode.json` is never modified, and labels requests with `X-Cave-Agent: opencode`.
+
+    ```bash
+    npm i -g opencode-ai
+    caveman opencode
+    ```
+  </Tab>
+  <Tab title="Aider">
+    Use the wrapper. It points `OPENAI_API_BASE` at the proxy's OpenAI-compatible path.
+
+    ```bash
+    python -m pip install aider-chat
+    caveman aider
+    ```
+  </Tab>
+  <Tab title="Hermes and OpenClaw">
+    Use the wrapper. Hermes Agent runs with `--provider custom` and the proxy URL in `CUSTOM_BASE_URL`. OpenClaw gets a temporary config file through `OPENCLAW_CONFIG_PATH`, so `~/.openclaw/openclaw.json` is never modified.
+
+    ```bash
+    caveman hermes
+    caveman openclaw
+    ```
+  </Tab>
+</Tabs>
+
+### Install and sign in to the wrapper
+
+```bash
+npm i -g @caveman-ai/cli
+caveman login
+```
+
+`caveman login` registers the machine. After that, `caveman <agent>` (or `caveman run -- <agent>`) starts any of the seven profiles. Each machine and agent then appears under **Developers → Your agents**, and a person's device count and last login show in team views. For profile details, see [Route agent traffic through the gateway](/guides/connect-coding-agent#route-agent-traffic-through-the-gateway).
+
+## Verify it worked
+
+1. Keep **Developers → Connect an agent** open while you send your first prompt. It switches from "Waiting for your first agent session…" to a connected message such as "Claude Code connected: your session activity is arriving."
+2. Click **Inspect sessions** to open **Developers → Sessions** and find your session.
+3. Open **My usage** to see your requests and catalog spend by coding tool and model.
+
+## Roll out to your team
+
+<Steps>
+  <Step title="Create one project per team">
+    Each project is a team in the Developers space. Create more projects for sub-teams.
+  </Step>
+  <Step title="Connect providers once">
+    Add Anthropic and OpenAI connections in **Gateway → Providers** so developers can omit their own upstream keys.
+  </Step>
+  <Step title="Share the setup">
+    Ask each developer to get a personal key and add the exports above (including `CAVE_TAGS`) to their shell profile, or install the caveman CLI.
+  </Step>
+  <Step title="Connect GitHub">
+    Have an owner or admin connect GitHub to the project so sessions link to merged changes.
+  </Step>
+  <Step title="Check attribution">
+    In **Developers → Team**, the **Attribution** panel shows how much project spend is linked to people. A low share means traffic is running on shared keys or is app traffic.
+  </Step>
+</Steps>
+
+## Agent labels
+
+The agent label comes from the `x-cave-agent` header that each profile or direct-connect path sets. Unknown labels display as sent. Traffic with no label shows as **Unlabeled**, and wrapper traffic without a specific profile shows as **Caveman CLI**. Charts show the top five agents and group the rest as "other".
+
+## Next steps
+
+- [Read the team and individual views](/analytics/team-analytics)
+- [Build a coding agent dashboard](/analytics/custom-dashboards)
+- [Control who holds keys and what they can spend](/governance/api-keys)

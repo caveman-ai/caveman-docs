@@ -1,0 +1,93 @@
+---
+title: "Integrate Caveman Cloud with Google GenAI and HTTP"
+sidebarTitle: "Google and HTTP"
+description: "Send Google GenAI SDK or raw HTTP/curl requests through Caveman Cloud. The gateway speaks each provider's native protocol on its native path."
+---
+
+You can route traffic through Caveman Cloud using the Google Gen AI SDK or raw HTTP requests. The gateway speaks each provider's native protocol on its native path, so you send the provider's own request shape and headers.
+
+## Google GenAI SDK
+
+The Google Gen AI SDK accepts an `HttpOptions` base URL. Point it at the gateway and the SDK's `generateContent` calls route through it unchanged.
+
+<Note>
+  The SDK appends `/v1beta/...` itself, so the base URL is just the gateway plus `/w/{{app}}`.
+</Note>
+
+### Prerequisites
+
+- A Caveman Cloud account with a gateway URL (`CAVE_GATEWAY_URL`)
+- Your Cave API key (`CAVE_API_KEY`)
+- Your Gemini provider key (`GEMINI_API_KEY`)
+
+### Example
+
+```python
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["GEMINI_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}",
+        headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["GEMINI_API_KEY"],  # your provider key, per request
+        },
+    ),
+)
+
+res = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Why is the sky blue?",
+)
+```
+
+<Tip>
+  When your provider key is stored in Caveman Cloud, you can drop the `x-cave-upstream-key` header and pass `CAVE_API_KEY` in its place.
+</Tip>
+
+## Raw HTTP / curl
+
+No SDK is required. The gateway speaks each provider's native protocol on its native path, bare or `/w/-prefixed`. Send the provider's own request shape and headers.
+
+### OpenAI protocol (Chat Completions, Responses, embeddings)
+
+```bash
+curl "${CAVE_GATEWAY_URL}/w/{{app}}/v1/chat/completions" \
+  -H "x-cave-api-key: $CAVE_API_KEY" \
+  -H "x-cave-upstream-key: $OPENAI_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"Why is the sky blue?"}]}'
+```
+
+### Anthropic protocol
+
+```bash
+curl "${CAVE_GATEWAY_URL}/w/{{app}}/v1/messages" \
+  -H "x-cave-api-key: $CAVE_API_KEY" \
+  -H "x-cave-upstream-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-4-5","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+### Labeling traffic with headers
+
+Add `x-cave-agent` or `x-cave-workflow` headers to identify different parts of your system in Traces. These labels do not grant access; they only tag requests for filtering and analysis.
+
+```bash
+curl "${CAVE_GATEWAY_URL}/w/{{app}}/v1/chat/completions" \
+  -H "x-cave-api-key: $CAVE_API_KEY" \
+  -H "x-cave-upstream-key: $OPENAI_API_KEY" \
+  -H "x-cave-agent: support-bot" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"Why is the sky blue?"}]}'
+```
+
+## Next steps
+
+- [Query your traces](/guides/traces-and-spend) with Caveman Cloud SQL
+- [Set up evaluations](/guides/evals) to measure workload quality
+- [Configure optimizations](/guides/control-optimizations) for eligible workloads

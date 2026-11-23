@@ -1,0 +1,220 @@
+---
+title: "Why Caveman: cut AI agent spend and prove every dollar"
+sidebarTitle: "Why Caveman"
+description: "Why Caveman cuts AI agent spend and proves the saving: evidence that starts at an honest $0, eval-gated rollout, byte-safe compression, and simple setup."
+---
+
+Caveman is the efficiency layer for AI agents that proves its own claims. Your AI bill became a line item someone above you is asking about. Every vendor promises savings: some route you to the cheapest model, some compress prompts you cannot audit, and almost all report numbers you cannot defend. Caveman is different. It starts at the honest \$0, earns every verified dollar with provider evidence, and never inflates.
+
+This page explains the problem, the core idea, the differentiators that matter, what Caveman is not, where it pays off, and what it looks like for developers, engineering leaders, and finance teams.
+
+## The problem: an AI bill you have to defend
+
+AI agent workloads are expensive, and the spend is growing fast. When a board, CFO, or customer asks why the bill is that high, most teams can only point at dashboards. They can see costs, but they cannot explain them credibly, and they cannot prove a fix actually saved money.
+
+Vendors make that harder: they quote "up to 20x" savings from lab benchmarks, assume traffic that rarely matches yours, and invoice based on claims they never had to prove against live provider data. Caveman was built for the person who needs the number to be true.
+
+## The core idea: efficiency with proof
+
+Caveman makes every AI agent think, remember and execute on a fraction of the cost, and proves it. It sits between your agent and your provider: one base-URL swap, keep your own provider key (BYOK), and Caveman compresses repetitive context, adds cache hints, and records what happens.
+
+Every claim follows an evidence ladder: measured spend at provider-reported usage and catalog list prices; inferred estimates with a sample size, confidence, and daily range, never projected to a full month; tested changes replayed against recorded work and your eval scorers; and verified savings counted only from production traffic backed by provider data.
+
+Verified today requires one of three exact methods: provider-placed cache breakpoints on Anthropic direct; Bedrock cache points on Anthropic Claude; or a provider-counted baseline delta on counted transformed requests. No method means no verified dollar. The headline stays at \$0.
+
+## What makes Caveman different
+
+<CardGroup cols={2}>
+  <Card title="Honest evidence" icon="scale-balanced" href="/concepts/savings-evidence">
+    Verified savings start at the honest \$0. A PR or passing eval is a proposal, never a saving. Overlapping detectors collapse into mutex families so headroom is never double-counted.
+  </Card>
+
+  <Card title="Eval-gated changes" icon="shield-check" href="/concepts/rollout-safety">
+    Every candidate change is replayed against your traffic and graded before it can be proposed. Roll out with record, replay, shadow, canary, and automatic rollback on regression.
+  </Card>
+
+  <Card title="Byte-safe by default" icon="lock" href="/concepts/data-and-privacy">
+    Originals are recoverable byte-exact. Compression runs only when you ask for it, redacted payloads are envelope-encrypted, and any request can opt into metadata-only or zero-data-retention.
+  </Card>
+
+  <Card title="Every dollar explained" icon="magnifying-glass-chart" href="/guides/traces-and-spend">
+    Twenty-ish detectors file each dollar under a cause, rank the moves by safety class, and put a daily dollar figure on each opportunity. No projection to month, no guesswork.
+  </Card>
+
+  <Card title="One-line integration" icon="code" href="/quickstart">
+    Swap the base URL and add one header. Works with OpenAI SDK, Anthropic SDK, Vercel AI SDK, LangChain, and LiteLLM through its OpenTelemetry exporter. Your provider key stays yours.
+  </Card>
+
+  <Card title="Governance and data control" icon="building-shield" href="/guides/budgets-and-guardrails">
+    Soft and hard caps, rate limits, guardrails, audit logs, SSO, and scoped access tokens. Deploy to our hosted cloud, your VPC via Helm and Terraform, or on-prem. ZDR stores no bodies.
+  </Card>
+
+  <Card title="Self-driving AI" icon="robot" href="/concepts/built-in-ai">
+    The Cave Agent proposes reviewable pull requests with measured deltas. A PR is a proposal, never a saving, and never merges itself silently.
+  </Card>
+</CardGroup>
+
+### Honest evidence: measured, inferred, tested, verified
+
+Caveman reports three kinds of numbers and keeps them separate:
+
+- **Measured spend:** provider-reported usage multiplied by the public catalog list price. Unknown models stay unpriced at \$0.
+- **Inferred headroom:** a modeled per-day rate from your own traffic, with a daily range, sample size, and confidence. It is never projected to a month.
+- **Verified savings:** dollars actually not paid because a Caveman transform caused a provider-measured delta. It requires provider-complete usage, catalog pricing, and an exact causal method.
+
+See [Savings Evidence](/concepts/savings-evidence) for the full accounting contract.
+
+### Eval-gated changes with rollback
+
+A candidate optimization goes through a safety ladder before it touches production traffic:
+
+<Steps>
+  <Step title="Record">
+    The gateway records traffic byte-identical and builds a test set from your real requests.
+  </Step>
+  <Step title="Replay">
+    The candidate is replayed against recorded work and scored with your eval suite.
+  </Step>
+  <Step title="Shadow">
+    The change runs silently on a sample of live traffic for comparison.
+  </Step>
+  <Step title="Canary">
+    A small share of traffic gets the change while the rest stays on the original.
+  </Step>
+  <Step title="Active">
+    Full rollout, with automatic rollback if quality regresses.
+  </Step>
+</Steps>
+
+See [Rollout Safety](/concepts/rollout-safety) for the full policy.
+
+### Byte-safe by default with recoverable originals
+
+Compression runs only when a request sends `x-cave-optimize: compress`. When it runs, Caveman stores the encrypted original before any lossy replacement so it can recover byte-for-byte on demand. If parsing fails or the output is not smaller, the gateway forwards the original unchanged. Provider-native cache hints never touch model-visible text.
+
+Raw payload storage is on by default so traffic can be replayed to prove a fix, but any request can send `x-cave-retention: metadata` or `x-cave-retention: zdr` to refuse content storage. Enterprise and customer installs never share data for training.
+
+### Every dollar explained by cause
+
+Caveman profiles your traffic with about twenty detectors that file dollars under causes: input bloat, unused cache, duplicate tool calls, oversized tool results, routing mismatches, reliability waste, and more. Detectors are collapsed into mutex families so the same headroom is never double-counted. Each finding becomes a ranked move in the Cave Plan, with a plain-language brief and a dollar band.
+
+For SQL users, the `requests` table exposes `cost_usd`, `verified_savings_usd`, and `routing_estimate_usd`, each with a basis label that says how it was produced.
+
+### Works where your agents already run
+
+You change one line: the base URL. Keep your provider key. Caveman supports:
+
+- Coding agents: Claude Code, Codex, Gemini CLI, OpenCode. Spend tracked per person, per agent, per merged change.
+- Shipped agents: OpenAI SDK, Anthropic SDK, Vercel AI SDK, LangChain. Point the client at the gateway and add `x-cave-upstream-key`.
+- LiteLLM: use its OpenTelemetry exporter to send traces to Caveman directly or through your OTel Collector. Provider credentials stay in LiteLLM.
+
+```typescript
+const openai = new OpenAI({
+  apiKey: process.env.CAVE_API_KEY,
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
+  defaultHeaders: {
+    "x-cave-upstream-key": process.env.OPENAI_API_KEY,
+    "x-cave-agent": "support-agent",
+    "x-cave-workflow": "resolve-ticket",
+  },
+});
+```
+
+See the [Quickstart](/quickstart) to send your first request.
+
+### Governance and data control
+
+Caveman gives you layers of control:
+
+- **Budgets:** soft and hard caps per project, with Inbox items and email alerts when crossed.
+- **Rate limits:** per key and per workflow.
+- **Guardrails:** mask or block sensitive content in prompts and responses.
+- **Audit log:** append-only record of changes to budgets, guardrails, keys, and roles.
+- **SSO:** SAML and OIDC single sign-on.
+- **RBAC:** five roles owner, admin, engineer, viewer, billing with scoped access tokens that never grant more than the calling role.
+
+Deploy to hosted Cloud, your own cloud via Helm and Terraform on AWS or GCP, or on-prem. On customer installs, request content and operational telemetry stay in your storage.
+
+### Self-driving AI that proposes, never silently auto-merges
+
+The Cave Agent is an autonomous cost engineer. It reads telemetry, diagnoses the most expensive patterns, and proposes scoped, reviewable pull requests with their own evidence bundles and measured deltas. Your team reviews and merges. A merged PR is a proposal, not a saving, until it is active on real traffic and recorded in the ledger.
+
+See [Built-in AI](/concepts/built-in-ai) for how the agent loop works.
+
+## What Caveman is not
+
+<AccordionGroup>
+  <Accordion title="Not a speed play">
+    Compression through a proxy adds latency, not removes it. We never promise faster calls. We promise cheaper, proven safe. Anyone who benchmarks us for speed should still keep us for cost.
+  </Accordion>
+
+  <Accordion title="Not a router-to-cheapest">
+    Simple cheapest-model routing trades quality for price without proving equivalence. Caveman focuses on efficiency with verified quality gates, not blind model arbitrage.
+  </Accordion>
+
+  <Accordion title="Not observability that stops at charts">
+    Standalone observability dashboards stop at showing spend. Caveman's console links every cost driver to its concrete optimization and its verified proof.
+  </Accordion>
+
+  <Accordion title="Not a blind compressor">
+    Aggressive compression degrades output badly and can even raise cost via output expansion. Caveman ships only moderate, eval-passed policies. Lossy transforms store encrypted originals for recovery.
+  </Accordion>
+
+  <Accordion title="Not byte-altering without proof">
+    Lossy compression only ships per-task after an eval clears it. Everything else stays byte-exact. The gateway never guesses what you meant.
+  </Accordion>
+</AccordionGroup>
+
+## Where Caveman pays off and where it does not
+
+Caveman pays off when **input is much larger than output and the input is repetitive or bloated.** It is weaker where prompts are short, outputs are long, or quality cannot be evaluated.
+
+<Card>
+  | Fit | Example | Why it works |
+  | --- | --- | --- |
+  | **Strong:** RAG | Fat retrieved chunks sent every query | Repetitive large input is compressed well |
+  | **Strong:** Agents with big system prompts / tool schemas / history | Each turn resends the same preamble | Cache hits and prefix compression save real tokens |
+  | **Strong:** Tool, log, and JSON-heavy pipelines | Large structured outputs fed back as input | JSON and log compressors reduce redundant structure |
+  | **Strong:** High-volume support bots with long preambles | Same system text on every ticket | Cache hints turn repeated prefixes into cache reads |
+  | **Weak:** Short prompts with long outputs | Summarization of short queries | Most tokens are output; input savings do not move the needle |
+  | **Weak:** Already-lean prompts | Hand-optimized prompts with no fat to trim | Ceiling is low; still safe to run, but headroom is small |
+  | **Weak:** Quality-critical work that cannot be evaluated | Regulatory review, legal reasoning | Caveman stays byte-safe and skips lossy transforms |
+</Card>
+
+<Note>
+  Benchmark and inferred envelope: approximately 20-30% potential input-cost reduction on input-heavy workloads (moderate compression benchmark about 24-28%). This is NOT an invoice or verified claim and never a guarantee of what you will see.
+</Note>
+
+## What it looks like for each role
+
+<CardGroup cols={3}>
+  <Card title="Developers" icon="code" href="/solutions/developers">
+    One-line base-URL swap. Keep your framework, keep your provider key. Traces per request, SQL access, eval-gated improvements, and the option to run everything locally without an account.
+  </Card>
+
+  <Card title="Engineering leaders" icon="users" href="/solutions/engineering-leaders">
+    Defensible numbers for your CFO. Governance with SSO, RBAC, scoped tokens, audit logs, and deployment to your VPC. Budget caps and guardrails that do not block engineering velocity.
+  </Card>
+
+  <Card title="Finance" icon="coins" href="/solutions/finance">
+    Verified savings backed by provider data, signed receipts, and an evidence ladder that starts at \$0. No projections, no benchmark multipliers, no "up to" claims. See it, cut it, prove it.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Send your first request through the Gateway and see a live trace in minutes.
+  </Card>
+
+  <Card title="Adoption Playbook" icon="book-open" href="/solutions/adoption-playbook">
+    Evaluate Caveman for your workload, build trust with stakeholders, and roll out with evidence.
+  </Card>
+
+  <Card title="Security Review" icon="shield-halved" href="/solutions/security-review">
+    Review the security posture, data handling, tenant isolation, and BYOK architecture before you connect production traffic.
+  </Card>
+</CardGroup>
+
+For a conversation about your workload or to see a demo with fictional data, you can [book a call](https://cal.com/caveman/chat). For questions, email [contact@caveman.so](mailto:contact@caveman.so).

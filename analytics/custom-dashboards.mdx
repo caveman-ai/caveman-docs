@@ -1,0 +1,191 @@
+---
+title: "Build custom dashboards and alerts for AI cost and quality"
+sidebarTitle: "Custom Dashboards"
+description: "Create Caveman Cloud dashboards from presets, the chart editor, or your coding agent, chart any request field or tag, share configs, and alert on thresholds."
+---
+
+Dashboards in Caveman Cloud are boards of charts over your project's traffic: cost per workflow, latency by model, errors by provider, coding agent spend by branch, or any field you label. You can build them by hand in the chart editor, start from a built-in, or have your coding agent read the traffic and build the whole board. Any chart can also become an alert.
+
+Dashboards belong to a project. Open **Dashboards** in the console sidebar and pick the project at the top. Viewing dashboards needs trace metadata read access, and some roles cannot create them; see [Access and limits](/governance/access-and-limits).
+
+## Start from a built-in dashboard
+
+Every project includes two read-only dashboards. Clone one to edit it.
+
+| Built-in | Default window | Charts |
+| --- | --- | --- |
+| **Cost and quality** | Past 7 days | Traffic (requests, latency, time to first token), Cost (LLM cost, tokens, cost by model), Quality (error rate, cache hit rate, scores), Tools and tasks (tool executions, tool error rate, task types) |
+| **Coding agent insights** | Past 30 days | Coding agent cost by model, cost by member, cost by API key, cost by coding agent, cost by branch, and sessions, all limited to personal-key traffic |
+
+Coding agent insights fills in once developers connect with personal keys ([setup](/analytics/coding-agents)). Cost by branch needs `CAVE_TAGS` set.
+
+## Create a dashboard
+
+<Steps>
+  <Step title="Name it and choose what it reads">
+    Click **New dashboard**, enter a name (up to 120 characters), and choose what it reads: **Logs** (requests, spans, tools) or **Experiments** (evaluation scores).
+  </Step>
+  <Step title="Add your first chart">
+    Pick a preset, take one of the charts **Suggested for this project** (read off the project's recent traffic), or open the chart editor.
+  </Step>
+  <Step title="Arrange the board">
+    Add sections with **New section**, drag charts into place (or move them with Alt and the arrow keys), and resize them. Widths snap to 3, 4, 6, 8, or 12 columns, and heights to 1 to 3 rows.
+  </Step>
+</Steps>
+
+From the dashboard menu you can also **Rename**, **Duplicate**, **Star**, **Pin to sidebar**, or **Delete** it.
+
+## Build a chart in the editor
+
+The chart editor has a **Presets** tab and a full editor. Every saved chart must compile, and the editor validates it as you go.
+
+<AccordionGroup>
+  <Accordion title="Chart type and data source">
+    - **Chart type**: **Time series**, **Top list**, or **Big number**.
+    - **Data source**: **Requests** (one row per model call), **Spans**, **Tool executions**, or **Evals**.
+  </Accordion>
+
+  <Accordion title="Measures">
+    Pick an aggregator (**Count**, **Sum**, **Average**, **Minimum**, **Maximum**, **Count distinct**, or **Percentile** with a `p` between 0 and 1) and the field to aggregate. For ratios, write an expression instead:
+
+    ```sql
+    100 * count_if(error) / count()
+    sum(cached_input_tokens) / sum(input_tokens)
+    ```
+
+    Add more than one measure to plot several series, and rename each series.
+  </Accordion>
+
+  <Accordion title="Filters and group by">
+    - **Row filter** keeps matching rows, for example `model = 'gpt-4o' and error = false`.
+    - **Trace filter** keeps rows whose trace matches, for example `tags.customer = 'acme'`.
+    - **Group by** splits the chart by a field, such as `model`, `workflow`, `member`, or `tags.team`.
+  </Accordion>
+
+  <Accordion title="Display">
+    - **Unit**: Count, Duration, Cost, Percent (0 to 1 ratio), or Bytes.
+    - **Visualization**: Lines or Bars, with bars **Stacked** or **Side by side**.
+    - **Time interval**: Auto, Hour, Day, or Week.
+    - **Sort** and **Rows** for top lists: value high to low or low to high, or name A to Z or Z to A, with a row limit.
+  </Accordion>
+</AccordionGroup>
+
+### Request fields
+
+These fields are available on the **Requests** source. Use them in measures, filters, and group by.
+
+| Category | Fields |
+| --- | --- |
+| Who and what | `member`, `api_key`, `agent`, `workflow`, `population`, `session_id`, `trace_id`, `experiment_id`, `auth_mode`, `task_type` |
+| Model and route | `model`, `provider`, `endpoint`, `stream`, `cache_status` |
+| Outcome | `status_code`, `status_class`, `error`, `error_code`, `tool_calls` |
+| Latency | `latency`, `ttfb` (seconds) |
+| Cost | `cost`, `input_cost`, `output_cost`, `cached_cost`, `verified_savings` |
+| Tokens and size | `input_tokens`, `uncached_input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_tokens`, `total_tokens`, `request_bytes`, `response_bytes` |
+| Your labels | `tags.<key>` from the `x-cave-tags` header (also available as `metadata.<key>`) |
+
+Notes:
+
+- `cost` is calculated at catalog list price in USD and is empty for unpriced requests.
+- `population` is `coding_agents` for personal-key traffic and `workloads` for everything else. Filter on it to separate developer tools from apps.
+- `member` is empty for traffic on shared keys.
+- `member` and `api_key` need billing read access. `tags.*` needs payload read and billing read access.
+
+The **Spans** source adds `span_type`, `tool_name`, `status`, and `attributes.*`. **Tool executions** has `tool_name`, `outcome`, `agent`, and `workflow`. **Evals** has `evaluator`, `suite`, `criterion`, `score`, `passed`, and `verdict`.
+
+## Use a dashboard
+
+- **Time range**: choose Past 1 hour up to Past 90 days (limited by your plan's retention), or drag across a chart to zoom into a span.
+- **Filter or search**: one filter bar applies to every chart on the board.
+- **Group every chart by**: regroup the whole board by one field, such as `workflow` or `model`.
+- **Live**: refreshes every chart in place every 30 seconds. Use it for wall screens.
+- **Drill into traces**: click any point to see the requests behind it.
+- **Chart menu**: edit, fullscreen, chart-level filters, copy, export the data, or **Export to dashboard** to copy the chart into another dashboard or project.
+
+## Share dashboard configs
+
+Use **Download dashboard config** or **Copy dashboard config** to export a board as JSON, and **Import dashboard config** to paste one exported from any project. A config looks like this:
+
+```json dashboard.json
+{
+  "kind": "caveman.dashboard",
+  "name": "Support agent costs",
+  "type": "logs",
+  "document": { "...": "sections and charts" }
+}
+```
+
+Keep shared configs in version control to give every team the same board.
+
+## Alert on a chart
+
+Choose **Create alert** from a chart's menu and set:
+
+| Setting | Options |
+| --- | --- |
+| **Measure** | Which series to watch |
+| **Trigger when** | Above, At or above, Below, or At or below a threshold |
+| **Over the last** | 5 minutes to 24 hours |
+| **Notify at most every** | A cooldown between notifications |
+| **With no data** | Keep the last state, Resolve, or Trigger |
+| **Also post to a webhook** | A webhook from **Settings → Webhooks** |
+
+Caveman checks the measure on a cadence derived from the window (between every 1 and 15 minutes). When an alert fires and when it resolves, your organization's owners and admins get an Inbox item and an email. An alert keeps its own copy of the chart, evaluated as a big number with the dashboard's filters baked in, so later edits to the dashboard do not change it. For hard spend limits, use [budgets](/governance/budgets) instead.
+
+## Let your coding agent build it
+
+Your coding agent can build dashboards through the Caveman MCP server ([setup](/guides/connect-coding-agent)). Click **Build with agent** on an empty Dashboards page to copy a ready-made prompt, or write your own:
+
+```text Prompt
+Create a Caveman dashboard for project "checkout" with the Caveman tools.
+Read the chart catalog and its suggestions for this project, verify each chart
+returns data with the chart query operation, then create one logs dashboard of
+6 to 9 charts (cost, latency, errors, tokens, and what stands out in the
+suggestions) grouped into sections.
+```
+
+| Capability | Access | What the agent can do |
+| --- | --- | --- |
+| Charts | Read | Read the field catalog, list field values, run chart queries, and sample matching traces |
+| Dashboards | Read | List dashboards and read any of them, including built-ins |
+| Dashboards write | Write, needs the `dashboard:write` scope | Create, clone, rename, and delete dashboards, and add, update, or delete charts one at a time |
+
+The agent should verify each chart with a query before saving it, because saved charts must compile.
+
+## Recipes
+
+<AccordionGroup>
+  <Accordion title="Cost per workflow">
+    Time series on **Requests**, measure Sum of `cost`, group by `workflow`, unit Cost, bars stacked, interval Day.
+  </Accordion>
+
+  <Accordion title="Cost per customer or team">
+    Top list on **Requests**, measure Sum of `cost`, group by `tags.customer` or `tags.team`, sort value high to low, 10 rows. Requires sending `x-cave-tags` ([App analytics](/analytics/apps)).
+  </Accordion>
+
+  <Accordion title="Coding agent spend by person">
+    Top list on **Requests**, measure Sum of `cost`, row filter `population = 'coding_agents'`, group by `member`.
+  </Accordion>
+
+  <Accordion title="Coding agent cost by branch">
+    Top list on **Requests**, measure Sum of `cost`, row filter `population = 'coding_agents'`, group by `tags.branch`.
+  </Accordion>
+
+  <Accordion title="Error rate by provider">
+    Time series on **Requests**, expression `count_if(error) / count()`, group by `provider`, unit Percent (the unit expects a 0 to 1 ratio). Add an alert above your error budget.
+  </Accordion>
+
+  <Accordion title="p95 latency by model">
+    Time series on **Requests**, Percentile of `latency` with `p` 0.95, group by `model`, unit Duration.
+  </Accordion>
+
+  <Accordion title="Cache hit rate">
+    Big number on **Requests**, expression `sum(cached_input_tokens) / sum(input_tokens)`, unit Percent.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+- [Label app traffic so you can chart it](/analytics/apps)
+- [Query the same data with SQL](/guides/query-with-sql)
+- [Set budgets and guardrails](/governance/budgets)

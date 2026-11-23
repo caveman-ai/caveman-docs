@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Retry budgets in practice</title>
+  <style>body { font: 15px/1.6 system-ui; } .nav { display: flex; }</style>
+  <script>window.analytics = { track(){ /* ... */ } };</script>
+</head>
+<body>
+  <nav class="site-nav">
+    <ul>
+      <li><a href="/docs/page-00">Reference page 00</a></li>
+      <li><a href="/docs/page-01">Reference page 01</a></li>
+      <li><a href="/docs/page-02">Reference page 02</a></li>
+      <li><a href="/docs/page-03">Reference page 03</a></li>
+      <li><a href="/docs/page-04">Reference page 04</a></li>
+      <li><a href="/docs/page-05">Reference page 05</a></li>
+      <li><a href="/docs/page-06">Reference page 06</a></li>
+      <li><a href="/docs/page-07">Reference page 07</a></li>
+      <li><a href="/docs/page-08">Reference page 08</a></li>
+      <li><a href="/docs/page-09">Reference page 09</a></li>
+      <li><a href="/docs/page-10">Reference page 10</a></li>
+      <li><a href="/docs/page-11">Reference page 11</a></li>
+      <li><a href="/docs/page-12">Reference page 12</a></li>
+      <li><a href="/docs/page-13">Reference page 13</a></li>
+      <li><a href="/docs/page-14">Reference page 14</a></li>
+      <li><a href="/docs/page-15">Reference page 15</a></li>
+      <li><a href="/docs/page-16">Reference page 16</a></li>
+      <li><a href="/docs/page-17">Reference page 17</a></li>
+      <li><a href="/docs/page-18">Reference page 18</a></li>
+      <li><a href="/docs/page-19">Reference page 19</a></li>
+      <li><a href="/docs/page-20">Reference page 20</a></li>
+      <li><a href="/docs/page-21">Reference page 21</a></li>
+      <li><a href="/docs/page-22">Reference page 22</a></li>
+      <li><a href="/docs/page-23">Reference page 23</a></li>
+      <li><a href="/docs/page-24">Reference page 24</a></li>
+    </ul>
+  </nav>
+  <main>
+    <article class="post-content">
+      <h1>Retry budgets in practice</h1>
+      <p>Paragraph 0: the retry budget absorbs a burst of 100 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 1: the retry budget absorbs a burst of 109 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 2: the retry budget absorbs a burst of 118 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 3: the retry budget absorbs a burst of 127 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 4: the retry budget absorbs a burst of 136 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 5: the retry budget absorbs a burst of 145 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 6: the retry budget absorbs a burst of 154 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 7: the retry budget absorbs a burst of 163 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 8: the retry budget absorbs a burst of 172 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 9: the retry budget absorbs a burst of 181 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 10: the retry budget absorbs a burst of 190 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 11: the retry budget absorbs a burst of 199 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 12: the retry budget absorbs a burst of 208 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 13: the retry budget absorbs a burst of 217 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 14: the retry budget absorbs a burst of 226 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 15: the retry budget absorbs a burst of 235 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 16: the retry budget absorbs a burst of 244 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 17: the retry budget absorbs a burst of 253 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 18: the retry budget absorbs a burst of 262 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 19: the retry budget absorbs a burst of 271 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 20: the retry budget absorbs a burst of 280 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 21: the retry budget absorbs a burst of 289 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 22: the retry budget absorbs a burst of 298 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 23: the retry budget absorbs a burst of 307 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 24: the retry budget absorbs a burst of 316 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 25: the retry budget absorbs a burst of 325 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 26: the retry budget absorbs a burst of 334 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 27: the retry budget absorbs a burst of 343 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 28: the retry budget absorbs a burst of 352 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+      <p>Paragraph 29: the retry budget absorbs a burst of 361 requests before the pool sheds load, which is why the queue depth alert fires at 400 and not at 40.</p>
+    </article>
+  </main>
+  <aside class="sidebar related">
+    <ul>
+      <li><a href="/blog/post-00">Related post 00</a></li>
+      <li><a href="/blog/post-01">Related post 01</a></li>
+      <li><a href="/blog/post-02">Related post 02</a></li>
+      <li><a href="/blog/post-03">Related post 03</a></li>
+      <li><a href="/blog/post-04">Related post 04</a></li>
+      <li><a href="/blog/post-05">Related post 05</a></li>
+      <li><a href="/blog/post-06">Related post 06</a></li>
+      <li><a href="/blog/post-07">Related post 07</a></li>
+      <li><a href="/blog/post-08">Related post 08</a></li>
+      <li><a href="/blog/post-09">Related post 09</a></li>
+      <li><a href="/blog/post-10">Related post 10</a></li>
+      <li><a href="/blog/post-11">Related post 11</a></li>
+      <li><a href="/blog/post-12">Related post 12</a></li>
+      <li><a href="/blog/post-13">Related post 13</a></li>
+      <li><a href="/blog/post-14">Related post 14</a></li>
+      <li><a href="/blog/post-15">Related post 15</a></li>
+      <li><a href="/blog/post-16">Related post 16</a></li>
+      <li><a href="/blog/post-17">Related post 17</a></li>
+      <li><a href="/blog/post-18">Related post 18</a></li>
+      <li><a href="/blog/post-19">Related post 19</a></li>
+    </ul>
+  </aside>
+  <footer class="site-footer"><p>Copyright 2026. All rights reserved.</p></footer>
+</body>
+</html>

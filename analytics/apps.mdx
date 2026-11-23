@@ -1,0 +1,142 @@
+---
+title: "Set up analytics for AI apps, services, and agents"
+sidebarTitle: "App Analytics"
+description: "Label application traffic with workflow, session, tag, and end-user headers so Caveman Cloud reports cost per feature, customer, and session for every AI app."
+---
+
+Application traffic in Caveman Cloud is attributed to the project key it authenticates with, plus the labels you attach to each request. A handful of `x-cave-*` headers turn a single project's spend into cost per workflow, per session, per customer, and per team. This guide shows which headers to send, how to set them from code, and where each one shows up in the console.
+
+<Note>
+  Labels identify traffic for reporting. They do not grant access or change authorization. People are only attributed through personal keys, never through headers; see [Coding agent analytics](/analytics/coding-agents).
+</Note>
+
+## Prerequisites
+
+Your app already calls the gateway with a project key. If not, start with [Connect a workload](/guides/connect-workload).
+
+## Attribution headers
+
+| Header | What it labels | Shows up as | Example |
+| --- | --- | --- | --- |
+| `x-cave-agent` | The application component or agent sending the request | **Coding agents** spend axis, `agent` dashboard field | `support-agent` |
+| `x-cave-workflow` | The job the call belongs to. The closest thing to a cost object finance can price. | **Workflows** spend axis, `workflow` field, workload grouping | `resolve-ticket` |
+| `x-cave-session` | One ID for every request in a conversation or job, so they read as one session | `session_id` field, session views in Traces | `conv_8f2a91` |
+| `x-cave-tags` | Free-form `key=value` labels recorded on the request's telemetry row | `tags.<key>` in dashboards and SQL | `team=search,tier=pro` |
+| `x-cave-user-hash` | Your customer, as an opaque hash you supply | **End users** spend axis | `u_3c9e…` |
+
+Header rules:
+
+- `x-cave-session` is optional. It accepts letters, digits, and `.` `_` `:` `-`, up to 128 characters. Anything else is ignored.
+- If `x-cave-workflow` is absent, the workflow tag set on the API key applies.
+- `x-cave-user-hash` is stored as sent and never joined to a person in your organization. Send a hash, not an email address or name.
+- Separate multiple tags with commas.
+
+## Send the headers
+
+<CodeGroup>
+
+```ts TypeScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.CAVE_API_KEY,
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
+  defaultHeaders: {
+    "x-cave-agent": "support-agent",
+    "x-cave-tags": "team=support,tier=pro",
+  },
+});
+
+await client.chat.completions.create(
+  { model: "gpt-4o", messages: [{ role: "user", content: ticket.body }] },
+  {
+    headers: {
+      "x-cave-workflow": "resolve-ticket",
+      "x-cave-session": `ticket_${ticket.id}`,
+      "x-cave-user-hash": hashCustomer(ticket.customerId),
+    },
+  },
+);
+```
+
+```python Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["CAVE_API_KEY"],
+    base_url=f"{os.environ['CAVE_GATEWAY_URL']}/openai/v1",
+    default_headers={
+        "x-cave-agent": "support-agent",
+        "x-cave-tags": "team=support,tier=pro",
+    },
+)
+
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": ticket.body}],
+    extra_headers={
+        "x-cave-workflow": "resolve-ticket",
+        "x-cave-session": f"ticket_{ticket.id}",
+        "x-cave-user-hash": hash_customer(ticket.customer_id),
+    },
+)
+```
+
+```bash curl
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-agent: support-agent" \
+  -H "x-cave-workflow: resolve-ticket" \
+  -H "x-cave-session: ticket_4812" \
+  -H "x-cave-tags: team=support,tier=pro" \
+  -H "x-cave-user-hash: u_3c9e1a" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+```
+
+</CodeGroup>
+
+Set stable labels (agent, team tags) as default headers on the client, and per-request labels (workflow, session, end user) on each call. If your project has no stored provider connection, also send `x-cave-upstream-key` as shown in [Connect a workload](/guides/connect-workload#step-4-provide-an-upstream-key-or-use-a-stored-connection).
+
+<Tip>
+  With the Caveman SDKs, set the agent slug and `defaultWorkflow` (TypeScript) or `default_workflow` (Python) on the client, and pass `workflow` and `tags` per trace. `x-cave-session` is not an SDK option; set it on your own HTTP client. See the [TypeScript SDK](/sdks/typescript) and [Python SDK](/sdks/python).
+</Tip>
+
+## Organize keys and projects for reporting
+
+Headers label individual requests. Keys and projects give you coarser cost centers that need no code changes.
+
+- **Projects**: one project per environment or product line makes each subtotal chargeable.
+- **Keys**: each request carries the key it authenticated with. A key with no member bound holds spend no person can be charged for.
+- **Labels**: label keys on **Governance → Keys**. A key with two labels counts under both, so label rows can add up to more than the total.
+
+See [Cost allocation](/governance/cost-allocation) for how finance teams use these axes.
+
+## Where app analytics show up
+
+<CardGroup cols={2}>
+  <Card title="Spend" icon="dollar-sign" href="/guides/traces-and-spend">
+    **Analytics → Spend** slices cost by Workflows, End users, Keys, Labels, Projects, Task types, Models, Providers, and Endpoints.
+  </Card>
+
+  <Card title="Usage reports" icon="chart-column" href="/guides/traces-and-spend">
+    Tokens, Cache & compression, Routing, and Traffic shape for the selected window.
+  </Card>
+
+  <Card title="Traces" icon="magnifying-glass" href="/guides/traces-and-spend">
+    Filter by agent, workflow, or session and open any request.
+  </Card>
+
+  <Card title="Dashboards" icon="table-columns" href="/analytics/custom-dashboards">
+    Chart any label, for example cost by `tags.team` or latency by workflow.
+  </Card>
+</CardGroup>
+
+For anything the console does not chart, query the same telemetry with [SQL](/guides/query-with-sql).
+
+## Next steps
+
+- [Build a dashboard for your app](/analytics/custom-dashboards)
+- [Set budgets on keys and projects](/governance/budgets)
+- [Understand workloads](/concepts/workloads)

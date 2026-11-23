@@ -1,0 +1,298 @@
+---
+title: "Caveman optimization catalog and safety gating"
+sidebarTitle: "Optimization Catalog"
+description: "Explore every Caveman optimizer, from byte-safe S0 cache hints to eval-gated behavioral changes and S4 compression, and how the safety ladder gates them."
+---
+
+Caveman Cloud applies optimizations in tiers that match how much they can change what the model sees. At the bottom, S0 and S1 optimizers add provider-native hints without touching model-visible content. Higher tiers rewrite prompts, trim tool output, or swap the model itself, and each step carries stronger proof requirements. This catalog explains every optimizer Caveman runs, which safety class it belongs to, how to trigger or prevent it, and whether its savings can become verified.
+
+## The safety ladder: S0 through S4
+
+The safety ladder is the contract between Caveman and your application. Lower tiers are safer and more automatic. Higher tiers unlock larger savings but require cooperation, evaluation, or explicit opt-in.
+
+| Class | Name | What can change | How it is gated | Example |
+| --- | --- | --- | --- | --- |
+| **S0** | Byte-safe default | Nothing model-visible | Always on unless opted out per request | Prompt cache hints (`anthropic-cache-breakpoints`) |
+| **S1** | Byte-safe opt-in | Nothing model-visible | Request asks or project policy; no eval gate | Semantic response cache, Bedrock cache points |
+| **S1** | Behavioral opt-in | Model output can change | Policy flag **plus** cleared eval gate | `output-brevity`, `reasoning-effort` |
+| **S2** | Structural | Request structure or format | SDK cooperation or compression opt-in | `toon-reencoding`, cache warm-up hints |
+| **S3** | Behavioral rollout | Model choice or agent behavior | Replay, admin approval, canary, rollback | `cheaper-action-fit`, detector-driven fixes |
+| **S4** | Lossy compression | Content is elided and recovered | Explicit `x-cave-optimize: compress` only; CCR retrieval | Full compression engine |
+
+No optimizer above S0 runs automatically. Every change that can alter model-visible text requires either a request header or an approved evaluation gate.
+
+## Gateway optimizers: S0 and S1 byte-safe
+
+These optimizers run inside the gateway on the upstream request only. They never change model-visible content. They add provider-native caching hints, and the response stream to your client is untouched. Each is policy-gated, idempotent, and passes the body through byte-identically on any parse problem.
+
+<AccordionGroup>
+  <Accordion title="anthropic-cache-breakpoints">
+    **Provider:** Anthropic (direct) **Default:** On for every request **Opt-out:** Send `x-cave-optimize: no-cache`
+
+    Injects one ephemeral `cache_control` marker on the largest stable prefix: tools if present, otherwise system. When the same prefix repeats on later requests, Anthropic bills it at the `cache_read` rate instead of full input price. The marker is Caveman’s own breakpoint, so rows where it triggers cache reads qualify for verified savings under the `provider_causal_cache` method.
+  </Accordion>
+
+  <Accordion title="openai-prompt-cache-key">
+    **Provider:** OpenAI **Default:** On for every request **Opt-out:** Send `x-cave-optimize: no-cache`
+
+    Injects a canonical `prompt_cache_key` derived from `sha256(model + tools + system/instructions + session or user id)` to raise prompt-cache routing affinity while keeping each routing group under OpenAI’s overflow threshold (about 15 requests per minute). OpenAI caching is automatic at 1,024-token prefixes or longer; this optimizer only improves hit rate. It never enables impossible caching, and it costs nothing if prefixes vary.
+
+    <Note>
+      Because OpenAI caches automatically, this optimizer does not place a Caveman-specific marker. Its effect is observed from provider usage (`prompt_tokens_details.cached_tokens`), but it remains `inferred`. There is no verified method for OpenAI cache affinity today.
+    </Note>
+  </Accordion>
+
+  <Accordion title="bedrock-cache-points">
+    **Provider:** Bedrock (Anthropic Claude) **Default:** Off (opt-in) **Opt-in:** Project policy enables it; request needs no extra header
+
+    Adds one Bedrock-native cache marker to the largest stable tools or system prefix. Caller-managed markers, models without catalog prompt-cache capability, non-pay-as-you-go auth, and malformed bodies pass through byte-identically. When enabled and eligible, qualifying cache rows use the `provider_causal_cache_bedrock` verified method.
+  </Accordion>
+</AccordionGroup>
+
+### Retired Gemini scaffold
+
+`gemini-explicit-cache` is retained only as a historical join key and unconditional pass-through. It has no current policy, practice, experiment, proposal, or verified-savings path. Gemini’s current Interactions API supports implicit caching only. The legacy `generateContent` API still supports explicit `cachedContents` resources, but they require lifecycle management (creation, credential project, model and Vertex location, TTL, deletion, creation charge, and token-hour storage) that the gateway does not route or preserve. Requests that already reference `cachedContent` remain provider pass-through and are deliberately unpriced.
+
+## Behavioral optimizers: S1, eval-gated
+
+Unlike the byte-safe optimizers above, these **can change model output**. They run only when both a policy flag is enabled **and** an eval gate is cleared. The eval gate is set to true only after an experiment proves task success is unchanged under the proposed change.
+
+| Optimizer ID | Provider | Default | What it does |
+| --- | --- | --- | --- |
+| `output-brevity` | OpenAI | Off (opt-in, **eval-gated**) | Adds a provider-native output cap of 512 tokens (`max_output_tokens` on Responses, `max_completion_tokens` on Chat) when the caller has set none. Respects any caller-set cap. It never raises or lowers a cap you already chose. |
+| `reasoning-effort` | OpenAI | Off (opt-in, **eval-gated**) | Sets `reasoning_effort: "low"` on the upstream request for reasoning-capable models (`gpt-5*`, `o1`, `o3`, `o4`) when the caller has set none. It respects any caller-set value and never injects the field on a model that would reject it. The hint is always a reduction (low, never high). |
+
+Enabling the policy flag alone does nothing. The eval gate protects the hard-task tail where dialing reasoning down or capping output can silently degrade quality. In dry-run observations, verbose workloads show recorded `output_tokens` dropping (for example, 800 to 512) while task output is preserved. A request whose eval gate is not cleared is passed through untouched. This is quality evidence, not a verified billing claim.
+
+## Compression: S4 with a lossless tier
+
+Compression is the most powerful optimizer Caveman offers, and it is gated accordingly. The full S4 engine elides content and stores the original under a content-addressed handle so it can be retrieved byte-for-byte later. Because it changes what the model sees, it runs **only when the request asks for it**.
+
+### How to request compression
+
+Send the header on a single request:
+
+```bash
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
+  -H "x-cave-optimize: compress" \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+```
+
+Or use the SDK:
+
+<CodeGroup>
+
+```ts TypeScript
+await cave.openai().responses.create(body, {
+  cave: { optimize: { compress: true } },
+});
+```
+
+```python Python
+cave.openai().responses.create(body, optimize={"compress": True})
+```
+
+</CodeGroup>
+
+### Lossless tier: when recovery cannot run
+
+The S4 engine requires a CCR retrieve loop and stored originals. Where that loop cannot run, a `compress` ask falls back to a **lossless tier** instead of being denied. This applies to streaming, the OpenAI Responses API, Gemini, and metadata-only or ZDR retention traffic.
+
+The lossless tier rewrites **tool output only**:
+
+- An Anthropic `tool_result`, OpenAI `tool` message, Responses `function_call_output`, or Gemini `functionResponse` that contains a single JSON object or array becomes TOON when TOON decodes back to exactly the same value.
+- Otherwise it becomes compact JSON.
+- Whichever is shorter in bytes wins. Non-JSON text, and JSON that neither form can shorten, is sent byte-identically.
+
+A user’s own message is **never rewritten**, even when its whole text is JSON, because its layout may be the question. The rewrite is lossless as JSON data, not as text: whitespace goes, and TOON sorts object keys. Nothing is elided, so the decode is the recovery contract. No CCR original is stored, no `caveman_retrieve` tool is added, and no prefix-cache write occurs.
+
+### Request lossless explicitly
+
+`x-cave-optimize: compress=lossless` admits only the lossless tier on every route where `compress` works, streaming or not. It never runs the S4 engine or adds the retrieve tool. When both `compress` and `compress=lossless` appear on one header, the lossless ask wins. The disclosure header reads `x-cave-optimize-applied: compress=lossless`.
+
+### Verified compression savings
+
+Compression savings become verified through the `provider_counted_baseline_delta` method. The transform runs only when the request asks, so the ask is the grant. Where Caveman’s cache breakpoint owns a row (because it placed the marker), the cache delta owns the row and the counted delta is dropped, an under-claim. Where the caller manages caching (for example, Claude Code), the breakpoint does not run, so the counted delta mints there. Counted rows that read the cache are priced at the cache-read rate when the delta is a saving, and at the input rate when it is a loss.
+
+### What the benchmark says
+
+The compression optimizer measured 33.2% fewer provider-reported input tokens on the wrap benchmark (95% confidence interval 14.6% to 48.5%). That is a token-count reduction on one benchmark corpus, not a promise about your traffic, and not a dollar figure. Gateway reporting stays labeled `inferred` until a verified method backs it.
+
+## Routing: `cave-auto`
+
+The `cave-auto` model name asks the project router to pick one eligible model. As of the per-request optimization decision, **the model name decides routing**: `cave-auto` (and `auto`, `auto:<tier>`, `cost_tier`) is always answered by the router. Nothing switches it off (no capability, opt-in, optimizer flag, eval gate, canary state, or `no-route` token). The only refusals are structural: no active provider connection, no baseline model, an endpoint without a rewritable model, a lossless or locally transformed request, or an unknown tier.
+
+A named model is never re-chosen by the router. Route rules a person added for a named model still apply unless the request says `no-route`.
+
+Default projects with no configured baseline now receive a provisional baseline picked from the project’s most-used named model over the last 30 days, or the provider’s reviewed default. The response carries `x-cave-route-baseline` and `x-cave-route-baseline-confirmed: false` until someone confirms or changes it on the Router page.
+
+Routing savings are always **inferred**. They are priced against the baseline model and never promoted to verified. See the full header reference on [Control Optimizations](/guides/control-optimizations), and set up the router in [Model Routing](/guides/model-routing).
+
+## Detectors and mutex families
+
+The Caveman worker profiles traffic and writes `opportunities` rows through detectors. Every detector dollar figure is **inferred**: it is a catalog-priced counterfactual, not a provider invoice. To prevent double-counting, overlapping detectors are collapsed into **mutex families** so the same headroom is never counted twice.
+
+### The four families
+
+<AccordionGroup>
+  <Accordion title="Input bloat">
+    Historical mutex identity retains retired money IDs. Current telemetry emits zero-dollar `context-window-profile`, `tool-catalog-profile`, and `exploration-load-profile` outside the mutex. Two live members remain:
+
+    - `toon-reencoding` (S2): payload-level measurement on sampled captured bodies that proves JSON tool results round-trip through TOON and are smaller.
+    - `tool-output-size-profile` (S3): the part of each tool result past a 2,000-estimated-token cap and its carries through the session.
+  </Accordion>
+
+  <Accordion title="Cache">
+    - `provider-cache-unused` (S2) and `semantic-cache-opportunity` (S1) carry catalog-priced inferred headroom.
+    - `prompt-prefix-stability` and `cache-miss-root-cause` (F1) are report-only with zero dollars.
+    - `cache-write-read-churn` is a retired historical mutex identity, not a current pricing signal.
+  </Accordion>
+
+  <Accordion title="Reliability">
+    Old money IDs are retired. Live members:
+
+    - `usage-accounting-missing`: live with a registered zero band.
+    - `duplicate-step-profile` (S3): the recorded spend of requests that only repeated a tool call within 60 seconds.
+
+    Provider-error, tool-error, sub-agent-concentration, and quality-feedback rows are report-only profiles outside the mutex.
+  </Accordion>
+
+  <Accordion title="Routing">
+    Old heuristic IDs are retired. One live member:
+
+    - `cheaper-action-fit` (S3): sums savings only over replayed cases that graded at least as well as the recorded model. Without replay, it reprices the scope-day’s usage at the nearest cheaper catalog model (inferred, quality not yet tested).
+  </Accordion>
+</AccordionGroup>
+
+For each family, at most one member survives per `(agent, workflow, model, day)`: the one with the highest base estimate. See [Savings Evidence](/concepts/savings-evidence) for how inferred numbers relate to verified ones.
+
+## Detector safety classes: what zero change earns
+
+Each detector carries the safety class of the fix it recommends. The class is the honest answer to "what does capturing this cost me?" Caveman rolls the headroom up by class so an operator can see what zero app change earns versus what cooperation or a behavioral change unlocks.
+
+| Detector / optimizer | Class | What capturing it needs |
+| --- | --- | --- |
+| `prompt-prefix-stability` | Report-only | Review repeated observed leading blocks; no provider cache identity or action is inferred |
+| `cache-write-read-churn` | Retired | No card or action. The aggregate mixes cache-write TTL classes and does not prove historical pricing, connection, region, caller marker, or safe removal. |
+| `provider-cache-unused` | S2 | Keep the prompt cache warm on an Anthropic scope where the gateway placed the cache hint and the cache writes cost more than later reads saved |
+| `semantic-cache-opportunity` | S1 | Turn on the semantic response cache; it starts in shadow and serves only after the project's own judged precision clears |
+| `cheaper-action-fit` | S3 | Switch to a cheaper action that graded at least as well on replayed captured turns; without replay, "up to \$X/day if quality holds" |
+| `unlabeled-traffic` | S2 | Add agent/workflow labels via the SDK or headers (enablement) |
+| Three input profiles | Report-only | Review counts and estimates only; no cap, prune, compaction, proposal, or savings |
+| `tool-output-size-profile` | S3 | Cap or trim tool results past 2,000 estimated tokens in agent code; "about \$X/day, up to \$Y/day, if the fix holds, not yet tested" |
+| `duplicate-step-profile` | S3 | Stop the model making the repeat call; caching the result alone still sends it to the model; "up to \$X/day if the fix holds, not yet tested" |
+| Provider-error / tool-error profiles | Report-only | Review error populations only; no retry change or savings |
+| `quality-feedback-profile` | Report-only | Review retry-deduped metadata-only OTel evaluation coverage; no score interpretation, gateway linkage, proposal, or savings |
+| `toon-reencoding` | S2 | Send `x-cave-optimize: compress=lossless` on an Anthropic workload whose JSON tool results TOON shortens; "up to \$X/day if quality holds" |
+
+Byte-safe (S0/S1) optimization captures provider-native caching. The larger structural levers (S2) need SDK cooperation. The biggest lever (S3 model/reasoning routing) can change output and sits behind the eval-gated rollout by design. The split is the truthful shape of where the money is and what each tier costs to claim.
+
+## Verified savings eligibility by optimizer
+
+Not every optimizer can produce verified savings. Verified methods require a proven causal contract and provider-complete usage.
+
+| Optimizer | Can become verified? | Method | Notes |
+| --- | --- | --- | --- |
+| `anthropic-cache-breakpoints` | Yes | `provider_causal_cache` | Caveman placed the marker; provider billed cache reads or writes |
+| `bedrock-cache-points` | Yes | `provider_causal_cache_bedrock` | Enabled and eligible; marker placed by Caveman |
+| `openai-prompt-cache-key` | No | None | OpenAI caches automatically; no Caveman-specific marker to prove causality |
+| `caveman-compression` (S4) | Yes | `provider_counted_baseline_delta` | Counted original vs served body on the same request |
+| `caveman-compression` (lossless) | Yes | `provider_counted_baseline_delta` | Same method; counted delta on the transformed request |
+| `output-brevity` | No | None | Quality evidence only; no provider-measured causal delta |
+| `reasoning-effort` | No | None | Quality evidence only; no provider-measured causal delta |
+| `cheaper-action-fit` | No | None | Inferred repricing; quality tested on replay but no per-request causal method |
+| Response cache (exact / semantic) | No | None | Avoids provider call entirely; no counterfactual to compare |
+
+Verified savings can be negative. A cache write that nobody reads books a loss. A compressed request that the provider counted as larger than the original also books a loss. Days can legitimately show negative verified savings, and Caveman never floors the number to zero.
+
+## Which optimization fits my workload
+
+Use this checklist to match your traffic shape to the optimizers that can help.
+
+<CardGroup cols={2}>
+  <Card title="Long system prompts repeated every turn" icon="book-open" href="/guides/control-optimizations">
+    **Best fit:** `anthropic-cache-breakpoints` or `openai-prompt-cache-key` **Action:** Nothing to change; these run by default. Opt out with `no-cache` if your prefixes never repeat.
+  </Card>
+
+  <Card title="Large tool schemas or JSON results" icon="wrench" href="/guides/control-optimizations">
+    **Best fit:** `compress=lossless` or full `compress` **Action:** Send `x-cave-optimize: compress` on tool-heavy requests. The lossless tier handles streaming or Responses API traffic automatically.
+  </Card>
+
+  <Card title="Verbose generations with runaway length" icon="message" href="/guides/evals">
+    **Best fit:** `output-brevity` **Action:** Enable the policy flag, then run an eval suite to clear the gate. The cap applies only when you do not set your own.
+  </Card>
+
+  <Card title="Reasoning-capable models on simple tasks" icon="brain" href="/guides/evals">
+    **Best fit:** `reasoning-effort` **Action:** Enable the policy flag, run evals, and the gate lowers thinking tokens when you do not specify an effort level.
+  </Card>
+
+  <Card title="High-volume repetitive questions" icon="rotate" href="/guides/control-optimizations">
+    **Best fit:** Semantic response cache **Action:** Send `x-cave-cache: semantic` and ensure your project precision score is healthy. Shadow mode measures matches before serving.
+  </Card>
+
+  <Card title="Cost concentration in one model or task" icon="chart-line" href="/guides/query-with-sql">
+    **Best fit:** `cheaper-action-fit` and detector-driven moves **Action:** Inspect the Cave Plan for ranked moves per workload. Prove cheaper models with replayed evals before any rollout.
+  </Card>
+</CardGroup>
+
+Weak fits where Caveman adds less value: short prompts with long outputs, already-lean prompts, or quality-critical work that cannot be evaluated. In those cases, Caveman stays byte-safe and records honest zeros rather than force a change.
+
+## Per-role guidance
+
+<Tabs>
+  <Tab title="Developers">
+    You control every optimization per request with headers. No dashboard switch overrides your code.
+
+    - Use `x-cave-optimize: off` to pass one request through unchanged.
+    - Use `x-cave-optimize: compress` to request compression on tool-heavy turns.
+    - Use `x-cave-optimize: no-cache` to disable cache hints for one request.
+    - Use `x-cave-optimize: compress=lossless` to force the JSON-only tier.
+    - Read `x-cave-optimize-applied` and `x-cave-optimize-denied` to audit what ran.
+
+    See [Control Optimizations](/guides/control-optimizations) for the full header catalog and SDK examples.
+  </Tab>
+  <Tab title="CTOs and Engineering Leaders">
+    Your role is governing what can change model output and who can approve it.
+
+    - **Byte-safe changes (S0/S1):** run by default. Audit them in traces; they cannot change output.
+    - **Behavioral changes (S1 eval-gated, S3):** require a cleared eval gate and admin approval. Only owners and admins can publish an aggressive (S2/S3) policy or approve an S3 experiment. A `cave-council` or `cave-fusion` ensemble requires configured members and still refuses if misconfigured.
+    - **Raw payload access:** restricted to owner and admin roles. Engineers and viewers see metadata only.
+    - **Audit trail:** every change to budgets, guardrails, keys, and roles is logged.
+
+    See [Governance](/guides/budgets-and-guardrails) for role permissions and audit log access.
+  </Tab>
+  <Tab title="CFOs and Finance">
+    Not every dollar Caveman shows can become verified. Understand the evidence ladder before reporting savings.
+
+    - **Verified savings today:** only cache breakpoints on Anthropic direct and Bedrock (`provider_causal_cache`, `provider_causal_cache_bedrock`) and compression with counted baselines (`provider_counted_baseline_delta`). Everything else stays inferred.
+    - **Inferred headroom:** the Cave Plan reports daily rates. These are not projected to monthly and are never added to verified.
+    - **Zero is honest:** A day with zero verified savings means Caveman did not have the evidence to claim causality, not that nothing happened.
+    - **Coverage matters:** verified savings require complete provider-reported usage and a known catalog price. Unpriced or failed traffic contributes zero.
+
+    See [Savings Evidence](/concepts/savings-evidence) for the full accounting contract and coverage rules.
+  </Tab>
+</Tabs>
+
+## Response receipts: how to read what ran
+
+Every response carries disclosure headers. Parse them to distinguish applied and denied optimizations.
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-optimize-applied` | Comma list of opt-ups that ran (preconditions cleared) |
+| `x-cave-optimize-denied` | `token=reason` pairs for refused opt-ups |
+| `x-cave-cache-mode` | Response cache mode applied (`respect`, `force`, `semantic`, `disable`) |
+| `x-cave-response-cache` | Cache outcome: `hit`, `hit_semantic`, `shadow_hit`, `shadow_miss`, `miss`, `bypass`, `uncacheable` |
+| `x-cave-cache-status` | Provider prompt cache outcome: `hit`, `miss`, `write`, `partial`, `unknown` |
+
+In the TypeScript SDK, use `parseReceipt(response.headers)`. In Python, use `parse_receipt(response.headers)`. Headers the gateway did not send stay absent; the receipt never fills in a default value.
+
+## Next steps
+
+- [Control optimizations per request with headers and SDK options](/guides/control-optimizations)
+- [Understand measured, inferred, and verified savings](/concepts/savings-evidence)
+- [Query telemetry to compare before and after](/guides/query-with-sql)
+- [Run evaluations to clear eval gates](/guides/evals)

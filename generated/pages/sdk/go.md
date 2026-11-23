@@ -1,0 +1,31 @@
+# Go SDK
+
+> Source: caveman-ai/cloud-sdk/docs/sdk-go.mdx
+
+`github.com/caveman-ai/sdk-go` is a standalone Go module for Caveman Cloud operations, Agents, and Firecracker Sandboxes.
+
+## Install
+
+```bash
+go get github.com/caveman-ai/sdk-go
+```
+
+## Usage
+
+```go
+package main
+
+import (
+    "context"
+    "os"
+    caveman "github.com/caveman-ai/sdk-go"
+)
+
+func main() {
+    client := caveman.NewCloud(caveman.CloudConfig{
+        ControlURL: "https://api.caveman.so",
+        Token:      os.Getenv("CAVE_TOKEN"),
+    })
+    _, _ = client.Projects.List(context.Background(), caveman.ProjectsListInput{})
+}
+```

@@ -1,0 +1,71 @@
+---
+title: "Allocate AI spend to teams, people, and cost centers"
+sidebarTitle: "Cost Allocation"
+description: "Attribute Caveman Cloud model spend to people, teams, workflows, and customers with personal keys, key labels, projects, and headers for chargeback."
+---
+
+Caveman Cloud attributes every gateway request to the key that signed it, the project it ran under, and any workflow, agent, or end-user labels it carries. Set these up deliberately and the **Spend** page becomes a ready-made showback or chargeback report: cost per team, per developer, per product feature, or per customer. This page shows which signals to set and how they map to report axes.
+
+## Attribution signals
+
+| Signal | How you set it | Spend axis |
+| --- | --- | --- |
+| **Project** | Every request runs under a project | Projects |
+| **API key** | The key that authenticated the request | Keys |
+| **Key labels** | Labels on the key in **Governance → Keys** | Labels |
+| **Person** | Bind a personal key to a member under **Belongs to** | People |
+| **Workflow** | `x-cave-workflow` header, the SDK workflow option, `--workflow`, or the key's default workflow | Workflows |
+| **Coding agent** | `x-cave-agent` header, or a wrapped coding agent | Coding agents |
+| **End user** | `x-cave-user-hash` header with an opaque hash you supply | End users |
+
+Model, provider, endpoint, and task type are recorded automatically and show what the money bought rather than who spent it.
+
+<Note>
+  Person attribution comes only from the personal key a request authenticated with, never from a client header or a name in a prompt. A shared key with no member bound is the correct home for spend that no individual should be charged for.
+</Note>
+
+## Set up chargeback
+
+<Steps>
+  <Step title="Use one project per cost center">
+    Split projects by product line or environment (for example `support-bot-prod` and `support-bot-staging`). Projects are the cleanest subtotal finance can charge, and each one gets its own [budget](/governance/budgets).
+  </Step>
+  <Step title="Label every key">
+    Add consistent lowercase labels such as `team-payments`, `env-prod`, and `cc-4120`. Agree on a naming scheme up front so reports group cleanly.
+  </Step>
+  <Step title="Give developers personal keys">
+    Bind a key to each developer for local work and coding agents. Their spend then appears under their name on the People axis.
+  </Step>
+  <Step title="Tag workflows in code">
+    Send `x-cave-workflow` with the job name (`resolve-ticket`, `summarize-thread`), or set a default workflow on the key. Workflows are the closest unit to a cost object a finance team can price.
+  </Step>
+  <Step title="Send end-user hashes for per-customer cost">
+    If you resell AI features, send `x-cave-user-hash` with a stable, opaque customer identifier. It is stored as sent and never linked to a member of your organization.
+  </Step>
+</Steps>
+
+```bash Example request with attribution headers
+curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
+  -H "x-cave-workflow: resolve-ticket" \
+  -H "x-cave-user-hash: 8f14e45fceea167a" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hi"}]}'
+```
+
+See [Authentication](/authentication) for the gateway URL and provider key options.
+
+## Read the reports
+
+Open **Spend** and pick an axis. Axes are split into **who** spent (People, Coding agents, Keys, Labels, End users, Projects, Workflows) and **what** it bought (Task types, Models, Providers, Endpoints). Each axis has an unattributed bucket, such as **No person attributed** or **Unlabeled workflow**, so you can see how much spend still lacks a label.
+
+<Warning>
+  Labels reflect each key's labels as they are now, and a key with two labels counts under both. Label rows can add up to more than the total, so use projects or keys when you need subtotals that sum exactly.
+</Warning>
+
+For custom reports or exports to a finance system, query spend directly with [SQL](/guides/query-with-sql). More on reading spend in [Traces and spend](/guides/traces-and-spend). To chart allocation over time or alert on it, build a [custom dashboard](/analytics/custom-dashboards).
+
+## Who can see per-person spend
+
+Owners, Admins, and members with the **Billing** role can read billing and per-person spend. Every member can see the traffic on their own personal key.

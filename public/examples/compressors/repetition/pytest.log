@@ -1,0 +1,49 @@
+$ pytest -q tests/
+collecting ... done
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_create PASSED
+tests/test_orders.py::test_refund PASSED
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+WARNING  sqlalchemy.pool: connection re-established after timeout
+tests/test_ledger.py::test_balance FAILED
+E   AssertionError: expected 1200, got 1199
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+retrying ledger fixture teardown ...
+1 failed, 2 passed in 4.81s

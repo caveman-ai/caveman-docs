@@ -1,0 +1,159 @@
+service:
+  name: checkout
+  owner: payments
+  database:
+    host: db.internal
+    port: 5432
+  feature_00:
+    enabled: true
+    rollout: 0
+  feature_01:
+    enabled: false
+    rollout: 1
+  feature_02:
+    enabled: true
+    rollout: 2
+  feature_03:
+    enabled: false
+    rollout: 3
+  feature_04:
+    enabled: true
+    rollout: 4
+  feature_05:
+    enabled: false
+    rollout: 5
+  feature_06:
+    enabled: true
+    rollout: 6
+  feature_07:
+    enabled: false
+    rollout: 7
+  feature_08:
+    enabled: true
+    rollout: 8
+  feature_09:
+    enabled: false
+    rollout: 9
+  feature_10:
+    enabled: true
+    rollout: 10
+  feature_11:
+    enabled: false
+    rollout: 11
+  feature_12:
+    enabled: true
+    rollout: 12
+  feature_13:
+    enabled: false
+    rollout: 13
+  feature_14:
+    enabled: true
+    rollout: 14
+  feature_15:
+    enabled: false
+    rollout: 15
+  feature_16:
+    enabled: true
+    rollout: 16
+  feature_17:
+    enabled: false
+    rollout: 17
+  feature_18:
+    enabled: true
+    rollout: 18
+  feature_19:
+    enabled: false
+    rollout: 19
+  feature_20:
+    enabled: true
+    rollout: 20
+  feature_21:
+    enabled: false
+    rollout: 21
+  feature_22:
+    enabled: true
+    rollout: 22
+  feature_23:
+    enabled: false
+    rollout: 23
+  feature_24:
+    enabled: true
+    rollout: 24
+  feature_25:
+    enabled: false
+    rollout: 25
+  feature_26:
+    enabled: true
+    rollout: 26
+  feature_27:
+    enabled: false
+    rollout: 27
+  feature_28:
+    enabled: true
+    rollout: 28
+  feature_29:
+    enabled: false
+    rollout: 29
+  feature_30:
+    enabled: true
+    rollout: 30
+  feature_31:
+    enabled: false
+    rollout: 31
+  feature_32:
+    enabled: true
+    rollout: 32
+  feature_33:
+    enabled: false
+    rollout: 33
+  feature_34:
+    enabled: true
+    rollout: 34
+  feature_35:
+    enabled: false
+    rollout: 35
+  feature_36:
+    enabled: true
+    rollout: 36
+  feature_37:
+    enabled: false
+    rollout: 37
+  feature_38:
+    enabled: true
+    rollout: 38
+  feature_39:
+    enabled: false
+    rollout: 39
+  feature_40:
+    enabled: true
+    rollout: 40
+  feature_41:
+    enabled: false
+    rollout: 41
+  feature_42:
+    enabled: true
+    rollout: 42
+  feature_43:
+    enabled: false
+    rollout: 43
+  feature_44:
+    enabled: true
+    rollout: 44
+  feature_45:
+    enabled: false
+    rollout: 45
+  feature_46:
+    enabled: true
+    rollout: 46
+  feature_47:
+    enabled: false
+    rollout: 47
+  feature_48:
+    enabled: true
+    rollout: 48
+  feature_49:
+    enabled: false
+    rollout: 49
+  incident:
+    status: ERROR
+    action: rollback

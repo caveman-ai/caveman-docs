@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+/* ==========================================================================
+ *  The content build. Runs before dev, build and type-check.
+ *
+ *  The site is served from Cloudflare Workers, which have no filesystem and
+ *  refuse to evaluate code from strings. So everything the site knows about
+ *  its pages is worked out here, in Node, once:
+ *
+ *    .generated/content.json   docs.json's navigation, and every page in it:
+ *                              front matter, the MDX body (for the Markdown
+ *                              twins), its h2/h3 anchors, and the date of its
+ *                              last commit
+ *    .generated/mdx/*.js       each page compiled to an ES module
+ *    .generated/mdx/index.ts   slug → lazy import of that module
+ *
+ *  The navigation is copied in rather than imported from docs.json, so the
+ *  site sees a new page in the navigation and its compiled content together.
+ *
+ *  lib/content.ts and lib/mdx.ts import these instead of reading files or
+ *  calling `evaluate`, so the same code runs under `next dev`, vinext and the
+ *  Worker. Fails closed: a page in docs.json without a file or a title stops
+ *  the build, and leaves the previous output as it was.
+ *
+ *  Only files whose content changed are rewritten, so when `npm run dev`
+ *  reruns this after an edit (see vite.config.ts) the dev server reloads the
+ *  one page that changed and never sees a half-written directory.
+ * ======================================================================== */
+
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { compile } from "@mdx-js/mdx";
+import remarkGfm from "remark-gfm";
+import { parse as parseYaml } from "yaml";
+import { rehypeHeadings, remarkCodeMeta } from "../lib/mdx-plugins.mjs";
+
+const ROOT = process.cwd();
+const OUT = join(ROOT, ".generated");
+const MDX_OUT = join(OUT, "mdx");
+
+function slugsIn(group) {
+  return group.pages.flatMap((entry) => (typeof entry === "string" ? [entry] : slugsIn(entry)));
+}
+
+function allSlugs(navigation) {
+  const slugs = navigation.products.flatMap((product) =>
+    (product.tabs ?? [{ groups: product.groups ?? [] }]).flatMap((tab) => tab.groups.flatMap(slugsIn)),
+  );
+  return [...new Set(slugs)];
+}
+
+function splitFrontmatter(source) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(source);
+  if (!match) return { data: {}, body: source };
+  return { data: parseYaml(match[1] ?? "") ?? {}, body: source.slice(match[0].length) };
+}
+
+/* Last-commit dates, with no fallback. A shallow clone's boundary commit
+ * claims every file it carries and a fresh clone's mtimes are the clone time,
+ * so either would publish a confident wrong date. When git cannot answer
+ * properly the date is left out. */
+function git(args) {
+  try {
+    return execFileSync("git", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return null;
+  }
+}
+const historyUsable = git(["rev-parse", "--is-shallow-repository"]) === "false";
+const lastChanged = (file) => (historyUsable ? git(["log", "-1", "--format=%cI", "--", file]) || undefined : undefined);
+
+// Prefixed so the page whose slug is `index` cannot collide with index.ts.
+const moduleName = (slug) => `page.${slug.replaceAll("/", "__")}.js`;
+
+const { navigation } = JSON.parse(readFileSync(join(ROOT, "docs.json"), "utf8"));
+const errors = [];
+const pages = {};
+const modules = new Map();
+let siteUpdated;
+
+for (const slug of allSlugs(navigation)) {
+  const file = `${slug}.mdx`;
+  let source;
+  try {
+    source = readFileSync(join(ROOT, file), "utf8");
+  } catch {
+    errors.push(`docs.json lists "${slug}" but ${file} does not exist.`);
+    continue;
+  }
+  const { data, body } = splitFrontmatter(source);
+  if (!data.title) {
+    errors.push(`${file} has no front matter title.`);
+    continue;
+  }
+
+  const headings = [];
+  try {
+    const compiled = await compile(body, {
+      outputFormat: "program",
+      development: false,
+      remarkPlugins: [remarkGfm, remarkCodeMeta],
+      rehypePlugins: [[rehypeHeadings, { headings }]],
+    });
+    modules.set(moduleName(slug), String(compiled));
+  } catch (error) {
+    errors.push(`${file} does not compile: ${error.message}`);
+    continue;
+  }
+
+  const updated = lastChanged(file);
+  if (updated && (!siteUpdated || Date.parse(updated) > Date.parse(siteUpdated))) siteUpdated = updated;
+  pages[slug] = {
+    title: String(data.title),
+    sidebarTitle: data.sidebarTitle === undefined ? undefined : String(data.sidebarTitle),
+    description: data.description === undefined ? undefined : String(data.description),
+    body,
+    headings,
+    ...(updated ? { updated } : {}),
+  };
+}
+
+if (errors.length) {
+  for (const error of errors) console.error(`content: ${error}`);
+  process.exit(1);
+}
+
+modules.set(
+  "index.ts",
+  [
+    "// Generated by scripts/build-content.mjs. Do not edit.",
+    'import type { MDXContent } from "mdx/types";',
+    "",
+    "type PageModule = { default: MDXContent };",
+    "",
+    "export const pageModules: Record<string, () => Promise<PageModule>> = {",
+    ...Object.keys(pages).map((slug) => `  ${JSON.stringify(slug)}: () => import("./${moduleName(slug)}") as Promise<PageModule>,`),
+    "};",
+    "",
+  ].join("\n"),
+);
+
+function writeIfChanged(path, content) {
+  if (existsSync(path) && readFileSync(path, "utf8") === content) return;
+  writeFileSync(path, content);
+}
+
+mkdirSync(MDX_OUT, { recursive: true });
+for (const [name, content] of modules) writeIfChanged(join(MDX_OUT, name), content);
+for (const name of readdirSync(MDX_OUT)) if (!modules.has(name)) rmSync(join(MDX_OUT, name));
+writeIfChanged(join(OUT, "content.json"), JSON.stringify({ ...(siteUpdated ? { siteUpdated } : {}), navigation, pages }));
+
+console.log(`content: ${Object.keys(pages).length} pages compiled${historyUsable ? "" : " (shallow clone: no last-changed dates)"}.`);

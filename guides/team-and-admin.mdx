@@ -1,0 +1,105 @@
+---
+title: "Manage organization, projects, team, and governance"
+sidebarTitle: "Team and Admin"
+description: "Configure projects, invite team members, manage API keys and guardrails, set up SSO, and review billing basics in Caveman Cloud."
+---
+
+Caveman Cloud administration is organized around projects, identity, credentials, data policy, and billing. This guide explains how to set up your organization, invite your team, govern gateway access, and keep your account in good standing.
+
+## Projects and identity
+
+Use these console surfaces to manage your organization:
+
+| Page | Purpose |
+| --- | --- |
+| **Projects** | Project membership and repository connections |
+| **Team** | Members and role assignments |
+| **SSO** | OIDC, SCIM, and group mappings |
+
+Organization identity comes from verified authentication, never an input field. Organization roles and project assignments both matter; a visible page does not guarantee permission for every mutation. Keep an operator recovery path when changing identity configuration and verify sign-in using the intended role.
+
+<Steps>
+  <Step title="Create or select a project">
+    Open **Projects** to see your existing projects or create a new one. Each project holds its own workloads, traces, and gateway configuration.
+  </Step>
+  <Step title="Connect a repository">
+    From the project settings, connect a repository using your operator's authorized installation. Repository discovery, observed traffic, registered identity, and executable bindings are separate facts.
+  </Step>
+  <Step title="Invite team members">
+    Open **Team** to invite members and assign roles. Identity administration remains a human operation.
+  </Step>
+  <Step title="Configure SSO (optional)">
+    Open **SSO** to set up OIDC, SCIM, and group mappings. Follow your identity provider's documentation and verify a test sign-in before requiring SSO for all users.
+  </Step>
+</Steps>
+
+## Gateway governance
+
+Use **Governance** to manage API keys, access, budgets, and guardrails. For full detail, see the [Governance and billing overview](/governance/overview).
+
+### API keys
+
+**Governance → Keys** manages API keys and their lifecycle. Create keys for different workloads or environments, rotate them on a schedule, and revoke compromised keys immediately.
+
+Keep provider credentials and webhook or monitor egress targets under operator control. Do not copy secrets into manifests, prompts, traces, or support reports. A Cloud access token and a gateway inference key have different audiences. See [API keys](/governance/api-keys) for scopes, per-key limits, and rotation.
+
+### Access control
+
+**Governance → Access** sets the project's allowed providers and models and its project-wide request limits. Per-key model and IP allowlists narrow these further. See [Access and limits](/governance/access-and-limits).
+
+### Budgets
+
+**Governance → Budgets** manages spend limits. The gateway can enforce hard budgets that block traffic at admission, and soft spend alerts that notify you when thresholds are crossed. See [Budgets](/governance/budgets) and [Cost allocation](/governance/cost-allocation).
+
+### Guardrails
+
+**Governance → Guardrails** defines checks that run against requests. Test a guardrail with `policy.test_guardrails` before publishing an authorized policy change. That test does not publish configuration. Re-read state and delivery acknowledgments after publishing; a saved configuration is not proof the gateway applied it.
+
+## Data retention and audit
+
+**Governance → Data** controls consent, capture, redaction, and retention.
+
+- Metadata availability does not imply payload capture.
+- Respect purpose, retention, and permission checks when drafting datasets from traffic.
+- Missing or expired captures stay unavailable.
+- Redaction and retention changes do not retroactively prove deletion; inspect the applicable audit and purge evidence.
+
+### Audit log
+
+**Governance → Audit** records supported administrative actions. Use its actor, resource, time, and outcome to verify a change. No returned audit record is a coverage limit, not proof that no action occurred.
+
+## Connections and billing
+
+### Imports and exports
+
+Use **Imports & Exports** for supported data movement and connector setup. GitHub, GitLab, external usage connectors, and webhooks each have their own credential and authority ceremonies. Inspect delivery and test status; retry acceptance is not successful delivery.
+
+### Billing
+
+**Billing** shows your plan, this month's usage per product against its free allowance, and billing limits. Agents may read usage; only owners and billing contacts can add a card, set limits, or change packages. See [Billing](/governance/billing) for plans, pricing tiers, and packages, and [Cost allocation](/governance/cost-allocation) for showback and chargeback.
+
+Three cost figures are shown with distinct labels:
+
+| Figure | What it means |
+| --- | --- |
+| **Measured cost** | Public list price times provider-reported tokens. Not an invoice. |
+| **Inferred headroom** | A modeled per-day rate of dollars that could be recovered. Nothing has happened yet. |
+| **Verified savings** | Dollars actually not paid because a Caveman transform caused a provider-measured delta. Zero without qualifying evidence. |
+
+### Settings
+
+Open **Settings → Security** to manage session and authentication policies. Open **Settings → Judges** to configure judge models and rubrics used across evals.
+
+## Security best practices
+
+- Rotate API keys regularly and revoke unused ones.
+- Use separate keys for production and development workloads.
+- Enable SSO for your organization before scaling team access.
+- Review the audit log after any administrative change.
+- Keep provider keys in environment variables, never in source control.
+
+## Next steps
+
+- [Connect a workload and start observing traffic](/guides/connect-workload)
+- [Control optimizations and guardrails](/guides/control-optimizations)
+- [Set up Automation for continuous improvements](/guides/automation)

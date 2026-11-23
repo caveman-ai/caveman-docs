@@ -1,0 +1,162 @@
+---
+title: "Deployment options: hosted, your cloud, or on-prem"
+sidebarTitle: "Deployment Options"
+description: "Choose between hosted Caveman Cloud, a customer-owned install in AWS or GCP, or on-prem deployment. Compare data residency, key custody, backups, and control."
+---
+
+Caveman Cloud offers three deployment shapes: fully hosted by Caveman, a customer-owned install in your AWS or GCP account, or an on-premises deployment. All three run the same signed release and the same Helm chart. Your choice determines where data lives, who holds the keys, and who operates the infrastructure.
+
+## Deployment shapes at a glance
+
+| Dimension | Hosted Cloud | Customer-owned (your VPC) | On-premises |
+| --- | --- | --- | --- |
+| **Where data lives** | GCP `europe-west4`; ClickHouse Cloud in the same region | Your AWS or GCP account, your region | Your datacenter |
+| **Who operates** | Caveman | Caveman under agreement, or your team | Your team |
+| **Who holds provider keys** | Stored keys sealed under Cloud KMS; per-request `x-cave-upstream-key` also supported | Stored keys off by default; operator enables if desired. Per-request keys supported | Same as customer-owned |
+| **KMS** | Google Cloud KMS | Your KMS (AWS KMS or GCP Cloud KMS) | Your KMS |
+| **Object store** | GCS | Your S3 or GCS | Your S3-compatible store |
+| **Training data sharing** | Tier-conditioned (Free may not opt out; Enterprise cannot turn on) | Locked off for Enterprise and customer installs | Locked off |
+| **Backups** | Cloud SQL 30 days, Valkey 30 days, ClickHouse Cloud 7 days, portable export 30 days | Your responsibility; Terraform provisions daily backups to your buckets | Your responsibility |
+| **Network** | Cloudflare reverse proxy; no EU-only processing claim | Your VPC, your ingress, your WAF | Your network |
+| **Signed image release** | Yes | Yes | Yes |
+| **Local tools work without Cloud** | Yes | Yes | Yes |
+
+## Hosted Cloud
+
+Hosted Caveman Cloud is the fastest path to value. You create a project, generate an API key, and swap the base URL. Caveman operates the gateway, control plane, telemetry store, and web console on GCP `europe-west4` with ClickHouse Cloud in the same region, behind Cloudflare.
+
+### Data handling
+
+- Request and response bodies are kept by default, redacted and envelope-encrypted under AES-256-GCM with a per-object data key wrapped by Cloud KMS.
+- Switch **Raw payload storage** off in **Governance > Data** to keep metadata only.
+- Any request can send `x-cave-retention: metadata` or `x-cave-retention: zdr` to override retention for that call.
+- Enterprise traffic is never used to train Caveman's models. Free and pay-as-you-go plans have tier-conditioned defaults.
+
+### Subprocessors
+
+The authoritative list is at `caveman.so/legal/subprocessors`. Key parties include Google Cloud (compute, storage, KMS), ClickHouse Cloud (telemetry), and Cloudflare (TLS and DDoS protection). Your model providers are your own processors, not Caveman subprocessors, because traffic reaches them with your key under your agreement.
+
+### Backups
+
+- Cloud SQL: daily backups, 30 kept in production, plus 7 days of point-in-time recovery logs.
+- Memorystore Valkey: daily backups, 30 days in production.
+- ClickHouse Cloud: 7 days in production.
+- Portable export: locked GCS bucket with a 30-day retention lock, deleted the day after.
+
+See [Data and Privacy](/concepts/data-and-privacy) for retention controls and deletion behavior.
+
+## Customer-owned: your VPC on AWS or GCP
+
+The customer-owned install runs the full stack in your AWS or GCP account, operated by Caveman under a separate agreement. You bring your own PostgreSQL, Valkey, and object store. ClickHouse runs either in-cluster or as an external endpoint you manage.
+
+### Infrastructure
+
+Terraform roots are provided for AWS and GCP private installs:
+
+| Cloud | What the Terraform root provisions |
+| --- | --- |
+| AWS | EKS, RDS, ElastiCache (Valkey), S3, IRSA, WAF, ALB |
+| GCP | GKE, Cloud SQL, Memorystore, GCS, workload identity |
+
+One Helm chart deploys the application. The installer is a signed release archive; no source checkout or build is required. You provide a small `site.yaml` for admin CIDRs, identity-provider origins, and ingress TLS Secret names.
+
+### ClickHouse placement
+
+Set `clickhouse_placement` to decide where ClickHouse runs:
+
+- `in-cluster` (default for customer installs): one replica in your cluster, TLS on 8443, daily backups to your own bucket. Requires a node with 3 allocatable CPU and 10Gi memory, plus an expandable StorageClass.
+- `external`: any ClickHouse you run privately, such as ClickHouse Cloud BYOC in your account. Set `external_clickhouse` with hostname, private IPv4, port, admin user, and optional SNI and CA.
+
+Switching placement after install is refused until a separate migration is planned.
+
+### Key custody on customer installs
+
+Stored provider keys are **off by default** on customer installs. The operator sets `providers.storedCredentialsEnabled: true` to allow storing team keys sealed under your KMS. Without stored keys, traffic must send `x-cave-upstream-key` per request. Provider secrets are never returned to clients and never logged in plaintext.
+
+### Data collection switch
+
+An operator can set `dataCollection.enabled: false` in the site values to keep the entire installation metadata-only. In this mode:
+
+- No request content is kept anywhere (captures, compression originals, SDK artifacts, response cache, shared contexts, OTLP log bodies).
+- Compression and the exact response cache are disabled for every organization.
+- Bodies already kept expire with their window.
+- Enterprise and customer installs never share data for training.
+
+### Private agent execution
+
+Native agent execution (the Factory and Sentinel agents) remains disabled until its private backend is qualified. The chart accepts the agent configuration keys, but agent workloads refuse to start until the backend passes qualification.
+
+### Backups on customer installs
+
+Your backups are your own. Terraform provisions:
+
+- RDS or Cloud SQL backups to your retention policy.
+- Valkey daily snapshots to your bucket.
+- In-cluster ClickHouse backups to your own bucket via workload identity or IRSA.
+
+The retention worker enforces organization-deletion and window-based purges daily, but backup copies age out on your schedule.
+
+## On-premises
+
+On-premises deployment uses the same signed release and Helm chart, running in your datacenter on your bare metal or virtualized Kubernetes. You supply:
+
+- A Kubernetes cluster
+- PostgreSQL, Valkey, and an S3-compatible object store
+- Your own ClickHouse (in-cluster or external)
+- Your KMS for envelope encryption
+
+The installer expects the same `platform.json` and `site.yaml` inputs. Operational telemetry stays in your ClickHouse. Air-gapped operation is not implied by the dedicated offer; contact us to discuss the exact boundary.
+
+## Local-only tools
+
+The `caveman` CLI and local proxy (`caveman start` / `wrap`) run on your own machine with no account. They compress traffic BYOK and stay `inferred`-only (no verified savings). Prompts and responses go from your machine to your provider. The CLI sends usage telemetry to Caveman by default, which you can disable with `caveman telemetry off` or `CAVEMAN_TELEMETRY=0`.
+
+Coding-agent routing: Caveman gets a routing ask, not the request. Traffic goes to your provider with your key. If Cloud is unreachable, local tools keep working.
+
+## Comparison matrix
+
+| Capability | Hosted Cloud | Customer-owned AWS | Customer-owned GCP | On-premises |
+| --- | --- | --- | --- | --- |
+| Managed gateway | Yes | Yes (in your account) | Yes (in your account) | Yes (your cluster) |
+| BYOK provider keys | Yes | Yes | Yes | Yes |
+| Stored provider keys | Yes, sealed under Cloud KMS | Off by default; operator enables | Off by default; operator enables | Off by default; operator enables |
+| Your KMS | N/A | AWS KMS | GCP Cloud KMS | Your KMS |
+| Data residency | GCP `europe-west4` | Your region | Your region | Your datacenter |
+| Network ingress | Cloudflare | Your ALB + WAF | Your Cloud Load Balancer | Your ingress |
+| ClickHouse | ClickHouse Cloud | In-cluster or external | In-cluster or external | In-cluster or external |
+| Training data sharing | Tier-conditioned | Locked off | Locked off | Locked off |
+| Backup responsibility | Caveman | You | You | You |
+| Metadata-only mode | Per org | Per install (`dataCollection.enabled: false`) | Per install | Per install |
+| ZDR per request | Yes (`x-cave-retention: zdr`) | Yes | Yes | Yes |
+| SSO (SAML/OIDC) | Yes | Yes | Yes | Yes |
+| Signed release | Yes | Yes | Yes | Yes |
+| Private agent execution | When qualified | When qualified | When qualified | When qualified |
+
+## How to choose
+
+- **Choose Hosted Cloud** if you want the fastest setup, do not need data in a specific region, and prefer Caveman to operate the infrastructure.
+- **Choose Customer-owned** if you need data in your own cloud account, your own KMS, or your own backup regime. This is the standard Enterprise offer.
+- **Choose On-premises** if you need physical control of the hardware and network, or if regulatory requirements forbid hosted or cloud-managed infrastructure.
+- **Use Local tools** for individual development, privacy-sensitive experiments, or as a fallback when Cloud is unreachable.
+
+## Talk to us
+
+Every Enterprise deployment is scoped to your account, region, access, backups, and deletion responsibilities. The agreement identifies each. Legal documents (DPA, Terms, Privacy Policy) are drafts; request current versions from `contact@caveman.so`.
+
+<CardGroup cols={2}>
+  <Card title="Book a conversation" icon="calendar" href="https://cal.com/caveman/chat">
+    Discuss your workload, region, and compliance requirements with our team.
+  </Card>
+
+  <Card title="Security Review" icon="shield-halved" href="/solutions/security-review">
+    Architecture, encryption, tenant isolation, and honest compliance status.
+  </Card>
+
+  <Card title="Engineering Leaders" icon="users" href="/solutions/engineering-leaders">
+    Governance, risk model, vendor neutrality, and pilot checklist.
+  </Card>
+
+  <Card title="Data and Privacy" icon="lock" href="/concepts/data-and-privacy">
+    Retention, consent, encryption, and deletion controls.
+  </Card>
+</CardGroup>

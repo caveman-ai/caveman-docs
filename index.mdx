@@ -1,0 +1,132 @@
+---
+title: "Caveman Cloud: see what your agents cost and cut it"
+sidebarTitle: "Introduction"
+description: "Caveman Cloud records the agents your team runs and ships, ties their cost to the work they did, and counts a saving only once production proves it."
+---
+
+Caveman Cloud shows what your agents cost and cuts it, with proof. It records the coding agents your team runs and the agents you ship, ties what they cost to the work they did, finds waste, and tests each proposed change against your own traffic before it ships. Traffic reaches it three ways: point an SDK at the Caveman gateway, route your coding agents through it, or send OpenTelemetry traces from a gateway you already run, such as LiteLLM.
+
+Caveman Cloud is self-driving software for your LLM stack. Built-in agents observe your traffic, evaluate candidate changes, prove them with evidence, and propose improvements. You stay in control and approve what ships. The loop runs continuously: **Observe, Diagnose, Generate, Evaluate, Deploy, Learn**.
+
+What sets Caveman apart is that it proves its own claims. Every number carries a label (measured, inferred, tested, or verified), changes ship only after they clear eval gates, the default path is byte-safe, and verified savings start at an honest \$0. Read [Why Caveman](/why-caveman) for the full picture.
+
+## Choose your path
+
+<CardGroup cols={3}>
+  <Card title="Developers" icon="code" href="/solutions/developers">
+    Integrate in one line, label traffic, control optimizations per request, and debug with traces, SQL, and evals.
+  </Card>
+
+  <Card title="CTOs and Platform Leads" icon="sitemap" href="/solutions/engineering-leaders">
+    Govern AI spend across teams, agents, and coding tools with eval-gated rollouts, RBAC, and audit.
+  </Card>
+
+  <Card title="CFOs and Finance" icon="chart-line" href="/solutions/finance">
+    Understand what each number means, which savings are verified, and how to report them with confidence.
+  </Card>
+</CardGroup>
+
+<CardGroup cols={3}>
+  <Card title="30-Day Adoption Playbook" icon="calendar-check" href="/solutions/adoption-playbook">
+    Connect, diagnose, prove, and report in four weeks.
+  </Card>
+
+  <Card title="Security Review" icon="shield-halved" href="/solutions/security-review">
+    Hosting, encryption, key custody, tenant isolation, and data policy.
+  </Card>
+
+  <Card title="Deployment Options" icon="server" href="/solutions/deployment-options">
+    Hosted Cloud, your own VPC, on-prem, or local-only tools.
+  </Card>
+</CardGroup>
+
+## Let AI drive
+
+<CardGroup cols={2}>
+  <Card title="Connect Your Coding Agent" icon="robot" href="/guides/connect-coding-agent">
+    Give Claude Code, Codex, or Cursor access to your project over MCP.
+  </Card>
+
+  <Card title="Automated AI Setup" icon="wand-magic-sparkles" href="/guides/ai-setup">
+    Paste one prompt and let your coding agent wire up the gateway, evals, and baseline.
+  </Card>
+
+  <Card title="Built-in AI" icon="sparkles" href="/concepts/built-in-ai">
+    See how Ask Caveman, Improvements, judges, and rollouts work together.
+  </Card>
+
+  <Card title="Improvements" icon="arrows-rotate" href="/guides/improvements">
+    Review agent-generated changes backed by Evidence reports before they ship.
+  </Card>
+</CardGroup>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Send your first request through the Gateway and see it in Traces within minutes.
+  </Card>
+
+  <Card title="Connect a Workload" icon="plug" href="/guides/connect-workload">
+    Route agent or application traffic with a base-URL swap and two headers.
+  </Card>
+
+  <Card title="How It Works" icon="book-open" href="/concepts/how-it-works">
+    Understand the Observe to Learn loop and how Caveman Cloud handles your traffic.
+  </Card>
+
+  <Card title="OpenAI Integration" icon="code" href="/integrations/openai">
+    Point the OpenAI SDK (TypeScript or Python) at the Caveman gateway.
+  </Card>
+
+  <Card title="TypeScript SDK" icon="brackets-angle" href="/sdks/typescript">
+    Trace workflows, search tools, and export telemetry from your application.
+  </Card>
+
+  <Card title="CLI" icon="terminal" href="/cli/cvm">
+    Query traces, run SQL, and operate the control plane from the terminal.
+  </Card>
+</CardGroup>
+
+## Onboarding
+
+<Steps>
+  <Step title="Sign in to the console">
+    Open your Caveman Cloud console and sign in. If you were invited to a project, you land directly in that workspace.
+  </Step>
+  <Step title="Create a project and API key">
+    Go to **Gateway, Connect** to create a project, then generate a Cave API key. Copy the key and your gateway URL. The gateway URL has no trailing slash.
+  </Step>
+  <Step title="Set environment variables">
+    Export `CAVE_API_KEY` with your Cave key and `CAVE_GATEWAY_URL` with your gateway origin. Keep your upstream provider key separate.
+  </Step>
+  <Step title="Swap the base URL">
+    Change the `baseURL` on your OpenAI or Anthropic client to `${CAVE_GATEWAY_URL}/openai/v1` or the matching provider path. Add the `x-cave-upstream-key` header when the provider key is not stored in Caveman Cloud.
+  </Step>
+  <Step title="Send a request and view the trace">
+    Run one chat completion or agent turn. Open **Traces** in the console to inspect the request, model, usage, and latency.
+  </Step>
+</Steps>
+
+## Core surfaces
+
+| Surface | What you do with it |
+| --- | --- |
+| Gateway | Route traffic, apply optimizations per request, and record usage with provider-compatible endpoints. |
+| Traces | Inspect every request, its cost, latency, and outcome. Search by agent, workflow, model, and time. |
+| Workloads | Register and observe the agents and applications sending traffic to your project. |
+| Improvements | Run improvement attempts against recorded traffic, evaluate changes with test cases, and review Evidence reports. |
+| Ask Caveman | Investigate traces and workloads with an agent-assisted conversational interface. |
+| Automation | Configure monitors and rules that watch traffic and surface decisions in the Inbox. |
+| Inbox | Review what Caveman noticed, what it did, and what needs your decision across every subsystem. |
+| SQL | Run read-only ClickHouse SELECT over your project's requests, spans, tool events, evals, and logs. |
+
+## Savings evidence
+
+Caveman Cloud reports three kinds of numbers, and it keeps them separate:
+
+- **Measured spend** records observed usage and its pricing basis.
+- **Inferred savings** describe an estimate or counterfactual, not a guaranteed invoice reduction.
+- **Verified savings** require a supported accounting method and qualifying evidence. They stay zero when that evidence is absent.
+
+See [Savings Evidence](/concepts/savings-evidence) for the full contract, [Optimization Catalog](/concepts/optimizations) for what each optimization changes, and [Reporting Savings](/solutions/reporting-savings) for turning these numbers into a monthly finance report.

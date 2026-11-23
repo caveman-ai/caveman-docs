@@ -1,0 +1,25 @@
+# Python SDK & LiteLLM
+
+> Source: caveman-ai/cloud-sdk/docs/sdk-python.mdx
+
+`caveman-sdk` is a zero-dependency Python 3.13+ client (imported as `caveman_cloud`) with full type annotations (`py.typed`) and a companion LiteLLM connector.
+
+## Install
+
+```bash
+pip install caveman-sdk
+```
+
+## Gateway tracing & Cloud client
+
+```python
+from caveman_cloud import Cave, Cloud
+
+cave = Cave(api_key=os.environ["CAVE_API_KEY"], gateway_url="https://gateway.caveman.so")
+cloud = Cloud(control_url="https://api.caveman.so", token=os.environ["CAVE_TOKEN"])
+projects = cloud.projects.list()
+```
+
+## LiteLLM connector
+
+The `python/caveman-litellm` package plugs into LiteLLM proxy callbacks to forward routing decisions and trace metadata through Caveman.

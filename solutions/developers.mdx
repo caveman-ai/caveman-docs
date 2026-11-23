@@ -1,0 +1,387 @@
+---
+title: "Caveman for developers: integrate, debug, and optimize"
+sidebarTitle: "Developers"
+description: "Integrate Caveman, label traffic, control optimizations per request, debug with Traces, query with cvm sql, run evals in CI, and connect agents over MCP."
+---
+
+Caveman Cloud is built for developers: swap the base URL, keep your provider key, and every call becomes a trace you can inspect, label, query, and optimize. This page is the deep developer path, from your first request to running evals in CI and wiring Caveman into your local coding agent.
+
+<Steps>
+  <Step title="Day 1: send one traced request">
+    [Create a Cave API key](/quickstart) in the console, set two environment variables, and change your client's base URL. Keep your upstream provider key in `x-cave-upstream-key` or store it once in **Gateway, Connections** and drop the header.
+
+    <CodeGroup>
+
+    ```typescript TypeScript
+    import OpenAI from "openai";
+    
+    const client = new OpenAI({
+      apiKey: process.env.CAVE_API_KEY,
+      baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
+      defaultHeaders: {
+        "x-cave-upstream-key": process.env.OPENAI_API_KEY!,
+        "x-cave-agent": "support-agent",
+        "x-cave-workflow": "resolve-ticket",
+      },
+    });
+    
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Hello, Caveman" }],
+    });
+    ```
+
+    ```python Python
+    import os
+    from openai import OpenAI
+    
+    client = OpenAI(
+        api_key=os.environ["CAVE_API_KEY"],
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/openai/v1",
+        default_headers={
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],
+            "x-cave-agent": "support-agent",
+            "x-cave-workflow": "resolve-ticket",
+        },
+    )
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Hello, Caveman"}],
+    )
+    ```
+
+    </CodeGroup>
+
+    Open **Traces** in the console, filter by agent and workflow, and confirm the request, cost, latency, and tokens are visible.
+  </Step>
+  <Step title="Week 1: label, control, and debug">
+    **Label traffic** with `x-cave-agent` and `x-cave-workflow`. Labels do not grant access, but they power every report: spend per agent, per workflow, per merged PR. Choose values that match your application structure and keep casing consistent.
+
+    **Control optimizations per request** with `x-cave-optimize`. Pass `off` to go byte-identical, `compress` to request compression, or `no-cache` to disable one optimizer while leaving others running.
+
+    ```bash
+    curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
+      -H "authorization: Bearer ${CAVE_API_KEY}" \
+      -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
+      -H "x-cave-optimize: no-cache,no-compress" \
+      -H "content-type: application/json" \
+      -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}'
+    ```
+
+    The gateway answers with disclosure headers:
+
+    | Header | Meaning |
+    | --- | --- |
+    | `x-cave-optimize-applied` | Comma list of opt-ups that ran |
+    | `x-cave-optimize-denied` | `token=reason` pairs for refused opt-ups |
+    | `x-cave-response-cache` | Cache outcome: `hit`, `miss`, `shadow_hit`, etc. |
+
+    Use the SDK's `parseReceipt` to read them. The SDKs also translate options into the same header bytes.
+
+    ```typescript TypeScript
+    import { parseReceipt } from "@caveman-ai/sdk";
+    const receipt = parseReceipt(response.headers);
+    // receipt.optimizeApplied, receipt.optimizeDenied, receipt.responseCache
+    ```
+
+    ```python Python
+    from caveman_cloud import parse_receipt
+    receipt = parse_receipt(response.headers)
+    ```
+
+    **Debug with Traces**. Every request becomes a trace. Click a trace to inspect spans, see provider-reported tokens, inferred compression estimates, and the exact headers that were sent. If a trace is missing, check the auth header, gateway URL spelling, and provider path.
+
+    **Set retention per request** with `x-cave-retention: metadata` or `x-cave-retention: zdr` to refuse payload storage for a single call. This is honored on every plan.
+  </Step>
+  <Step title="Month 1: query, evaluate, and automate">
+    **Query with `cvm sql`**. The CLI runs read-only ClickHouse SELECT over your project's tables.
+
+    ```bash
+    cvm sql "SELECT model, count() AS n, sum(total_cost_usd) AS cost FROM requests GROUP BY model" --window 7d
+    ```
+
+    Results include columns, rows, elapsed time, and a query digest you can cite as evidence. Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. People get up to 10,000 rows, 8 MiB, and 30 seconds.
+
+    **Run evals in CI**. Author strict suites of test cases, run them with the CLI, and gate merges on the exit code. Evals clear the evidence gates that let behavioral optimizations run in production.
+
+    ```bash
+    cvm evals run --suite my-suite --wait
+    if [ $? -ne 0 ]; then echo "Eval failed"; exit 1; fi
+    ```
+
+    **Connect your coding agent over MCP**. Claude Code, Codex, or Cursor can search traces, run SQL, and read reports directly from your editor. Open **Connect your coding agent** in the console, approve the project binding, and verify with `caveman_context`. The agent gets metadata reads by default; content and authoring are opt-in.
+  </Step>
+</Steps>
+
+## Authentication
+
+Caveman Cloud uses two separate credentials. The **Cave API key** authenticates you to Caveman Cloud. The **upstream provider key** authenticates to the model provider. The gateway reads `x-cave-api-key` first and falls back to `authorization: Bearer <key>`. For full details and common errors, see [Authentication](/authentication).
+
+## Per-request optimization control
+
+Optimizations are a project-level setting, but a single request can ask for or disable specific ones. The gateway checks the project policy, capability, and evidence gate before applying anything. A request never grants itself permission.
+
+| Token | Meaning |
+| --- | --- |
+| `off` | Pass through byte-identical |
+| `no-cache` | Disable prompt cache hints |
+| `no-compress` | Disable compression |
+| `no-route` | Disable model routing |
+| `compress` | Request compression |
+| `compress=lossless` | Request lossless JSON tool output compression |
+| `cache-hints` | Request prompt cache hints (normally on by default) |
+| `style=caveman` | Add terse output shaping instruction |
+| `style=off` | Do not add output shaping for this request |
+
+Unknown tokens return 400 `cave_invalid_optimize_override`. The gateway never guesses what you meant.
+
+### SDK per-request control
+
+<CodeGroup>
+
+```typescript TypeScript
+// Pass this request byte-identical
+await cave.openai().responses.create(body, { cave: { optimize: "off" } });
+
+// Disable cache hints and compression
+await cave.openai().responses.create(body, {
+  cave: { optimize: { cacheHints: false, compress: false } },
+});
+
+// Request compression and a style
+await cave.openai().responses.create(body, {
+  cave: { optimize: { compress: true, style: "caveman" } },
+});
+```
+
+```python Python
+# Pass this request byte-identical
+cave.openai().responses.create(body, optimize="off")
+
+# Disable cache hints and compression
+cave.openai().responses.create(
+    body, optimize={"cache_hints": False, "compress": False}
+)
+
+# Request compression and style
+cave.openai().responses.create(
+    body, optimize={"compress": True, "style": "caveman"}
+)
+```
+
+</CodeGroup>
+
+## Response receipts
+
+Every response carries disclosure headers. Parse them with the SDK, or read them directly:
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-optimize-applied` | Opt-ups that ran |
+| `x-cave-optimize-denied` | `token=reason` pairs |
+| `x-cave-cache-mode` | Response cache mode applied |
+| `x-cave-response-cache` | Cache outcome |
+| `x-cave-cache-status` | Provider prompt cache outcome |
+
+`tokensBefore` and `tokensAfter` are inferred estimates from the compressor, not provider counts. If `recoveryHandle` is present, you can retrieve the byte-exact original.
+
+## Retention per request
+
+Any request can tighten retention for that call only:
+
+| Header | Behavior |
+| --- | --- |
+| `x-cave-retention: metadata` | Store metadata only, no payload |
+| `x-cave-retention: zdr` | Zero data retention: no prompt, response, tool result, or artifact bodies |
+
+These are honored on every plan and override the project's default for that request only. For org-wide retention settings, see [Data and Privacy](/concepts/data-and-privacy).
+
+## Debugging with Traces
+
+The **Traces** page in the console shows every request, with model, tokens, latency, cost, and the agent and workflow labels you attached. Click a trace to inspect:
+
+- Request and response spans
+- Provider-reported usage vs inferred estimates
+- Applied and denied optimizations
+- Compression ratios and recovery handles
+- The exact headers sent
+
+If you do not see a trace:
+
+- Confirm `authorization: Bearer <Cave key>` is present
+- Check that `CAVE_GATEWAY_URL` has no trailing slash
+- Verify the provider path matches your SDK (`/openai/v1`, `/anthropic`, etc.)
+- Ensure `x-cave-upstream-key` is present or a stored connection is configured
+
+For deeper walkthroughs, see [Traces and Spend](/guides/traces-and-spend) and [Query with SQL](/guides/query-with-sql).
+
+## Querying with `cvm sql`
+
+The `cvm` CLI gives you read-only SQL over your project's telemetry.
+
+```bash
+cvm sql --schema                              # list tables
+cvm sql --schema requests                      # columns for requests
+cvm sql "SELECT model, count() AS n FROM requests GROUP BY model" --window 7d
+cvm sql -f spend.sql --from 2026-09-01 --to 2026-09-08 --format csv
+```
+
+Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. People get up to 10,000 rows, 8 MiB, and 30 seconds. Results include `query_digest`, which you can cite as evidence.
+
+For the full SQL guide, see [Query with SQL](/guides/query-with-sql).
+
+## Evals in CI
+
+Evaluations are strict suites of test cases that prove a proposed change does not break quality. Run them in CI and gate merges on the result.
+
+```bash
+cvm evals run --suite my-suite --wait
+# Exit code 0 = passed, 5 = gate failed, 6 = timeout/running
+```
+
+A PR or passing eval is a proposal, never a saving. Only verified methods on production traffic count savings. See [Evals](/guides/evals) for how to author suites and evaluators.
+
+## MCP from your coding agent
+
+Connect Claude Code, Codex, or Cursor to Caveman Cloud over MCP so the agent can inspect traces, run SQL, and read reports.
+
+1. Open **Connect your coding agent** in the console
+2. Select your client and approve the project binding
+3. Call `caveman_context` from the agent to verify the connection
+
+The six stable tools are `caveman_context`, `caveman_search`, `caveman_describe`, `caveman_read`, `caveman_write`, and `caveman_draft`. Metadata reads are default; content reads require explicit permission. See [MCP](/cli/mcp) for the full tool reference and protocol details.
+
+## Coding agent routing with the open-source `caveman` CLI
+
+For spend tracking per person, per agent, and per merged change, route your local coding agent through the Caveman gateway using the open-source `caveman` CLI. No account is needed for local tools.
+
+```bash
+npm i -g @caveman-ai/cli
+caveman claude
+```
+
+The CLI sets the base URL and auth headers for the agent profile. Seven profiles are supported: `aider`, `claude`, `codex`, `gemini`, `hermes`, `openclaw`, and `opencode`. Each sets `x-cave-agent` so telemetry knows which agent made the request. For the full setup, see [Connect Coding Agent](/guides/connect-coding-agent).
+
+## SDK features
+
+The TypeScript (`@caveman-ai/sdk`) and Python (`caveman-sdk`, import `caveman_cloud`) packages wrap the gateway's `/sdk/v1/*` contract with zero runtime dependencies.
+
+### Core capabilities
+
+- **Trace workflows**: wrap a unit of work with `cave.trace()` and get helpers for tools, model calls, artifacts, and checkpoints
+- **Per-request control**: set `optimize`, `cache`, and `style` options per call
+- **Model routing**: send `model: "cave-auto"` and let the project's router pick
+- **Receipt parsing**: `parseReceipt` / `parse_receipt` reads disclosure headers
+- **Compression**: `cave.compress()` delegates to the gateway; on failure it passes the original through unchanged
+- **Tool search**: `cave.tools()` returns a catalog handle with `search()` that queries the gateway
+- **OTel exporter**: `cave.exporter()` builds OTLP/JSON by hand and POSTs to `/v1/traces` without external dependencies
+- **Shared context**: hand context between agents in the same project with `cave.sharedContext.put` / `get`
+- **Prompt snippets**: `cave.prompts.internalBrevity()` builds deterministic brevity instructions
+
+### TypeScript quick example
+
+```typescript
+import { Cave } from "@caveman-ai/sdk";
+
+const cave = new Cave({
+  apiKey: process.env.CAVE_API_KEY!,
+  baseURL: process.env.CAVE_GATEWAY_URL!,
+  agent: "ts-sdk-agent",
+  defaultWorkflow: "invoice-flow",
+});
+
+await cave.trace({ workflow: "refund-flow" }, async (trace) => {
+  const order = await trace.tool("lookupOrder", { readOnly: true }, async () => {
+    return db.orders.find(orderId);
+  });
+  const reply = await trace.model.openai.responses.create({
+    model: "gpt-4o",
+    input: `Summarize order ${orderId}`,
+  });
+  return reply;
+});
+```
+
+### Python quick example
+
+```python
+from caveman_cloud import Cave
+
+cave = Cave(
+    api_key=os.environ["CAVE_API_KEY"],
+    base_url=os.environ["CAVE_GATEWAY_URL"],
+    agent="py-sdk-agent",
+    default_workflow="invoice-flow",
+)
+
+with cave.trace("refund-flow") as trace:
+    order = trace.tool("lookup_order", {"read_only": True}, lambda: db_find(order_id))
+    reply = trace.model["openai"].responses.create(
+        {"model": "gpt-4o", "input": f"Summarize order {order_id}"}
+    )
+```
+
+For full SDK documentation, see [TypeScript SDK](/sdks/typescript) and [Python SDK](/sdks/python).
+
+##\_CLI reference
+
+The `cvm` CLI is the terminal interface for Caveman Cloud. Install it with npm, sign in once, and run traces, SQL, evals, and Cloud operations from your shell.
+
+```bash
+npm i -g @caveman-ai/cloud
+cvm login
+cvm context bind    # writes .caveman-cloud.json for this repo
+```
+
+Common commands:
+
+```bash
+cvm traces search --query "model=gpt-4o" --window 1h
+cvm sql "SELECT model, count() AS n FROM requests GROUP BY model" --window 7d
+cvm evals run --suite my-suite --wait
+cvm tools describe traces.search    # exact input schema and permissions
+```
+
+Exit codes for scripting:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | Request failed |
+| `2` | Invalid input (400/422) |
+| `3` | Signed out or forbidden (401/403) |
+| `4` | Conflict (409) |
+| `5` | Comparison or gate failed |
+| `6` | Timeout or still running |
+| `7` | Rate limited (429) |
+
+For the full CLI reference, see [cvm CLI](/cli/cvm).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Get from zero to a live trace in minutes.
+  </Card>
+
+  <Card title="Connect a workload" icon="plug" href="/guides/connect-workload">
+    Route production traffic through the gateway end to end.
+  </Card>
+
+  <Card title="Control optimizations" icon="sliders" href="/guides/control-optimizations">
+    Choose record mode or active optimizations per request.
+  </Card>
+
+  <Card title="Evals" icon="flask" href="/guides/evals">
+    Build test cases and evaluate candidate changes with evidence.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Run read-only SELECT over requests, spans, and tool events.
+  </Card>
+
+  <Card title="MCP" icon="robot" href="/cli/mcp">
+    Connect your coding agent to Caveman Cloud over MCP.
+  </Card>
+</CardGroup>

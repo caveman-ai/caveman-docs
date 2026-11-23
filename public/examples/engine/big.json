@@ -1,0 +1,2882 @@
+[
+  {
+    "event_id": "EVT-7001",
+    "session": "sess_0001",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7002",
+    "session": "sess_0002",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7003",
+    "session": "sess_0003",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7004",
+    "session": "sess_0004",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7005",
+    "session": "sess_0005",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7006",
+    "session": "sess_0006",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7007",
+    "session": "sess_0007",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7008",
+    "session": "sess_0008",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7009",
+    "session": "sess_0009",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7010",
+    "session": "sess_0010",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7011",
+    "session": "sess_0011",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7012",
+    "session": "sess_0012",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7013",
+    "session": "sess_0013",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7014",
+    "session": "sess_0014",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7015",
+    "session": "sess_0015",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7016",
+    "session": "sess_0016",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7017",
+    "session": "sess_0017",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7018",
+    "session": "sess_0018",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7019",
+    "session": "sess_0019",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7020",
+    "session": "sess_0020",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7021",
+    "session": "sess_0021",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7022",
+    "session": "sess_0022",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7023",
+    "session": "sess_0023",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7024",
+    "session": "sess_0024",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7025",
+    "session": "sess_0025",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7026",
+    "session": "sess_0026",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7027",
+    "session": "sess_0027",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7028",
+    "session": "sess_0028",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7029",
+    "session": "sess_0029",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7030",
+    "session": "sess_0030",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7031",
+    "session": "sess_0031",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7032",
+    "session": "sess_0032",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7033",
+    "session": "sess_0033",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7034",
+    "session": "sess_0034",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7035",
+    "session": "sess_0035",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7036",
+    "session": "sess_0036",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7037",
+    "session": "sess_0037",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7038",
+    "session": "sess_0038",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7039",
+    "session": "sess_0039",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7040",
+    "session": "sess_0040",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7041",
+    "session": "sess_0041",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7042",
+    "session": "sess_0042",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7043",
+    "session": "sess_0043",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7044",
+    "session": "sess_0044",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7045",
+    "session": "sess_0045",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7046",
+    "session": "sess_0046",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7047",
+    "session": "sess_0047",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7048",
+    "session": "sess_0048",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7049",
+    "session": "sess_0049",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7050",
+    "session": "sess_0050",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7051",
+    "session": "sess_0051",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7052",
+    "session": "sess_0052",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7053",
+    "session": "sess_0053",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7054",
+    "session": "sess_0054",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7055",
+    "session": "sess_0055",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7056",
+    "session": "sess_0056",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7057",
+    "session": "sess_0057",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7058",
+    "session": "sess_0058",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7059",
+    "session": "sess_0059",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7060",
+    "session": "sess_0060",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7061",
+    "session": "sess_0061",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7062",
+    "session": "sess_0062",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7063",
+    "session": "sess_0063",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7064",
+    "session": "sess_0064",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7065",
+    "session": "sess_0065",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7066",
+    "session": "sess_0066",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7067",
+    "session": "sess_0067",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7068",
+    "session": "sess_0068",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7069",
+    "session": "sess_0069",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7070",
+    "session": "sess_0070",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7071",
+    "session": "sess_0071",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7072",
+    "session": "sess_0072",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7073",
+    "session": "sess_0073",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7074",
+    "session": "sess_0074",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7075",
+    "session": "sess_0075",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7076",
+    "session": "sess_0076",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7077",
+    "session": "sess_0077",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7078",
+    "session": "sess_0078",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7079",
+    "session": "sess_0079",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7080",
+    "session": "sess_0080",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7081",
+    "session": "sess_0081",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7082",
+    "session": "sess_0082",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7083",
+    "session": "sess_0083",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7084",
+    "session": "sess_0084",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7085",
+    "session": "sess_0085",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7086",
+    "session": "sess_0086",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7087",
+    "session": "sess_0087",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7088",
+    "session": "sess_0088",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7089",
+    "session": "sess_0089",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7090",
+    "session": "sess_0090",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7091",
+    "session": "sess_0091",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7092",
+    "session": "sess_0092",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7093",
+    "session": "sess_0093",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7094",
+    "session": "sess_0094",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7095",
+    "session": "sess_0095",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7096",
+    "session": "sess_0096",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7097",
+    "session": "sess_0097",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7098",
+    "session": "sess_0098",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7099",
+    "session": "sess_0099",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7100",
+    "session": "sess_0100",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7101",
+    "session": "sess_0101",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7102",
+    "session": "sess_0102",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7103",
+    "session": "sess_0103",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7104",
+    "session": "sess_0104",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7105",
+    "session": "sess_0105",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7106",
+    "session": "sess_0106",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7107",
+    "session": "sess_0107",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7108",
+    "session": "sess_0108",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7109",
+    "session": "sess_0109",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7110",
+    "session": "sess_0110",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7111",
+    "session": "sess_0111",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7112",
+    "session": "sess_0112",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7113",
+    "session": "sess_0113",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7114",
+    "session": "sess_0114",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7115",
+    "session": "sess_0115",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7116",
+    "session": "sess_0116",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7117",
+    "session": "sess_0117",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7118",
+    "session": "sess_0118",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7119",
+    "session": "sess_0119",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7120",
+    "session": "sess_0120",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7121",
+    "session": "sess_0121",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7122",
+    "session": "sess_0122",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7123",
+    "session": "sess_0123",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7124",
+    "session": "sess_0124",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7125",
+    "session": "sess_0125",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7126",
+    "session": "sess_0126",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7127",
+    "session": "sess_0127",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7128",
+    "session": "sess_0128",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7129",
+    "session": "sess_0129",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7130",
+    "session": "sess_0130",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7131",
+    "session": "sess_0131",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7132",
+    "session": "sess_0132",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7133",
+    "session": "sess_0133",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7134",
+    "session": "sess_0134",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7135",
+    "session": "sess_0135",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7136",
+    "session": "sess_0136",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7137",
+    "session": "sess_0137",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7138",
+    "session": "sess_0138",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7139",
+    "session": "sess_0139",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7140",
+    "session": "sess_0140",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7141",
+    "session": "sess_0141",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7142",
+    "session": "sess_0142",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7143",
+    "session": "sess_0143",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7144",
+    "session": "sess_0144",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7145",
+    "session": "sess_0145",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7146",
+    "session": "sess_0146",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7147",
+    "session": "sess_0147",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7148",
+    "session": "sess_0148",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7149",
+    "session": "sess_0149",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7150",
+    "session": "sess_0150",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7151",
+    "session": "sess_0151",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7152",
+    "session": "sess_0152",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7153",
+    "session": "sess_0153",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7154",
+    "session": "sess_0154",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7155",
+    "session": "sess_0155",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7156",
+    "session": "sess_0156",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7157",
+    "session": "sess_0157",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7158",
+    "session": "sess_0158",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7159",
+    "session": "sess_0159",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7160",
+    "session": "sess_0160",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7161",
+    "session": "sess_0161",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7162",
+    "session": "sess_0162",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7163",
+    "session": "sess_0163",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7164",
+    "session": "sess_0164",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7165",
+    "session": "sess_0165",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7166",
+    "session": "sess_0166",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7167",
+    "session": "sess_0167",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7168",
+    "session": "sess_0168",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7169",
+    "session": "sess_0169",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7170",
+    "session": "sess_0170",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7171",
+    "session": "sess_0171",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7172",
+    "session": "sess_0172",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7173",
+    "session": "sess_0173",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7174",
+    "session": "sess_0174",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7175",
+    "session": "sess_0175",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7176",
+    "session": "sess_0176",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7177",
+    "session": "sess_0177",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7178",
+    "session": "sess_0178",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7179",
+    "session": "sess_0179",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7180",
+    "session": "sess_0180",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7181",
+    "session": "sess_0181",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7182",
+    "session": "sess_0182",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7183",
+    "session": "sess_0183",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7184",
+    "session": "sess_0184",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7185",
+    "session": "sess_0185",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7186",
+    "session": "sess_0186",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7187",
+    "session": "sess_0187",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7188",
+    "session": "sess_0188",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7189",
+    "session": "sess_0189",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7190",
+    "session": "sess_0190",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7191",
+    "session": "sess_0191",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7192",
+    "session": "sess_0192",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7193",
+    "session": "sess_0193",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7194",
+    "session": "sess_0194",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7195",
+    "session": "sess_0195",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7196",
+    "session": "sess_0196",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7197",
+    "session": "sess_0197",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7198",
+    "session": "sess_0198",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7199",
+    "session": "sess_0199",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7200",
+    "session": "sess_0200",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7201",
+    "session": "sess_0201",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7202",
+    "session": "sess_0202",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7203",
+    "session": "sess_0203",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7204",
+    "session": "sess_0204",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7205",
+    "session": "sess_0205",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7206",
+    "session": "sess_0206",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7207",
+    "session": "sess_0207",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7208",
+    "session": "sess_0208",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7209",
+    "session": "sess_0209",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7210",
+    "session": "sess_0210",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7211",
+    "session": "sess_0211",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7212",
+    "session": "sess_0212",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7213",
+    "session": "sess_0213",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7214",
+    "session": "sess_0214",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7215",
+    "session": "sess_0215",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7216",
+    "session": "sess_0216",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7217",
+    "session": "sess_0217",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7218",
+    "session": "sess_0218",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7219",
+    "session": "sess_0219",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7220",
+    "session": "sess_0220",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7221",
+    "session": "sess_0221",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7222",
+    "session": "sess_0222",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7223",
+    "session": "sess_0223",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7224",
+    "session": "sess_0224",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7225",
+    "session": "sess_0225",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7226",
+    "session": "sess_0226",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7227",
+    "session": "sess_0227",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7228",
+    "session": "sess_0228",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7229",
+    "session": "sess_0229",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7230",
+    "session": "sess_0230",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7231",
+    "session": "sess_0231",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7232",
+    "session": "sess_0232",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7233",
+    "session": "sess_0233",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7234",
+    "session": "sess_0234",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7235",
+    "session": "sess_0235",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7236",
+    "session": "sess_0236",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7237",
+    "session": "sess_0237",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7238",
+    "session": "sess_0238",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7239",
+    "session": "sess_0239",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7240",
+    "session": "sess_0240",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7241",
+    "session": "sess_0241",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7242",
+    "session": "sess_0242",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7243",
+    "session": "sess_0243",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7244",
+    "session": "sess_0244",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7245",
+    "session": "sess_0245",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7246",
+    "session": "sess_0246",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7247",
+    "session": "sess_0247",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7248",
+    "session": "sess_0248",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7249",
+    "session": "sess_0249",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7250",
+    "session": "sess_0250",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7251",
+    "session": "sess_0251",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7252",
+    "session": "sess_0252",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7253",
+    "session": "sess_0253",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7254",
+    "session": "sess_0254",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7255",
+    "session": "sess_0255",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7256",
+    "session": "sess_0256",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7257",
+    "session": "sess_0257",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7258",
+    "session": "sess_0258",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7259",
+    "session": "sess_0259",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7260",
+    "session": "sess_0260",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7261",
+    "session": "sess_0261",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7262",
+    "session": "sess_0262",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7263",
+    "session": "sess_0263",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7264",
+    "session": "sess_0264",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7265",
+    "session": "sess_0265",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7266",
+    "session": "sess_0266",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7267",
+    "session": "sess_0267",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7268",
+    "session": "sess_0268",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7269",
+    "session": "sess_0269",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7270",
+    "session": "sess_0270",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7271",
+    "session": "sess_0271",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7272",
+    "session": "sess_0272",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7273",
+    "session": "sess_0273",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7274",
+    "session": "sess_0274",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7275",
+    "session": "sess_0275",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7276",
+    "session": "sess_0276",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7277",
+    "session": "sess_0277",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7278",
+    "session": "sess_0278",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7279",
+    "session": "sess_0279",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7280",
+    "session": "sess_0280",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7281",
+    "session": "sess_0281",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7282",
+    "session": "sess_0282",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7283",
+    "session": "sess_0283",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7284",
+    "session": "sess_0284",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7285",
+    "session": "sess_0285",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7286",
+    "session": "sess_0286",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7287",
+    "session": "sess_0287",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7288",
+    "session": "sess_0288",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7289",
+    "session": "sess_0289",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7290",
+    "session": "sess_0290",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7291",
+    "session": "sess_0291",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7292",
+    "session": "sess_0292",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7293",
+    "session": "sess_0293",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7294",
+    "session": "sess_0294",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7295",
+    "session": "sess_0295",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7296",
+    "session": "sess_0296",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7297",
+    "session": "sess_0297",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7298",
+    "session": "sess_0298",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7299",
+    "session": "sess_0299",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7300",
+    "session": "sess_0300",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7301",
+    "session": "sess_0301",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7302",
+    "session": "sess_0302",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7303",
+    "session": "sess_0303",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7304",
+    "session": "sess_0304",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 55,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7305",
+    "session": "sess_0305",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 56,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7306",
+    "session": "sess_0306",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 40,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7307",
+    "session": "sess_0307",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 41,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7308",
+    "session": "sess_0308",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 42,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7309",
+    "session": "sess_0309",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 43,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7310",
+    "session": "sess_0310",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 44,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7311",
+    "session": "sess_0311",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 45,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7312",
+    "session": "sess_0312",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 46,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7313",
+    "session": "sess_0313",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 47,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7314",
+    "session": "sess_0314",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 48,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7315",
+    "session": "sess_0315",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 49,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7316",
+    "session": "sess_0316",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 50,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7317",
+    "session": "sess_0317",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 51,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7318",
+    "session": "sess_0318",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 52,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7319",
+    "session": "sess_0319",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 53,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  },
+  {
+    "event_id": "EVT-7320",
+    "session": "sess_0320",
+    "action": "page_view",
+    "status": "ok",
+    "latency_ms": 54,
+    "region": "eu-west-1",
+    "path": "/dashboard/reports"
+  }
+]

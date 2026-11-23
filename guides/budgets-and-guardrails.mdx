@@ -1,0 +1,218 @@
+---
+title: "Set Budget Caps, Rate Limits, and Content Guardrails"
+sidebarTitle: "Budgets and Guardrails"
+description: "Configure hard and soft budget caps per project, rate limits per key and workflow, and guardrails that mask or block sensitive content in Caveman Cloud."
+---
+
+Caveman Cloud gives you policy controls to govern spend, shape traffic, and protect data without changing application code. This guide walks through setting hard and soft budgets per project, rate limits per key and per workflow, guardrails that screen prompts and responses, testing rules before you publish them, and verifying changes through the audit log.
+
+## Governance surfaces
+
+Open **Governance** in the console for these controls:
+
+| Page | What it controls |
+| --- | --- |
+| **Keys** | API keys, rotation, and scoped access tokens |
+| **Access** | Allowed runtime access by workload, IP range, or environment |
+| **Budgets** | Hard and soft spend caps per project |
+| **Guardrails** | Content checks that run before or after the upstream call |
+| **Data** | Retention, capture consent, and redaction |
+| **Audit** | Append-only log of administrative actions |
+
+Budget and guardrail decisions require `policy:draft` scope. Testing guardrails requires `policy:draft` as well. Audit log reads need `auditlog:read`.
+
+## Budget caps per project
+
+### Hard budgets
+
+A hard budget blocks traffic at admission when the cap is reached. The gateway reserves a conservative maximum before each upstream call using counted input tokens or `len(body)/2` input tokens, the request's own output cap or 8192 output tokens, at public catalog list prices. If the projected spend would exceed the cap, the gateway returns `429 Too Many Requests` with error code `cave_budget_exceeded`.
+
+```text
+budget exceeded: Hard budget cap reached at public catalog list prices, counting spend already settled plus requests in flight. This is a list-price cap, not a provider invoice.
+```
+
+The response includes headers you can use for monitoring:
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-budget-scope` | The scope that blocked, for example `project` |
+| `x-cave-budget-usd` | The configured hard cap |
+| `x-cave-budget-spend-usd` | Current settled spend |
+| `Retry-After` | Seconds until the budget may reset |
+
+Clients that honor `x-should-retry` (such as OpenCode) stop instead of retrying, because an exhausted cap is not transient.
+
+### Soft budgets
+
+A soft budget does not block requests. When the threshold is crossed, the gateway serves the request and adds alert headers so your monitoring or automation can act:
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-budget-soft-exceeded` | `true` when the soft threshold is crossed |
+| `x-cave-budget-soft-usd` | The configured soft threshold |
+| `x-cave-budget-spend-usd` | Current settled spend |
+
+Soft threshold crossings also feed the budgets dashboard and email alerts. You configure both values under **Governance → Budgets**.
+
+### Budget bypass
+
+Keys with the `admin:bypass_budget` scope skip hard and soft budget checks. Use this only for operational or emergency access, and audit its use regularly.
+
+## Rate limits
+
+### Per-key rate limits
+
+You can set a requests-per-minute (RPM) limit and a concurrency limit on individual API keys under **Governance → Keys**. When a key exceeds its RPM, the gateway returns `429` with error code `cave_key_rate_limit_exceeded`. The response includes `Retry-After` so callers can back off. No `x-should-retry` header is set because rate limits are explicitly transient.
+
+A key's rate limit narrows what the project already allows; it never widens the project limit. If the project RPM is 1 and the key RPM is 100, the project limit still governs.
+
+### Per-workflow spend rate limits
+
+Spend rate limits protect against runaway costs on a rolling window. You can configure:
+
+- **Per-key USD threshold**: total spend allowed for one API key in the window
+- **Per-workflow USD threshold**: total spend allowed for one workflow in the window
+- **Window seconds**: the rolling window duration
+- **Soft block**: when true, exceeded scopes return an advisory refusal; when false, only headers are added
+
+When a spend rate scope is exceeded and soft block is enabled, the gateway returns `429` with error code `cave_spend_rate_soft_limit_exceeded`. The response includes:
+
+| Header | Meaning |
+| --- | --- |
+| `x-cave-spend-rate-soft-exceeded` | `true` |
+| `x-cave-spend-rate-soft-block` | `true` when soft block is on |
+| `x-cave-spend-rate-scopes` | Comma-separated list of exceeded scopes, for example `key,workflow` |
+| `x-cave-spend-rate-key-estimated-usd` | Estimated spend for the key |
+| `x-cave-spend-rate-key-threshold-usd` | Configured key threshold |
+| `x-cave-spend-rate-workflow-estimated-usd` | Estimated spend for the workflow |
+| `x-cave-spend-rate-workflow-threshold-usd` | Configured workflow threshold |
+
+Spend rate accrual is idempotent: duplicate request IDs do not double-count. If Valkey is unavailable, spend rate checks fail open so traffic is not blocked by an infrastructure issue.
+
+## Guardrails
+
+Guardrails screen request and response content for patterns you define. A rule has a kind, a mode (when it runs), an action (what happens on a match), and optional match parameters.
+
+### Rule kinds
+
+| Kind | What it matches | Parameters |
+| --- | --- | --- |
+| **Regex Deny** | Regular expression against request text | `patterns` |
+| **Keyword Block** | Exact keyword match | `keywords` |
+| **Secrets** | Leaked credentials such as API keys | none |
+| **PII** | Personal information such as email | `entities` |
+| **Regex Allow** | Pass-only list; blocks everything else | `patterns` |
+| **HTTP** | Call an external service for a verdict | `url`, `timeoutMS`, `secretRef` |
+
+### Rule modes
+
+- **Pre-call**: screens the request before it reaches the provider
+- **Post-call**: screens the provider's response before it reaches the client
+
+### Rule actions
+
+- **Block**: refuses the request or response with `400 Bad Request`
+- **Mask**: rewrites the matched text in place (for example, `alice@example.com` becomes `[REDACTED:email]`) and forwards the sanitized body
+
+Masking on a pass-through (`record`) body is not allowed because the gateway promised to forward the caller's exact bytes. If a mask rule fires while the project is in `record` mode, the gateway blocks instead.
+
+### Block behavior
+
+When a guardrail blocks, the response is:
+
+- Status `400 Bad Request`
+- Error code `cave_guardrail_blocked` for pre-call blocks
+- Error code `cave_guardrail_blocked_response` for post-call blocks
+- Details naming the `guardrail`, `kind`, and `mode`
+- The refusal message does not echo the matched text or credential
+
+The gateway records guardrail hits in telemetry, including guardrail names and actions, so you can audit them in Traces or query them with SQL.
+
+### Post-call stream screening
+
+For streaming responses, post-call guardrails buffer and screen each chunk. If a secret or blocked pattern is split across fragments, the joined text is still matched. If the stream is too large to buffer, the gateway fails closed and refuses the response. Unreadable stream formats (for example, Bedrock eventstream frames) also fail closed.
+
+## Testing guardrails before publishing
+
+Test a guardrail configuration against sample text before you publish it to the gateway. Use the console or the API:
+
+```bash
+curl -X POST "https://api.caveman.so/v1/projects/${PROJECT_ID}/guardrails/test" \
+  -H "authorization: Bearer ${CAVE_API_KEY}" \
+  -H "content-type: application/json" \
+  -d '{
+    "text": "Rotate sk-live-abcdefghijklmnopqrstuvwxyz012345 for me"
+  }'
+```
+
+The test endpoint requires `policy:draft` scope. It returns which rules would match and what action each would take, without publishing any configuration.
+
+Publish guardrails with a PUT to `/projects/{projectId}/guardrails`. Re-read the delivered state after publishing: a saved configuration is not proof the gateway has applied it.
+
+## Audit log verification
+
+Every change to budgets, guardrails, keys, roles, and provider connections is recorded in the append-only audit log under **Governance → Audit**. Each row contains:
+
+- Actor (who made the change)
+- Resource (what was changed)
+- Time and outcome
+- Source IP and session context where available
+
+Use the audit log to verify that a published policy matches the change you intended. If no audit record is returned for a given action, that is a coverage limit, not proof that no action occurred.
+
+Read the audit log via the console or API:
+
+```bash
+curl "https://api.caveman.so/v1/audit-logs?action=policy.publish" \
+  -H "authorization: Bearer ${CAVE_API_KEY}"
+```
+
+Audit log reads require `auditlog:read`, which is owner/admin scoped.
+
+## Recommended setups
+
+### Per environment
+
+Create separate projects or API keys for development, staging, and production. Apply strict hard budgets and guardrails in production. Use permissive soft budgets in development so experiments are not interrupted, but still receive alerts when spend is unexpectedly high.
+
+### Per team
+
+Issue scoped access tokens that narrow an integration to a subset of the caller's role. Authorization is the intersection of role and scope, so a scope never grants authority the role lacks. For example, give a CI service a token with `evals:run` and `sql:read` but not `policy:draft` or `billing:write`.
+
+### Per workflow
+
+Label traffic with `x-cave-workflow` so spend rate limits and tracing are meaningful. A workflow label lets you set a per-workflow spend rate threshold and query costs by workflow in SQL.
+
+## RBAC quick reference
+
+Caveman Cloud uses five roles. Sensitive actions are narrowed to owner and admin:
+
+| Role | Typical permissions |
+| --- | --- |
+| **Owner** | Full control; can mint or modify owners |
+| **Admin** | Can publish S2/S3 policies, approve S3 experiments, connect repos, read raw payloads; cannot modify owner access |
+| **Engineer** | Can create keys, run evals, manage workloads, view traces |
+| **Viewer** | Read-only access to traces, reports, and dashboards |
+| **Billing** | Can view usage and manage payment methods |
+
+Publishing aggressive (S2/S3) policies and approving S3 experiments is owner/admin only. Raw payload read is owner/admin only. Connecting a repository (which grants write agency for auto-PR agents) is owner/admin only.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Team and Admin" icon="users" href="/guides/team-and-admin">
+    Invite members, assign roles, and configure SSO.
+  </Card>
+
+  <Card title="Control Optimizations" icon="sliders" href="/guides/control-optimizations">
+    Set per-request optimization headers and read receipt headers.
+  </Card>
+
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Query guardrail hits, budget status, and spend by workflow in ClickHouse.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/reference/troubleshooting">
+    Fix common budget, authentication, and trace issues.
+  </Card>
+</CardGroup>

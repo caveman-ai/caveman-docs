@@ -1,0 +1,69 @@
+---
+title: "AI analytics in Caveman Cloud: agents, teams, and apps"
+sidebarTitle: "Overview"
+description: "Learn where Caveman Cloud analytics live, how coding-agent and app traffic are attributed, and which console views answer which spend and usage questions."
+---
+
+Caveman Cloud measures every model call that runs through the gateway, then attributes it to the person, coding agent, key, workflow, and project behind it. This page maps the analytics surfaces in the console, explains the two traffic populations they report on, and points you to the setup guide for each.
+
+## Two populations of traffic
+
+Every request in a project falls into one of two populations. The split decides which views it shows up in.
+
+| Population | What it is | How it is attributed | Where to look first |
+| --- | --- | --- | --- |
+| **Coding agents** | Claude Code, Codex, Gemini CLI, and other developer tools running on a person's machine | The **personal key** the request authenticated with. Attribution is server-side, never a client header or a name in a prompt. | **Developers** space |
+| **Workloads** | Your applications, services, jobs, and production agents | The project key, plus the `x-cave-agent`, `x-cave-workflow`, `x-cave-session`, `x-cave-tags`, and `x-cave-user-hash` headers you send | **Analytics**, **Traces**, **Dashboards** |
+
+In custom dashboards the same split is exposed as the `population` field, with the values `coding_agents` and `workloads`.
+
+<Note>
+  Traffic only counts toward a person when it runs on that person's personal key. Shared or project keys land in the workload population, even when a developer sends them from a laptop.
+</Note>
+
+## Where analytics live in the console
+
+<CardGroup cols={2}>
+  <Card title="Developers space" icon="users" href="/analytics/team-analytics">
+    Team and individual views, agent comparisons, sessions, repositories, and delivery for coding-agent traffic.
+  </Card>
+
+  <Card title="Analytics" icon="chart-line" href="/guides/traces-and-spend">
+    Spend, Usage, and Activity tabs, with Tokens, Cache & compression, Routing, and Traffic shape reports.
+  </Card>
+
+  <Card title="Traces" icon="magnifying-glass" href="/guides/traces-and-spend">
+    Every request, span, and session, searchable down to the individual call.
+  </Card>
+
+  <Card title="Dashboards" icon="table-columns" href="/analytics/custom-dashboards">
+    Charts of your traffic, built by you or your coding agent, with alerts on any measure.
+  </Card>
+</CardGroup>
+
+**My usage** in the Developers space shows your own spend, requests, keys, and machines once your traffic authenticates with your personal key.
+
+## Set up analytics
+
+<Steps>
+  <Step title="Route coding agents through personal keys">
+    Each developer gets a personal key and points their agent at the gateway. See [Coding agent analytics](/analytics/coding-agents).
+  </Step>
+  <Step title="Label your application traffic">
+    Add workflow, session, tag, and end-user headers to app requests. See [App analytics](/analytics/apps).
+  </Step>
+  <Step title="Connect GitHub (optional)">
+    Link merged pull requests to the agent sessions that produced them. See [Repositories and delivery](/analytics/team-analytics#repositories).
+  </Step>
+  <Step title="Build the dashboards your team watches">
+    Start from a built-in dashboard or let your agent build one. See [Custom dashboards](/analytics/custom-dashboards).
+  </Step>
+</Steps>
+
+## How to read the numbers
+
+- **Catalog spend** is calculated at catalog list prices. It is not your provider invoice. Requests with no price or incomplete usage are excluded from cost.
+- **Requests** count model calls, not finished work.
+- **Cache read** measures reuse. It is not a verified saving; see [Savings evidence](/concepts/savings-evidence) for what counts as verified.
+- **Active days** are UTC days with at least one request, not time worked.
+- Money values need billing access. Viewers without it still see people, request, and attribution counts. See [Access and limits](/governance/access-and-limits).

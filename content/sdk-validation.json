@@ -1,0 +1,147 @@
+{
+  "date": "2026-09-16",
+  "sdk": "1.1.0",
+  "typescriptMiddleware": "0.1.0-alpha.2",
+  "pythonMiddleware": "0.1.0a1",
+  "runtime": "bin-v1.1.7",
+  "primaryEvidence": "Real native framework and Engine; scripted model; exact UTF-8 recovery and original history checks; no paid provider calls",
+  "secondaryEvidence": "Independent clean published-package install and integration-module import only",
+  "typescript": [
+    {
+      "adapter": "ai-sdk",
+      "install": true,
+      "import": true,
+      "output": "[ 'createCavemanMiddleware', 'withCaveman' ]\n",
+      "error": ""
+    },
+    {
+      "adapter": "openai",
+      "install": true,
+      "import": true,
+      "output": "[ 'createCavemanFetch', 'withCavemanOpenAI', 'withCavemanOpenAITools' ]\n",
+      "error": ""
+    },
+    {
+      "adapter": "anthropic",
+      "install": true,
+      "import": true,
+      "output": "[ 'withCavemanAnthropic' ]\n",
+      "error": ""
+    },
+    {
+      "adapter": "google",
+      "install": true,
+      "import": true,
+      "output": "[ 'CavemanGoogleGenAI' ]\n",
+      "error": ""
+    },
+    {
+      "adapter": "langchain",
+      "install": true,
+      "import": true,
+      "output": "[\n  'CavemanChatModel',\n  'CavemanDocumentCompressor',\n  'createCavemanLangChain',\n  'langChainAdapter',\n  'langChainSupported',\n  'langChainUsage',\n  'prepareLangChain',\n  'resolveLangChainScope',\n  'scopeFromConfig',\n  'withCavemanAgent',\n  'withCavemanModel'\n]\n",
+      "error": ""
+    },
+    {
+      "adapter": "strands",
+      "install": true,
+      "import": true,
+      "output": "[\n  'CavemanStrandsModel',\n  'withCavemanStrands',\n  'withCavemanStrandsModel'\n]\n",
+      "error": ""
+    },
+    {
+      "adapter": "mastra",
+      "install": true,
+      "import": true,
+      "output": "[ 'createCavemanMastraProcessor', 'withCavemanMastra' ]\n",
+      "error": ""
+    },
+    {
+      "adapter": "mcp",
+      "install": true,
+      "import": true,
+      "output": "[ 'CavemanMCPHost', 'bindMCPTool' ]\n",
+      "error": ""
+    }
+  ],
+  "python": [
+    {
+      "adapter": "openai",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "anthropic",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "google",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "langchain",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "litellm",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "strands",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "agno",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "crewai",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "autogen",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "pydantic-ai",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "llama-index",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "asgi",
+      "install": true,
+      "import": true,
+      "error": ""
+    },
+    {
+      "adapter": "mcp",
+      "install": true,
+      "import": true,
+      "error": ""
+    }
+  ]
+}

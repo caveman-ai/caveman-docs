@@ -1,0 +1,37 @@
+# Caveman Documentation (Unified Multi-Repo Index)
+
+> Aggregated directly from each product repository's docs/ folder. Zero private Cloud internals.
+
+## Caveman Agents (caveman-ai/agents)
+- [Overview](https://docs.caveman.so/agent/overview.md): Build efficient AI agents locally on Harness v4 or run them on Caveman Cloud.
+- [Quickstart](https://docs.caveman.so/agent/quickstart.md): Install @caveman-ai/agent and run a tool-using agent in-process in five minutes.
+- [Harness v4](https://docs.caveman.so/agent/harness.md): Loadouts, cache-stable prefixes, tools, compaction, and environments.
+- [AGENT.md & Builds](https://docs.caveman.so/agent/agent-md.md): Author agents in Markdown or TypeScript and compile deterministic agent.json builds.
+- [Sessions & Approvals](https://docs.caveman.so/agent/sessions.md): Multi-turn conversations, streaming events, custom tools, and durable parking.
+- [Sandboxes](https://docs.caveman.so/agent/sandboxes.md): Run agent commands in LocalEnv, DockerEnv, or Caveman Cloud SandboxEnv.
+- [Evals & Graders](https://docs.caveman.so/agent/evals.md): 30 fail-closed graders for deterministic checks, tool assertions, and LLM judges.
+- [Session Protocol](https://docs.caveman.so/agent/protocol.md): NDJSON wire contract for SessionEvent, UserEvent, and exit codes 0 through 6.
+
+## Caveman Code (caveman-ai/caveman-code)
+- [Overview](https://docs.caveman.so/code/overview.md): Desktop, CLI, Web, and Mobile coding agent powered by Harness v4.
+- [Desktop App](https://docs.caveman.so/code/desktop.md): Parallel coding threads, structured transcripts, diffs, and approval controls.
+- [CLI & Daemon](https://docs.caveman.so/code/cli.md): Run caveman-code from the terminal on the exact same runtime as Desktop.
+- [Cloud Computers](https://docs.caveman.so/code/cloud-computers.md): Persistent Firecracker computers that keep running with your laptop closed.
+- [MCP & Plugins](https://docs.caveman.so/code/mcp-plugins.md): Configure MCP servers, skills, and workspace plugins with allowlisted environments.
+- [Architecture](https://docs.caveman.so/code/architecture.md): How Desktop, CLI, packages/runtime, and @caveman-ai/harness connect.
+
+## Cloud SDK & CLI (caveman-ai/cloud-sdk)
+- [Overview](https://docs.caveman.so/sdk/overview.md): Install cvm, TypeScript, Python, and Go SDKs for Caveman Cloud.
+- [cvm CLI](https://docs.caveman.so/sdk/cli.md): Operate Caveman Cloud from the terminal or via stdio MCP.
+- [Sandboxes](https://docs.caveman.so/sdk/sandboxes.md): Create, exec, copy files, port-forward, snapshot, and fork Firecracker sandboxes.
+- [Deploy & Connectors](https://docs.caveman.so/sdk/deploy.md): Immutable agent revisions, rollbacks, and org-wide MCP connectors.
+- [Evals & CI Gates](https://docs.caveman.so/sdk/evals-ci.md): Run one-file *.eval.json suites and gate PRs in any CI system.
+- [TypeScript SDK](https://docs.caveman.so/sdk/typescript.md): Zero-dependency @caveman-ai/sdk covering Gateway, Cloud, Sandboxes, Evals, and Router.
+- [Python SDK & LiteLLM](https://docs.caveman.so/sdk/python.md): Stdlib-only caveman-sdk client and LiteLLM callback connector.
+- [Go SDK](https://docs.caveman.so/sdk/go.md): Standalone github.com/caveman-ai/sdk-go client.
+- [Cloud Skills](https://docs.caveman.so/sdk/skills.md): Official skills that teach coding agents to drive Caveman Cloud.
+
+## Local Efficiency (JuliusBrussee/caveman)
+- [Overview](https://docs.caveman.so/local/overview.md): Accountless local efficiency layer: skill, proxy, engine, memory, and MCP.
+- [Ecosystem Map](https://docs.caveman.so/local/ecosystem.md): How local Caveman connects with Caveman Code, Agent SDK, and Cloud SDKs.
+- [Honest Numbers](https://docs.caveman.so/local/honest-numbers.md): How local inferred savings and benchmarks are measured and labelled.

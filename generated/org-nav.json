@@ -1,0 +1,233 @@
+{
+  "generatedAt": "2026-11-23T04:18:16.924Z",
+  "products": [
+    {
+      "product": "agents",
+      "label": "Caveman Agents",
+      "repo": "caveman-ai/agents",
+      "visibility": "public-ready",
+      "groups": [
+        {
+          "title": "Getting Started",
+          "items": [
+            {
+              "slug": "agent/overview",
+              "title": "Overview",
+              "file": "index.mdx",
+              "blurb": "Build efficient AI agents locally on Harness v4 or run them on Caveman Cloud."
+            },
+            {
+              "slug": "agent/quickstart",
+              "title": "Quickstart",
+              "file": "quickstart.mdx",
+              "blurb": "Install @caveman-ai/agent and run a tool-using agent in-process in five minutes."
+            }
+          ]
+        },
+        {
+          "title": "Core Concepts",
+          "items": [
+            {
+              "slug": "agent/harness",
+              "title": "Harness v4",
+              "file": "harness.mdx",
+              "blurb": "Loadouts, cache-stable prefixes, tools, compaction, and environments."
+            },
+            {
+              "slug": "agent/agent-md",
+              "title": "AGENT.md & Builds",
+              "file": "agent-md.mdx",
+              "blurb": "Author agents in Markdown or TypeScript and compile deterministic agent.json builds."
+            },
+            {
+              "slug": "agent/sessions",
+              "title": "Sessions & Approvals",
+              "file": "sessions.mdx",
+              "blurb": "Multi-turn conversations, streaming events, custom tools, and durable parking."
+            },
+            {
+              "slug": "agent/sandboxes",
+              "title": "Sandboxes",
+              "file": "sandboxes.mdx",
+              "blurb": "Run agent commands in LocalEnv, DockerEnv, or Caveman Cloud SandboxEnv."
+            }
+          ]
+        },
+        {
+          "title": "Quality & Contracts",
+          "items": [
+            {
+              "slug": "agent/evals",
+              "title": "Evals & Graders",
+              "file": "evals.mdx",
+              "blurb": "30 fail-closed graders for deterministic checks, tool assertions, and LLM judges."
+            },
+            {
+              "slug": "agent/protocol",
+              "title": "Session Protocol",
+              "file": "protocol.mdx",
+              "blurb": "NDJSON wire contract for SessionEvent, UserEvent, and exit codes 0 through 6."
+            }
+          ]
+        }
+      ],
+      "pageCount": 8
+    },
+    {
+      "product": "caveman-code",
+      "label": "Caveman Code",
+      "repo": "caveman-ai/caveman-code",
+      "visibility": "public-ready",
+      "groups": [
+        {
+          "title": "Caveman Code",
+          "items": [
+            {
+              "slug": "code/overview",
+              "title": "Overview",
+              "file": "index.mdx",
+              "blurb": "Desktop, CLI, Web, and Mobile coding agent powered by Harness v4."
+            },
+            {
+              "slug": "code/desktop",
+              "title": "Desktop App",
+              "file": "desktop.mdx",
+              "blurb": "Parallel coding threads, structured transcripts, diffs, and approval controls."
+            },
+            {
+              "slug": "code/cli",
+              "title": "CLI & Daemon",
+              "file": "cli.mdx",
+              "blurb": "Run caveman-code from the terminal on the exact same runtime as Desktop."
+            },
+            {
+              "slug": "code/cloud-computers",
+              "title": "Cloud Computers",
+              "file": "cloud-computers.mdx",
+              "blurb": "Persistent Firecracker computers that keep running with your laptop closed."
+            },
+            {
+              "slug": "code/mcp-plugins",
+              "title": "MCP & Plugins",
+              "file": "mcp-plugins.mdx",
+              "blurb": "Configure MCP servers, skills, and workspace plugins with allowlisted environments."
+            },
+            {
+              "slug": "code/architecture",
+              "title": "Architecture",
+              "file": "architecture.mdx",
+              "blurb": "How Desktop, CLI, packages/runtime, and @caveman-ai/harness connect."
+            }
+          ]
+        }
+      ],
+      "pageCount": 6
+    },
+    {
+      "product": "cloud-sdk",
+      "label": "Cloud SDK & CLI",
+      "repo": "caveman-ai/cloud-sdk",
+      "visibility": "public-ready",
+      "groups": [
+        {
+          "title": "Cloud CLI & Workflows",
+          "items": [
+            {
+              "slug": "sdk/overview",
+              "title": "Overview",
+              "file": "index.mdx",
+              "blurb": "Install cvm, TypeScript, Python, and Go SDKs for Caveman Cloud."
+            },
+            {
+              "slug": "sdk/cli",
+              "title": "cvm CLI",
+              "file": "cli.mdx",
+              "blurb": "Operate Caveman Cloud from the terminal or via stdio MCP."
+            },
+            {
+              "slug": "sdk/sandboxes",
+              "title": "Sandboxes",
+              "file": "sandboxes.mdx",
+              "blurb": "Create, exec, copy files, port-forward, snapshot, and fork Firecracker sandboxes."
+            },
+            {
+              "slug": "sdk/deploy",
+              "title": "Deploy & Connectors",
+              "file": "deploy.mdx",
+              "blurb": "Immutable agent revisions, rollbacks, and org-wide MCP connectors."
+            },
+            {
+              "slug": "sdk/evals-ci",
+              "title": "Evals & CI Gates",
+              "file": "evals-ci.mdx",
+              "blurb": "Run one-file *.eval.json suites and gate PRs in any CI system."
+            }
+          ]
+        },
+        {
+          "title": "Language SDKs & Skills",
+          "items": [
+            {
+              "slug": "sdk/typescript",
+              "title": "TypeScript SDK",
+              "file": "sdk-typescript.mdx",
+              "blurb": "Zero-dependency @caveman-ai/sdk covering Gateway, Cloud, Sandboxes, Evals, and Router."
+            },
+            {
+              "slug": "sdk/python",
+              "title": "Python SDK & LiteLLM",
+              "file": "sdk-python.mdx",
+              "blurb": "Stdlib-only caveman-sdk client and LiteLLM callback connector."
+            },
+            {
+              "slug": "sdk/go",
+              "title": "Go SDK",
+              "file": "sdk-go.mdx",
+              "blurb": "Standalone github.com/caveman-ai/sdk-go client."
+            },
+            {
+              "slug": "sdk/skills",
+              "title": "Cloud Skills",
+              "file": "skills.mdx",
+              "blurb": "Official skills that teach coding agents to drive Caveman Cloud."
+            }
+          ]
+        }
+      ],
+      "pageCount": 9
+    },
+    {
+      "product": "caveman",
+      "label": "Local Efficiency",
+      "repo": "JuliusBrussee/caveman",
+      "visibility": "public",
+      "groups": [
+        {
+          "title": "Local Stack",
+          "items": [
+            {
+              "slug": "local/overview",
+              "title": "Overview",
+              "file": "README.md",
+              "blurb": "Accountless local efficiency layer: skill, proxy, engine, memory, and MCP."
+            },
+            {
+              "slug": "local/ecosystem",
+              "title": "Ecosystem Map",
+              "file": "ecosystem.md",
+              "blurb": "How local Caveman connects with Caveman Code, Agent SDK, and Cloud SDKs."
+            },
+            {
+              "slug": "local/honest-numbers",
+              "title": "Honest Numbers",
+              "file": "HONEST-NUMBERS.md",
+              "blurb": "How local inferred savings and benchmarks are measured and labelled."
+            }
+          ]
+        }
+      ],
+      "pageCount": 3
+    }
+  ],
+  "totalPages": 26
+}

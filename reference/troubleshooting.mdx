@@ -1,0 +1,114 @@
+---
+title: "Troubleshooting authentication, traces, and savings"
+sidebarTitle: "Troubleshooting"
+description: "Fix common issues with Caveman Cloud authentication, missing traces, gateway URLs, upstream keys, savings labels, payload capture, and CLI exit codes."
+---
+
+Use this guide to resolve frequent setup and usage issues with Caveman Cloud. Each answer is grounded in the product's source behavior, permission model, and exit code definitions.
+
+## Authentication and access
+
+<AccordionGroup>
+  <Accordion title="cvm login fails or hangs">
+    `cvm login` runs `caveman login` under the hood. If `caveman` is not installed, `cvm login` fetches it once with `npx`. In CI or headless environments, set `CAVE_TOKEN` directly instead of running an interactive login. For a private install, also set `CAVE_API_URL`. If the token is missing or invalid, `cvm` commands exit with code `3` instead of hanging.
+  </Accordion>
+
+  <Accordion title="I get 401 or 403 errors from cvm">
+    Exit code `3` (signed out or forbidden) means the CLI could not authenticate. Check three things:
+
+    1. You ran `cvm login` and the session is still valid.
+    2. In CI, `CAVE_TOKEN` is exported and not expired.
+    3. The token has permission for the project and operation you are calling. Metadata reads (traces, reports) require `trace:read_metadata`. Billing columns need `billing:read`. Payload reads need `payload:read` plus `trace:read_payload`.
+  </Accordion>
+
+  <Accordion title="Confusion between CAVE_API_KEY and x-cave-upstream-key">
+    The Cave key (`CAVE_API_KEY`) authenticates you to Caveman Cloud. The upstream provider key (`x-cave-upstream-key`) authenticates to the model provider. When the project's provider connection already stores a key, you do not need to send `x-cave-upstream-key`. When the connection is keyless, send the provider key on every request in the `x-cave-upstream-key` header.
+  </Accordion>
+</AccordionGroup>
+
+## Gateway and routing
+
+<AccordionGroup>
+  <Accordion title="Wrong gateway URL or trailing slash">
+    Set `CAVE_GATEWAY_URL` with no trailing slash. The provider path is appended directly, for example `${CAVE_GATEWAY_URL}/openai/v1` or `${CAVE_GATEWAY_URL}/anthropic`. A trailing slash produces a double slash in the request path and may route incorrectly or return a 404.
+  </Accordion>
+
+  <Accordion title="Requests are not appearing in traces">
+    First confirm the request reached the gateway: check that your base URL points to `CAVE_GATEWAY_URL`, the `authorization` header carries a valid Cave key, and the request returned a 2xx status. Then check retention and labels:
+
+    - Retention set to metadata only (or nothing) means no payload is stored, but metadata rows should still appear.
+    - Labels (`x-cave-agent` and `x-cave-workflow`) identify traffic for attribution; they do not grant access or affect ingestion. Use them so traces are grouped correctly.
+    - If you see no rows at all, verify the project binding in `cvm` or your SDK matches the project whose traces you are inspecting.
+  </Accordion>
+
+  <Accordion title="Payloads are not captured">
+    Captured payloads require both `payload:read` permission and `trace:read_payload` scope. On an agent MCP connection, payload reads are opt-in and must be explicitly granted. Additionally, retention that forbids touching the payload blocks capture. If the project or request keeps metadata only, the response header `x-cave-response-cache-reason: retention` explains that no content may be stored. Missing payloads cannot be recovered from token counts or trace metadata.
+  </Accordion>
+</AccordionGroup>
+
+## Savings and labeling
+
+<AccordionGroup>
+  <Accordion title="Why savings show inferred instead of verified">
+    Caveman Cloud keeps three labels apart. `inferred` means a local estimate from bytes, token counters, or a modeled per-day rate. `measured` means observed traffic, not proof of a saved dollar. `verified` is reserved for per-request causal proof where a Caveman transform caused a provider-measured delta. Compression, routing estimates, and output styles are `inferred` by default because the provider never saw the "before" bytes. Compression becomes `verified` only on the 1-in-N counted requests where the gateway counted the original body and the provider reported the optimized body, and only for eligible providers and models. Everything else stays `inferred`.
+  </Accordion>
+
+  <Accordion title="Why verified savings show zero">
+    Verified savings can be zero for several honest reasons:
+
+    - The request used `record` mode, which is pass-through with no transform.
+    - The provider or model is not on the pinned allow-list for verified methods.
+    - The request carried a blocker such as `output-shape` or `output-style-caveman`, which prevents counted-baseline verification.
+    - The model is unpriced or partially priced in the catalog.
+    - The call failed (`status_code >= 400`).
+    - It was a cache hit: an avoided provider call costs \$0 and mints zero verified savings because there is no counterfactual provider response to compare.
+    - The day was write-heavy: the first cache-creation call is usually negative because of the write premium, and the ledger stores signed values without flooring to zero.
+  </Accordion>
+</AccordionGroup>
+
+## cvm CLI
+
+<AccordionGroup>
+  <Accordion title="cvm exit code reference">
+    | Code | Meaning |
+    | --- | --- |
+    | `0` | Success |
+    | `1` | Request failed |
+    | `2` | Usage or invalid input (HTTP 400/422) |
+    | `3` | Signed out or forbidden (HTTP 401/403) |
+    | `4` | Conflict (HTTP 409) |
+    | `5` | Comparison or gate failed |
+    | `6` | Timeout, still running, or not enough data |
+    | `7` | Rate limited (HTTP 429) |
+
+    In scripts, check for `0` and handle `3` by re-authenticating. For `6`, poll `runs.get` or `runs.events` until the operation completes.
+  </Accordion>
+
+  <Accordion title="SQL query returns truncated results">
+    Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. People get up to 10,000 rows, 8 MiB, and 30 seconds. MCP never pages `sql.query` by re-running it. If a result is too large, it keeps the rows that fit and adds a notice such as `k of n rows shown; aggregate or select fewer columns`. Narrow your `WHERE` clause, reduce columns, or use aggregates.
+  </Accordion>
+
+  <Accordion title="cvm tools list does not show an operation I expect">
+    `cvm tools list` shows only the operations your current connection is authorized to call. Permissions are checked live, so a missing operation usually means:
+
+    1. The project binding is wrong. Run `cvm context show` to confirm.
+    2. Your token lacks the required permission. Use `cvm tools describe` on a related operation to see which permission scopes are needed.
+    3. The operation is not exposed to agents. Some human-only operations (for example, deleting tenant data) are intentionally excluded from agent access.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup>
+  <Card title="Authentication" icon="key" href="/authentication">
+    How to get and rotate your Cave key and upstream provider key.
+  </Card>
+
+  <Card title="How it works" icon="circle-info" href="/concepts/how-it-works">
+    Understand the request path, telemetry, and savings labels.
+  </Card>
+
+  <Card title="cvm CLI" icon="terminal" href="/cli/cvm">
+    Install, sign in, bind projects, and interpret exit codes.
+  </Card>
+</CardGroup>

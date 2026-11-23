@@ -1,0 +1,164 @@
+---
+title: "Install the cvm CLI to manage Caveman Cloud in terminal"
+sidebarTitle: "cvm CLI"
+description: "Install cvm with npm, authenticate with caveman login, bind a project, and run traces, SQL, and Cloud operations from your terminal."
+---
+
+The `cvm` CLI is the terminal interface for Caveman Cloud. It wraps every control plane operation so you can list projects, search traces, run SQL, start improvement attempts, and drive evals without leaving your shell.
+
+## Install and sign in
+
+<Steps>
+  <Step title="Install the CLI">
+    ```bash
+    npm i -g @caveman-ai/cloud
+    ```
+  </Step>
+  <Step title="Sign in">
+    ```bash
+    cvm login
+    ```
+
+    `cvm login` runs `caveman login` under the hood. One sign-in works for both the `caveman` and `cvm` CLIs. If `caveman` is not installed, `cvm login` fetches it once with `npx`.
+  </Step>
+  <Step title="Verify the session">
+    ```bash
+    cvm auth status
+    ```
+  </Step>
+</Steps>
+
+## Project binding and context
+
+Most `cvm` commands target a project. You can set the project in several ways, checked in this order:
+
+1. `--project UUID` on the command line
+2. `CAVE_PROJECT_ID` environment variable
+3. `cvm context bind` (writes `.caveman-cloud.json` in the current repository)
+4. Your saved default project
+
+```bash
+cvm projects list
+cvm context bind                    # writes .caveman-cloud.json for this repo
+cvm context show                    # show the active binding
+cvm context use <UUID>              # set the saved default
+```
+
+<Tip>
+  When you pipe `cvm` output to another command, it automatically switches to JSON. On an interactive terminal it prints readable tables by default.
+</Tip>
+
+## Output formats
+
+Override the default with `--format`:
+
+| Format | Best for |
+| --- | --- |
+| `json` | Piping to `jq` or other tools |
+| `jsonl` | Streaming or line-oriented processing |
+| `table` | Human-readable columns in a terminal |
+
+```bash
+cvm traces search --query "status=error" --format json | jq '.[].trace_id'
+cvm sql "SELECT model, count() FROM requests GROUP BY model" --format table
+```
+
+## Discover commands
+
+`cvm` commands ship with the Cloud release they were built from, so the command list always matches the server. Commands follow the pattern `cvm <family> <verb>`, which runs the Cloud operation `family.verb`.
+
+```bash
+cvm tools list                      # every operation available to you
+cvm tools describe traces.search    # exact input schema and permissions
+cvm tools describe sql.query         # same for sql.query
+```
+
+Use `cvm tools describe <family>.<verb>` before writing scripts. It prints the input schema, required permissions, effects, and retry rules for that operation.
+
+## Common command examples
+
+### Traces
+
+```bash
+cvm traces search --query "model=gpt-4o" --window 1h
+cvm traces get <trace-id>
+cvm traces spans <trace-id>
+```
+
+Captured payloads require the explicit `payload:read` permission and `trace:read_payload` scope. Without them, metadata reads still work but content is omitted.
+
+### SQL
+
+```bash
+cvm sql --schema                              # list tables and rules
+cvm sql --schema requests                      # columns for the requests table
+cvm sql "SELECT model, count() AS n FROM requests GROUP BY model" --window 7d
+cvm sql -f spend.sql --from 2026-09-01 --to 2026-09-08 --format csv
+cvm sql "SELECT count() FROM requests WHERE model = {m:String}" --param m=gpt-4o
+```
+
+Results include `columns`, `rows`, `row_count`, `truncated`, `elapsed_ms`, `query_digest`, and `notices`. Agent connections and `sql:read` keys are limited to 101 rows, 128 KiB, and 15 seconds. People get up to 10,000 rows, 8 MiB, and 30 seconds.
+
+### Ask Caveman and improvements
+
+```bash
+cvm tools describe agent.run
+cvm agent run --file turn.json --wait
+cvm runs wait <run-uuid>
+cvm runs cancel <run-uuid>
+```
+
+A turn JSON looks like `{"request_id": "...", "input": {"question": "...", "window": {"from": "...", "to": "..."}}}`. Preserve the run ID to inspect results later with `runs.get`, `runs.events`, and `runs.result`.
+
+## Credential storage and CI
+
+Non-secret config lives at `~/.caveman-cloud/config.json` with mode `0600`. Auth tokens are stored in the OS keychain when available, with a `~/.caveman/credentials` fallback.
+
+In CI, set `CAVE_TOKEN` instead of running an interactive login. For a private install, also set `CAVE_API_URL`. If `cvm` is signed out, commands exit with code `3` instead of hanging.
+
+```bash
+export CAVE_TOKEN="cave_live_..."
+export CAVE_API_URL="https://your-install.example.com"
+cvm projects list
+```
+
+## Exit codes
+
+| Code | Meaning | What to do |
+| --- | --- | --- |
+| `0` | Success |  |
+| `1` | Request failed | Check the error message; retry if transient |
+| `2` | Usage or invalid input (HTTP 400/422) | Fix the command arguments or input JSON |
+| `3` | Signed out or forbidden (HTTP 401/403) | Run `cvm login` or check `CAVE_TOKEN` |
+| `4` | Conflict (HTTP 409) | Re-run with the same idempotency key, or inspect state first |
+| `5` | Comparison or gate failed | A comparison or eval gate did not pass |
+| `6` | Timeout, still running, or not enough data | Wait and retry, or check `runs.get` for status |
+| `7` | Rate limited (HTTP 429) | Retry with exponential backoff |
+
+## Uninstall
+
+Remove the `cvm` CLI with npm:
+
+```bash
+npm uninstall -g @caveman-ai/cloud
+```
+
+The `caveman` CLI is a separate package, `@caveman-ai/cli`. If you installed it too, follow [Uninstall Caveman](/caveman/installation#uninstall). That guide removes agent integrations before you remove the package.
+
+Uninstalling either package leaves your local config and credentials in place. These include `~/.caveman-cloud/config.json` and, when the OS keychain is unavailable, `~/.caveman/credentials`. Review [SECURITY.md](https://github.com/JuliusBrussee/caveman/blob/main/SECURITY.md#local-storage) before you delete `~/.caveman` or `~/.caveman-cloud`.
+
+## Next steps
+
+<CardGroup>
+  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
+    Run read-only SELECT over requests, spans, and evals.
+  </Card>
+
+  <Card title="Traces and spend" icon="chart-line" href="/guides/traces-and-spend">
+    Search traces, inspect spans, and understand spend attribution.
+  </Card>
+
+  <Card title="Connect a coding agent" icon="robot" href="/cli/mcp">
+    Use MCP to let Claude Code or Cursor operate Caveman Cloud.
+  </Card>
+</CardGroup>

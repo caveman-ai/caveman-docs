@@ -1,0 +1,149 @@
+---
+title: "Set up Caveman Cloud automatically with your coding agent"
+sidebarTitle: "Automated Setup"
+description: "Let Claude Code, Codex, or Cursor wire your repository to Caveman Cloud from one console prompt, including gateway wiring, workflow labels, and evals."
+---
+
+You can let your coding agent (Claude Code, Codex, Cursor, or any agent that reads downloadable skills) set up Caveman Cloud for you. The Caveman Cloud console generates a copy-paste prompt with your gateway URL and a fresh project key already embedded. The agent connects to your project, inventories your repository, wires LLM calls through the gateway, discovers and labels workflows, drafts evals, records a baseline, and prepares quality monitors. You remain in control: the agent proposes, you publish.
+
+## What you need before you start
+
+- A Caveman Cloud account and project.
+- Your coding agent installed and able to access the repository you want to connect.
+- The repository checked out locally so the agent can edit files and run checks.
+
+## Copy the setup prompt from the console
+
+Open **Gateway → Connect** in the Caveman Cloud console. Under the agent path, choose **Copy prompt for your coding agent**. The prompt includes four values your agent needs:
+
+- `GATEWAY`: your installation's gateway base URL (`CAVE_GATEWAY_URL`)
+- `CAVE_API_KEY`: a freshly minted gateway credential. Treat it like any API key: keep it in an environment variable and never commit it.
+- `PROVIDER_KEYS`: `stored` (provider keys live encrypted in Caveman Cloud) or `byok` (your app sends its own provider key per request)
+- `DASHBOARD`: the Caveman Cloud console base URL
+
+Paste the prompt into your agent at the repository root and let it run. One prompt covers the full onboarding sequence.
+
+<Warning>
+  Never paste the `CAVE_API_KEY` into a chat log, a committed file, or browser-visible code. The prompt instructs the agent to store it only in your existing ignored environment file or secret mechanism.
+</Warning>
+
+## What the agent does step by step
+
+The agent follows a canonical skill sequence. You can read each skill yourself; the agent fetches them from the console at runtime.
+
+<Steps>
+  <Step title="Confirm the project">
+    The agent calls `caveman_context` through the Caveman Cloud MCP to confirm the project ID and endpoint. It checks `cvm context show` and `cvm doctor` when a CLI profile exists. If the connection is missing, it guides you to authenticate from your agent's MCP settings. It never approves its own connection or requests credentials in chat.
+  </Step>
+  <Step title="Inventory the repository">
+    The agent reads your repository's default branch, entry points, dependency files, and existing telemetry integrations. It records workloads, prompts, tools, models, eval fixtures, gateway configs, and CI definitions. It asserts this inventory to the Caveman server, which verifies what it can read through the GitHub App. Only the server labels items `server_verified`; the agent labels its own assertions honestly as `agent_asserted`.
+  </Step>
+  <Step title="Connect telemetry">
+    The agent finds every live LLM callsite and wires it through the gateway or an existing LiteLLM OpenTelemetry path. It preserves your existing models, prompts, streaming behavior, tools, and retries. It adds the `x-cave-api-key` header and, for BYOK mode, the `x-cave-upstream-key` header. It stores secrets only in your ignored environment file, never in source. Then it runs one small real request through the changed path and reports the actual status, model, usage, and trace ID.
+  </Step>
+  <Step title="Discover and label workflows">
+    The agent walks your entry points (handlers, cron jobs, queue consumers, CLI commands, eval harnesses) and proposes a workflow labeling table. It presents the mapping (`support-reply`, `nightly-digest`, and so on) before changing attribution. After approval, it wires the `x-cave-workflow` header at each callsite.
+  </Step>
+  <Step title="Draft evals and record a baseline">
+    The agent builds cases from verified server reads and repository fixtures, groups them by workflow, chooses graders, validates mappings, and runs a bounded baseline. It reports resource IDs, pass or fail counts, and representative failures. It does not claim a passing eval from an accepted job alone.
+  </Step>
+  <Step title="Draft quality monitors">
+    The agent prepares inactive monitor drafts for the same failures: workflow filters, graders, sampling, thresholds, and collection targets. It estimates judge cost from known traffic volume and marks payload-dependent checks blocked when capture or consent is missing. Monitors stay drafts for your review.
+  </Step>
+</Steps>
+
+## What stays human-gated
+
+The agent stops before any action that would change live policy or merge code without your review.
+
+- **Publishing wiring changes**: the agent commits wiring to a local `caveman/setup` branch and sends the change to the console as a held change. You review it in the **Inbox** and click **Publish** before Caveman opens a draft pull request.
+- **Activating monitors**: monitors are saved as inactive drafts. You choose when to turn them on.
+- **Changing optimization settings**: record mode only. The agent does not enable compression, routing, caching, or any runtime optimizer.
+- **Budget or consent changes**: the agent never changes payload capture, replay consent, proving budgets, or team access.
+
+## Skill URLs your agent can fetch
+
+Each step is governed by a skill served raw from the console. You can read them to verify what your agent will do.
+
+| Skill URL | What it covers |
+| --- | --- |
+| `<DASHBOARD>/docs/agent-setup.md` | Gateway wiring, SDK recipes, secret handling, and one real verification request. Equivalent to the `caveman-setup` skill. |
+| `<DASHBOARD>/docs/onboard.md` | The full end-to-end onboarding running order: project confirmation, telemetry, workflows, evals, baseline, monitors, and optional optimization review. Equivalent to the `caveman-onboard` skill. |
+| `<DASHBOARD>/docs/connect-agent.md` | Pairing your coding agent with one Caveman Cloud project via a scoped, revocable MCP connection. Equivalent to the `caveman-cloud-connect` skill. |
+| `<DASHBOARD>/docs/project-setup.md` | Workflow inventory, eval building, baseline recording, and monitor drafting. Equivalent to the `caveman-cloud-project` skill. |
+| `<DASHBOARD>/docs/discover-workflows.md` | Finding and labeling every LLM workflow in the repository. Equivalent to the `caveman-discover` skill. |
+| `<DASHBOARD>/docs/build-evals.md` | Authoring, versioning, running, comparing, and calibrating evaluations. Equivalent to the `caveman-cloud-evals` skill. |
+| `<DASHBOARD>/docs/optimize-plan.md` | Reading report-only optimization observations and designing paired evals before any code change. Equivalent to the `caveman-optimize` skill. |
+
+<Note>
+  Replace `<DASHBOARD>` with your console origin. A customer VPC serves its own release's skills, so the agent always reads the version pinned to your installation.
+</Note>
+
+## Install skills via the CLI
+
+If your agent supports a skill pack mechanism, you can install the skills directly from the Caveman CLI so they are available offline.
+
+<Tip>
+  These are Caveman Cloud setup skills, installed with the `cvm` CLI from `@caveman-ai/cloud`. To install the Caveman response skill, which tells Claude Code, Codex, Kiro, opencode, and other agents to write with less filler, use the [per-agent install matrix](/caveman/installation#per-agent-install-matrix) instead.
+</Tip>
+
+```bash
+cvm skills install caveman-setup
+cvm skills install caveman-onboard
+cvm skills install caveman-cloud-connect
+cvm skills install caveman-cloud-project
+cvm skills install caveman-discover
+cvm skills install caveman-cloud-evals
+```
+
+Use `cvm skills list` to see installed skills and `cvm skills remove <id>` to clean up. Installed skills are local to your machine; the MCP connection still authenticates project access live.
+
+<Note>
+  Skill installation is optional. The console prompt fetches skills at runtime, so setup works without a local install.
+</Note>
+
+## Revoke the agent connection
+
+When you want to remove an agent's access:
+
+1. Open **Developers → Sessions** in the console and find the agent session.
+2. Choose **Revoke**. The MCP connection drops immediately. The agent can no longer call `caveman_context`, `caveman_search`, `caveman_read`, or `caveman_write`.
+3. If you minted a gateway key for setup, rotate or delete it under **Gateway → Keys**.
+
+Revocation is live. Stdio MCP refreshes discovery on every tool call, so a revoked connection blocks execution immediately. Remote MCP connections are checked at the `/mcp` endpoint on every request.
+
+## Tips and troubleshooting
+
+### The agent reports `cave_invalid_api_key`
+
+Check that the `CAVE_API_KEY` in your environment file matches the key shown in the console. If you rotated the key after copying the prompt, mint a new one and restart. The agent never guesses a credential.
+
+### The agent reports `cave_route_not_found`
+
+Verify the app slug and SDK protocol path against the installed configuration. Common mistakes: trailing slash on the gateway URL, wrong provider segment (`/openai/v1` versus `/anthropic`), or an invalid workflow slug with uppercase letters or spaces.
+
+### No trace appears after a successful request
+
+HTTP success does not prove telemetry ingestion. Wait up to one minute, then check **Traces** with the right project and time window. If telemetry is still missing, report pending observation to the agent rather than generating repeated paid requests.
+
+### The agent finds no LLM callsites
+
+If the repository only runs a local coding agent and contains no application LLM code, explain this to the agent. It should point you to `caveman wrap <agent>` as the correct path for measuring the agent itself, rather than manufacturing an integration.
+
+### A held change is stuck
+
+Wiring changes wait in the **Inbox** as held changes. If publishing is blocked, check:
+
+- The GitHub App is installed and reaches the repository.
+- You have permission to create pull requests in the target repository.
+- The `caveman/setup` branch exists and is reachable.
+
+### I want to rerun setup
+
+Re-running is safe. The agent replaces the previous inventory on assert, reuses verified labels, and skips steps that are already correct. If you changed repositories or workloads, generate a fresh prompt from **Gateway → Connect**.
+
+## Next steps
+
+- [Connect a workload manually](/guides/connect-workload) if you prefer to wire the gateway yourself.
+- [Run evals and build quality evidence](/guides/evals) to judge changes before they reach production.
+- [Connect your coding agent over MCP](/cli/mcp) for ongoing trace inspection, SQL queries, and eval management.

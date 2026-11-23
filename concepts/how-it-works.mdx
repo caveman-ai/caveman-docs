@@ -1,0 +1,99 @@
+---
+title: "How Caveman Cloud works: gateway loop and request lifecycle"
+sidebarTitle: "How It Works"
+description: "Understand the six-step product loop and the journey each request takes through the Caveman gateway from authentication to provider call."
+---
+
+Caveman Cloud runs a continuous loop against your traffic: Observe, Diagnose, Generate, Evaluate, Deploy, and Learn. The gateway sits in the request path, authenticates your calls, enforces policy, applies optimizations you choose, records usage, and forwards to the model provider. This page explains what happens at each stage, in customer terms.
+
+## The product loop
+
+The loop connects what Caveman sees in your traffic to the improvements it can prove and the decisions you make about them.
+
+<Steps>
+  <Step title="Observe">
+    The gateway records every request that passes through it: tokens, latency, cost, labels, and the optimizations that ran. This telemetry is stored in your tenant scope and is the foundation everything else builds on.
+  </Step>
+  <Step title="Diagnose">
+    Caveman reviews observed workloads for patterns: cost concentration, quality signals, and structural opportunities. You can inspect these in the console or query them with SQL.
+  </Step>
+  <Step title="Generate">
+    Caveman prepares candidate changes: prompt adjustments, cache strategies, model routing, or other optimizations. Each candidate is scoped to a specific workload and comes with test cases drawn from your traffic.
+  </Step>
+  <Step title="Evaluate">
+    Every candidate runs through an evaluation suite before it can be proposed. Evaluations check quality, cost, and behavior against your test cases. A change that does not pass stays out of production.
+  </Step>
+  <Step title="Deploy">
+    Approved changes roll out through the gateway. You control rollout rules: which projects, what traffic share, and what safety criteria must hold.
+  </Step>
+  <Step title="Learn">
+    The gateway continues to record outcomes after deployment. Observed results feed back into the next cycle, so improvements compound with evidence.
+  </Step>
+</Steps>
+
+## Request lifecycle through the gateway
+
+When your application sends a request through Caveman, it follows a standard pipeline. Each step is logged and metered so you can trace what happened.
+
+### 1. Authentication
+
+The gateway checks two credentials on every request:
+
+- Your **Cave key** (`CAVE_API_KEY`), passed in the `Authorization` header, authenticates the request to Caveman Cloud and determines your tenant scope.
+- Your **upstream provider key** (`x-cave-upstream-key`), passed as a header, authenticates to the model provider when Caveman Cloud does not hold a stored key for your project.
+
+Labels like `x-cave-agent` and `x-cave-workflow` identify the traffic for reporting and attribution. They do not grant access. Only the Cave key and upstream key matter for admission.
+
+### 2. Policy enforcement
+
+After authentication, the gateway checks your project's policy: runtime mode, allowed optimizations, budget limits, and consent flags. If a hard budget cap is configured and the reservation would exceed it, the gateway refuses the request before reaching the provider. Soft limits and rate alerts are advisory and fail open.
+
+### 3. Optimization selection
+
+The gateway inspects the request headers and project policy to decide which optimizations may run. A request can ask for specific behavior through headers:
+
+- `x-cave-optimize` to request or disable optimizations like compression, caching, or routing for that single call
+- `x-cave-cache` to control the response cache mode
+- `x-cave-cache-key` to partition cache entries
+
+The gateway never guesses. An unrecognized header value returns `400` with a clear error code. If an optimization is refused, the request still succeeds and the response header `x-cave-optimize-denied` explains why.
+
+Optimizations run only when preconditions clear. For example, compression requires the route to support it and the payload to be eligible. A refused opt-up never breaks the call.
+
+### 4. Provider call
+
+The gateway forwards the prepared request to the model provider. It records the full interaction: request shape, provider response, token counts, latency, and any cache or routing outcomes. Every row carries a basis label that says how the numbers were produced.
+
+### 5. Accounting and telemetry
+
+After the response returns, the gateway writes the telemetry row. This row supports the three accounting classes Caveman exposes:
+
+- **Measured spend**: list price multiplied by provider-reported tokens
+- **Inferred opportunity**: modeled headroom from detectors
+- **Verified savings**: provider-measured deltas caused by a Caveman transform, where the causal contract is proven
+
+Each class is kept separate and labeled. The gateway does not conflate them.
+
+### 6. Response to the caller
+
+The response reaches your application with disclosure headers that describe what happened: which optimizations were applied or denied, cache hit status, and request identifiers. The TypeScript and Python SDKs provide `parseReceipt` helpers to read these headers into typed objects.
+
+## What the caller controls
+
+You can change gateway behavior per request without changing project settings:
+
+| Header | What it does |
+| --- | --- |
+| `x-cave-optimize: off` | Pass the request through byte-identical |
+| `x-cave-optimize: compress` | Ask for compression on this request |
+| `x-cave-optimize: no-cache` | Disable prompt-cache hints for this request |
+| `x-cave-cache: semantic,ttl=900` | Ask for semantic cache with a 15 minute lifetime |
+| `x-cave-cache-key: tenant-42` | Add a custom partition token to the cache key |
+
+See [Control Optimizations](/guides/control-optimizations) for the full header catalog and [Optimization Catalog](/concepts/optimizations) for what each optimizer does and how it is gated.
+
+## What happens when things go wrong
+
+If the provider is unreachable, the gateway returns its own error with a Caveman request ID so you can trace it. If the cache store is unreachable, the request forwards upstream normally; cache outages cost you the hit, never the call. If an optimization fails during processing, the gateway falls back to the original request and continues.
+
+The telemetry row is written even for failed requests, but usage on errors is priced at zero and no verified savings are minted.

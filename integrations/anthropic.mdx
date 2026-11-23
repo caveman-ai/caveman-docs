@@ -1,0 +1,84 @@
+---
+title: "Integrate Caveman Cloud with Anthropic SDKs"
+sidebarTitle: "Anthropic"
+description: "Route Anthropic SDK (TypeScript and Python) traffic through Caveman Cloud. The gateway speaks Anthropic's protocol natively with no translation."
+---
+
+The Anthropic SDKs work with Caveman Cloud by setting their `baseURL` to the gateway. The SDK appends `/v1/messages` itself, and the gateway speaks Anthropic's protocol natively, so nothing is translated. Claude Pro/Max OAuth bearer tokens pass through unchanged.
+
+## Prerequisites
+
+- A Caveman Cloud account with a gateway URL (`CAVE_GATEWAY_URL`)
+- Your Cave API key (`CAVE_API_KEY`)
+- Your Anthropic provider key (`ANTHROPIC_API_KEY`)
+
+## Anthropic SDK (TypeScript)
+
+Replace `{{app}}` with your workload name or app slug.
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}`,
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  defaultHeaders: {
+    "x-cave-api-key": process.env.CAVE_API_KEY,
+    "x-cave-upstream-key": process.env.ANTHROPIC_API_KEY, // your provider key, per request
+  },
+});
+
+const msg = await client.messages.create({
+  model: "claude-sonnet-4-5",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
+});
+```
+
+## Anthropic SDK (Python)
+
+```python
+import os
+import anthropic
+
+client = anthropic.Anthropic(
+    base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}",
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+    default_headers={
+        "x-cave-api-key": os.environ["CAVE_API_KEY"],
+        "x-cave-upstream-key": os.environ["ANTHROPIC_API_KEY"],  # your provider key, per request
+    },
+)
+
+msg = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Why is the sky blue?"}],
+)
+```
+
+<Tip>
+  When your provider key is stored in Caveman Cloud, you can drop the `x-cave-upstream-key` header and pass `CAVE_API_KEY` in its place.
+</Tip>
+
+## Labeling traffic
+
+Add `x-cave-agent` or `x-cave-workflow` headers to identify different parts of your system in Traces. These labels do not grant access; they only tag requests for filtering and analysis.
+
+```typescript
+const client = new Anthropic({
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}`,
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  defaultHeaders: {
+    "x-cave-api-key": process.env.CAVE_API_KEY,
+    "x-cave-upstream-key": process.env.ANTHROPIC_API_KEY,
+    "x-cave-agent": "support-bot",
+  },
+});
+```
+
+## Next steps
+
+- [Query your traces](/guides/traces-and-spend) with Caveman Cloud SQL
+- [Set up evaluations](/guides/evals) to measure workload quality
+- [Configure optimizations](/guides/control-optimizations) for eligible workloads

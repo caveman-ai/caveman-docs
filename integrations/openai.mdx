@@ -1,0 +1,106 @@
+---
+title: "Integrate Caveman Cloud with OpenAI SDKs"
+sidebarTitle: "OpenAI"
+description: "Route OpenAI SDK (TypeScript and Python) and OpenAI Agents SDK traffic through Caveman Cloud with a single base URL and default headers change."
+---
+
+The OpenAI SDKs accept a custom `baseURL` and `defaultHeaders` in their constructors. Point the client at the Caveman gateway and every Chat Completions and Responses API call routes through it, with telemetry and optimization automatically applied.
+
+## Prerequisites
+
+- A Caveman Cloud account with a gateway URL (`CAVE_GATEWAY_URL`)
+- Your Cave API key (`CAVE_API_KEY`)
+- Your OpenAI provider key (`OPENAI_API_KEY`)
+
+## OpenAI SDK (TypeScript)
+
+Replace `{{app}}` with your workload name or app slug. The `/w/{{app}}` segment attributes spend to the correct workload.
+
+```typescript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}/openai/v1`,
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-cave-api-key": process.env.CAVE_API_KEY,
+    "x-cave-upstream-key": process.env.OPENAI_API_KEY, // your provider key, per request
+  },
+});
+
+// Chat Completions and the Responses API both route through the gateway.
+const res = await client.responses.create({
+  model: "gpt-5.5",
+  input: "Why is the sky blue?",
+});
+```
+
+## OpenAI SDK (Python)
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+    default_headers={
+        "x-cave-api-key": os.environ["CAVE_API_KEY"],
+        "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+    },
+)
+
+# Chat Completions and the Responses API both route through the gateway.
+res = client.responses.create(model="gpt-5.5", input="Why is the sky blue?")
+```
+
+## OpenAI Agents SDK
+
+The OpenAI Agents SDK requires an `AsyncOpenAI` client. Set it as the default once, and every agent and runner routes through the gateway automatically.
+
+```python
+import os
+from openai import AsyncOpenAI
+from agents import Agent, Runner, set_default_openai_client
+
+set_default_openai_client(
+    AsyncOpenAI(
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        default_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+        },
+    ),
+    use_for_tracing=False,
+)
+
+agent = Agent(name="assistant", instructions="Be concise.")
+result = Runner.run_sync(agent, "Why is the sky blue?")
+```
+
+<Tip>
+  When your provider key is stored in Caveman Cloud, you can drop the `x-cave-upstream-key` header and pass `CAVE_API_KEY` in its place.
+</Tip>
+
+## Labeling traffic
+
+Add `x-cave-agent` or `x-cave-workflow` headers to identify different parts of your system in Traces. These labels do not grant access; they only tag requests for filtering and analysis.
+
+```typescript
+const client = new OpenAI({
+  baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}/openai/v1`,
+  apiKey: process.env.OPENAI_API_KEY,
+  defaultHeaders: {
+    "x-cave-api-key": process.env.CAVE_API_KEY,
+    "x-cave-upstream-key": process.env.OPENAI_API_KEY,
+    "x-cave-agent": "support-bot",
+  },
+});
+```
+
+## Next steps
+
+- [Query your traces](/guides/traces-and-spend) with Caveman Cloud SQL
+- [Set up evaluations](/guides/evals) to measure workload quality
+- [Configure optimizations](/guides/control-optimizations) for eligible workloads

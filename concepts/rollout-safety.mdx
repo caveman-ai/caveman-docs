@@ -1,0 +1,131 @@
+---
+title: "How Caveman rolls out optimizations safely"
+sidebarTitle: "Rollout Safety"
+description: "Learn how Caveman Cloud stages optimizations through record, replay, shadow, canary, and active, with eval gates, approvals, and rollback on regression."
+---
+
+Caveman Cloud changes your traffic only after proving it will not break your agent. Every optimization moves through a safety ladder: from observation to backtesting to a live measured ramp, with automatic rollback if quality regresses. This page explains the stages, who can approve each class of change, how eval gates protect behavioral optimizers, and what counts as real evidence.
+
+## The safety ladder
+
+Caveman organizes optimizations by the size of the change they make and the proof they need.
+
+| Class | What changes | Approval required |
+| --- | --- | --- |
+| **S0** | Byte-safe behavior is on by default. Nothing is rewritten. | None |
+| **S1** | Provider-native hints (cache markers, prompt-cache keys) are opt-in or recommended. Model-visible bytes are untouched. | Opt-in or accept a recommendation |
+| **S2** | Structural changes need SDK cooperation. Example: sending `x-cave-optimize: compress=lossless`. | SDK config change + approval |
+| **S3** | Behavioral changes can alter model output. Example: model routing, output caps, reasoning-effort reduction. | Replay + admin approval + canary + rollback |
+| **S4** | Lossy compression engine runs only per-request with `x-cave-optimize: compress`. Originals stay CCR-recoverable. | Request-level opt-in only |
+
+S2 and S3 approvals are owner/admin actions. Publishing aggressive (S2/S3) policies and approving S3 experiments requires owner or admin role. An admin cannot mint or modify owner access.
+
+## The rollout state machine
+
+An optimizer earns its way onto real traffic through staged promotion driven by the worker grading against the optimizer service. The stages are:
+
+```text
+record ──▶ replay ──▶ shadow ──▶ canary ──▶ active
+                          │          │
+                          └── guardrail breach ──▶ failed (never activated)
+```
+
+### record
+
+`record` is pass-through. The gateway observes your traffic, records usage, and stores metadata. Requests are never transformed. This is the default for new workloads and the safe starting point for every safety class.
+
+### replay
+
+`replay` runs the candidate change against recorded eval-suite fixtures, not live traffic. Write or side-effecting tools are virtualized: they are never executed against production systems. The worker grades the replayed outputs for quality, errors, and latency against your eval criteria.
+
+### shadow and canary
+
+Today `shadow` and `canary` are display labels with no behavioral difference from `active`. Because the experimentation plane's traffic splitter is not yet live, an optimizer in any of these three states applies to all of the project's traffic. Grading remains fixtures-only when metadata-only retention means no payload is stored for live replay.
+
+A guardrail breach during these stages fails the experiment. The optimizer is activated only when a passed canary is approved, so a failed run has nothing to roll back.
+
+### active
+
+`active` means the optimizer is applied to qualifying requests. Being active is necessary for savings but not sufficient for **verified** savings. Verified savings also require provider-causal attribution, provider-complete usage, and a known catalog price. Active state alone cannot promote inferred headroom to verified.
+
+## Dashboard routes: Compare and measured ramp
+
+For model routing specifically, Caveman uses a two-step rollout built on saved traffic:
+
+1. **Compare (backtest)**. Matching captured requests from the last seven days are replayed through the current model and up to four candidates on your stored pay-as-you-go keys. A pairwise LLM judge scores each candidate against the recorded answer. Before any score is shown, the judge must pass two self-checks: an A/A check (identical answers score within 3 points of a tie) and planted regression detection (catching deliberately degraded answers in at least 90% of cases).
+2. **Measured ramp (rollout)**. Publishing an active route mints a rollout experiment that starts at 5% of matching traffic. Both arms are recorded on concurrent traffic. The worker ramps 5% to 25% to 50% to 98% when live quality holds and errors and p95 latency stay within guardrails. It pauses after 24 hours without a verdict and rolls back by setting the route to 0%. Each step is an in-place edit of the active policy, recorded in the rollout's history.
+
+Guardrails are read before any judging, for every rollout before any is scored: errors breach on an anytime-valid bound, p95 after two consecutive ticks. A finished ramp stays under its guardrails. 2% stays on the old model so the saving stays measured.
+
+Only the worker raises the percent. A publish continues a running split only for the same target and the same traffic or less. A route that changes otherwise publishes at 0% under its old split, and the builder starts a new one at 5%.
+
+## Eval gates for behavioral optimizers
+
+Some optimizers can change model output, so they run behind **both** a policy flag and a cleared eval gate (`optimizer_eval_gates` in the policy). The eval gate is set true only after an experiment for that optimizer clears its guardrails. Enabling the policy flag alone does nothing until the eval suite has passed.
+
+| Optimizer | Provider | Behavior | Eval gate required |
+| --- | --- | --- | --- |
+| `output-brevity` | OpenAI | Adds a provider-native output cap of 512 tokens when the caller has not set one | Yes |
+| `reasoning-effort` | OpenAI | Sets `reasoning_effort: "low"` when the caller has not set one | Yes |
+
+A request whose eval gate is not cleared is passed through untouched. This is quality and behavior evidence, not a verified billing claim.
+
+## What counts as evidence at each stage
+
+Caveman keeps three evidence labels separate:
+
+| Label | What it means | Available at stage |
+| --- | --- | --- |
+| **Measured** | Observed usage priced at public catalog list prices from provider-reported tokens | `record` onward |
+| **Inferred** | Estimate with a daily range, sample size, and confidence; per-day rate, never re-projected to a month | `replay` and `shadow/canary` |
+| **Verified** | Savings counted from production traffic backed by provider data; starts at the honest \$0 | `active` only, and only for qualifying methods |
+
+Verified today requires one of three methods:
+
+- `provider_causal_cache`: Anthropic-direct cache breakpoints Caveman placed
+- `provider_causal_cache_bedrock`: Bedrock Anthropic Claude cache points
+- `provider_counted_baseline_delta`: Provider-counted baseline delta on counted transformed requests
+
+Overlapping detectors are collapsed into **mutex families** so headroom is never double-counted. A PR or passing eval is a proposal, never a saving.
+
+## Inbox and Improvements
+
+Stage changes and decisions surface in the **Inbox**, the org-scoped decision queue. When a route builder needs a human decision, it files an Inbox item. For example, a `price_confound` run that cannot auto-publish shows the like-for-like saving and the recorded-basis saving as a range, and asks a person to decide.
+
+You review the Evidence report in **Improvements** before approving. The report contains:
+
+- One claim about what the change improves
+- The approach (what files or prompts changed)
+- Physics proof (token counts, latency, schema checks)
+- Judged proof (eval results and test-case verdicts)
+- Evidence links (trace IDs and run IDs you can inspect independently)
+- Proving cost (what the attempt cost to generate and evaluate)
+- One recommended action: Ship, don't ship, or need more data
+
+PRs are proposals, never auto-merged. The Inbox keeps human control over every change.
+
+## Automatic rollback
+
+The worker grades experiments and triggers rollback automatically when guardrails breach. For dashboard routes, rollback is an in-place edit that sets the route's rollout percent to 0%. Because the policy version is edited rather than replaced, experiment auto-rollback restores the prior policy cleanly.
+
+A failed experiment has nothing to roll back if the optimizer was never activated. Automatic rollback protects you only when a stage has already committed a change to production traffic.
+
+## Recommended reading
+
+<CardGroup cols={2}>
+  <Card title="Optimizations" icon="sliders" href="/concepts/optimizations">
+    The full optimization catalog and what each class of change requires.
+  </Card>
+
+  <Card title="Savings Evidence" icon="chart-line" href="/concepts/savings-evidence">
+    How Caveman labels measured, inferred, and verified numbers.
+  </Card>
+
+  <Card title="Improvements" icon="wand-magic-sparkles" href="/guides/improvements">
+    How to prepare workloads, review Evidence reports, and decide in the Inbox.
+  </Card>
+
+  <Card title="Evals" icon="check-circle" href="/guides/evals">
+    Build datasets and evaluators that power eval gates and Compare runs.
+  </Card>
+</CardGroup>

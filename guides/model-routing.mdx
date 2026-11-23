@@ -1,0 +1,199 @@
+---
+title: "Set up model routing with cave-auto and route rules"
+sidebarTitle: "Model Routing"
+description: "Configure the Caveman router: pick a baseline and model pool, send auto requests, add task profiles, and roll out route rules backed by backtests."
+---
+
+Caveman Cloud routes model calls two ways. Requests that name the model `auto` (or `cave-auto`) let the project router pick a model from a pool you approve, per request. Requests that name a model keep it, unless you publish a **route rule** that moves a matching slice of traffic to a cheaper model under a measured, self-reverting rollout. This guide sets up both from **Gateway → Router**.
+
+| | `auto` routing | Route rules |
+| --- | --- | --- |
+| **Who opts in** | The caller, by naming the model `auto` | You, by publishing a rule for a workload |
+| **Applies to** | Requests with `model: "auto"` or `auto:<band>` | Requests that name a model and match the rule |
+| **How it is proven** | Gates run before ranking; the baseline is the fallback | Backtest on saved traffic, then a live split from 5% |
+| **Turn off per request** | Name a model instead | `x-cave-optimize: no-route` |
+
+## Before you start
+
+- Connect at least one provider under **Gateway → Providers**. The router only considers active, verified connections.
+- Publishing routing changes needs the **admin** or **owner** role.
+- Route your app or agent through the gateway with a project key. See [Connect a workload](/guides/connect-workload).
+
+## Set up the router
+
+<Steps>
+  <Step title="Confirm a baseline">
+    Open **Gateway → Router** and find **Model pool**. For each connected provider, choose a **Baseline** model. The baseline is fail-safe: it serves whenever nothing better passes the gates.
+
+    If you have not set one, Caveman picks a provisional baseline per provider from your most-used model over the last 30 days. Responses carry `x-cave-route-baseline-confirmed: false` until you confirm or change it.
+  </Step>
+  <Step title="Approve the model pool">
+    Check the models the router may choose. Each row shows input price per million tokens, context window, and an **Evaluated** badge when your evals have scored it.
+
+    - **Follow catalog** lets new eligible models join the pool automatically.
+    - **Baseline only** keeps every `auto` request on the baseline.
+  </Step>
+  <Step title="Tune advanced settings (optional)">
+    Under **Advanced**:
+
+    - **Cost ↔ quality preference** sets how far the router leans toward cheaper models inside the set that passed.
+    - **Routing policy** chooses the router. The default, **Per turn**, moves small turns down and keeps hard turns on the baseline.
+    - **Route across providers** (on by default) lets `auto` move a request between OpenAI and Anthropic when both are connected with a stored credential.
+    - **Cascade escalation** sends the cheaper pick first and makes a second call only below a confidence threshold. It adds latency and real cost.
+  </Step>
+  <Step title="Publish">
+    Click **Review & publish**. Every publish is a new policy version you can roll back. If the change would switch off something that is running, Caveman lists it and asks you to confirm.
+  </Step>
+</Steps>
+
+## Send requests to the router
+
+Set the model to `auto`. Add `x-cave-workflow` to apply a task profile for that workflow.
+
+<CodeGroup>
+
+```python OpenAI SDK
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://gateway.caveman.so/w/my-service/v1",
+    api_key=os.environ["CAVE_API_KEY"],
+)
+
+raw = client.chat.completions.with_raw_response.create(
+    model="auto",
+    messages=[{"role": "user", "content": "Summarise this diff."}],
+    extra_headers={"x-cave-workflow": "code-review"},
+)
+print(raw.headers["x-cave-route-to"])  # the model that answered
+```
+
+```ts Anthropic SDK
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  baseURL: "https://gateway.caveman.so/w/my-service",
+  apiKey: process.env.CAVE_API_KEY,
+});
+
+await anthropic.messages.create(
+  {
+    model: "auto:high",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: "Summarise this diff." }],
+  },
+  { headers: { "x-cave-workflow": "code-review" } },
+);
+```
+
+```ts Vercel AI SDK
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const cave = createOpenAI({
+  baseURL: "https://gateway.caveman.so/w/my-service/v1",
+  apiKey: process.env.CAVE_API_KEY,
+  headers: { "x-cave-workflow": "code-review" },
+});
+
+const { text } = await generateText({
+  model: cave("auto"),
+  prompt: "Summarise this diff.",
+});
+```
+
+```bash curl
+curl -i https://gateway.caveman.so/w/my-service/v1/chat/completions \
+  -H "x-cave-api-key: $CAVE_API_KEY" \
+  -H "x-cave-workflow: code-review" \
+  -H "content-type: application/json" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"Summarise this diff."}]}'
+```
+
+</CodeGroup>
+
+For coding agents, set the model to `auto` wherever the agent lets you choose one. Agents that pin their own model keep it.
+
+### Price bands
+
+Append a band to hold the router to a price range: `auto:low`, `auto:medium`, `auto:high`, `auto:xhigh`, or `auto:max`.
+
+| Band | Picks |
+| --- | --- |
+| `auto:low` | The cheapest pool model that can serve the request |
+| `auto:medium` | The middle of the models cheaper than your baseline |
+| `auto:high` | The cheaper model nearest the baseline |
+| `auto:xhigh`, `auto:max` | The baseline |
+
+An unknown band is rejected with `cave_routing_invalid_cost_tier`.
+
+### Read the decision
+
+Every routed response names its decision:
+
+| Header | Value |
+| --- | --- |
+| `x-cave-route-from` | What was requested, for example `auto` |
+| `x-cave-route-to` | The model that answered |
+| `x-cave-router-version` | The router that decided |
+| `x-cave-route-tier` | The price band applied |
+| `x-cave-route-baseline` | The baseline used as fallback |
+
+If the router has nothing to route from (no active provider, no baseline), the request fails with `cave_routing_not_enabled` and names what is missing. It is never forwarded under a model nobody chose.
+
+## Add task profiles
+
+A task profile constrains `auto` for one slice of traffic. Under **Task profiles**, add a profile keyed by a workflow slug (such as `support-triage`), `agent:<slug>`, or `default`.
+
+| Setting | Effect |
+| --- | --- |
+| **Quality floor** | Minimum quality score (0 to 1) a candidate must meet |
+| **Cost ↔ quality** | The preference dial for this profile only |
+| **Stickiness** | Keep the same model per **Conversation**, per **API key**, or **None** |
+| **Cross-provider** | Let this profile move between providers (off by default) |
+| **Profile limits** | Candidate allowlist and denylist, data residency, max p95 latency delta, max error delta, max cost ratio, and cascade settings |
+
+Click **Preview** to see which candidates pass for a source provider and API shape, with quality, expected cost, and p95 latency, plus the reason each rejected model failed.
+
+## Move named-model traffic with route rules
+
+Route rules change the model for requests that already name one. Click **New route** on the Router page and work through four steps.
+
+<Steps>
+  <Step title="When">
+    Choose the workload (required). Optionally narrow it by requested model, tags, or router-classified tier.
+  </Step>
+  <Step title="Send to">
+    Pick the target model and, optionally, a reasoning effort.
+  </Step>
+  <Step title="Compare">
+    Backtest up to four candidates on the last seven days of matching saved traffic. A judge compares each answer to the current model's. Each candidate gets a verdict: **Holds**, **Worse**, **Can't tell yet**, or **Judge unreliable**. A verdict needs at least 30 paired cases and holds within a 2-point quality margin.
+
+    Compare needs request bodies saved for the organization and replay allowed for the project.
+  </Step>
+  <Step title="Publish">
+    The route goes live on 5% of matching traffic and ramps 5% → 25% → 50% → 98% while live quality holds and errors and p95 latency stay within guardrails. It pauses after 24 hours without a verdict and rolls back to 0% on a breach. 2% always stays on the original model so the saving stays measured.
+  </Step>
+</Steps>
+
+<Note>
+  Publishing is never blocked. A route without a holding backtest publishes with an **Unchecked** label. The first matching route wins, and route rules never apply to `auto` requests.
+</Note>
+
+## Let Caveman find cheaper routes
+
+**Automatic backtests** compare cheaper models for you every hour: models suggested by open findings, and newly cheaper models on the same provider as a live route.
+
+- **Monthly proving budget** caps replay spend. Leave it empty for automatic (10% of the last 30 days' spend, up to $250), or set $0 to $100,000.
+- **Publish what holds**: when the **Automatic changes** setting on Improvements is on, a backtest that holds goes live on a small share of traffic and ramps only while live quality holds. When off, it waits in the Inbox for you.
+
+## Measure the impact
+
+Open **Analytics → Routing** for model mix and routed traffic, or chart `x-cave-route-to` outcomes on a [custom dashboard](/analytics/custom-dashboards). Routing savings are always **inferred**: priced against the baseline model at catalog rates and never promoted to verified. See [Savings evidence](/concepts/savings-evidence).
+
+## Next steps
+
+- [Control optimizations per request](/guides/control-optimizations)
+- [Restrict which models a project can use](/governance/access-and-limits)
+- [How rollouts stay safe](/concepts/rollout-safety)

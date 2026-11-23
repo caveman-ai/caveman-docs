@@ -1,0 +1,77 @@
+---
+title: "Get started with Caveman in under two minutes"
+sidebarTitle: "Quickstart"
+description: "Install the Caveman CLI, enable the proxy for Claude Code, and run your first compressed session. Or install just the skill for shorter answers."
+---
+
+Get Caveman running in two minutes. You can install the full proxy for input compression, or just the skill for shorter answers. This guide covers both paths, then shows the built-in commands to learn, trial, shrink, and browse.
+
+## Install the full proxy
+
+The proxy is the big rock. It shrinks what your agent reads (logs, CSV, JSON, web pages) and runs on your machine with your keys.
+
+<Steps>
+  <Step title="Install the CLI">
+    ```bash
+    npm install -g @caveman-ai/cli && caveman setup --install
+    ```
+
+    `setup --install` downloads the release checksum manifest and signature, verifies the pinned public key, checks each artifact SHA-256, and installs by atomic rename under `~/.caveman/bin`.
+  </Step>
+  <Step title="Launch your agent through Caveman">
+    ```bash
+    caveman claude
+    ```
+
+    This persistently enables Claude's native Caveman integration, then runs Claude. After the first run, plain `claude` stays caveman'd. You can also use `codex`, `gemini`, `aider`, `kilo`, `qwen`, `opencode`, `hermes`, `openclaw`, or `pi`.
+  </Step>
+  <Step title="Try a command">
+    ```bash
+    caveman learn
+    ```
+
+    This ranks where your tokens go from agent history already on disk.
+  </Step>
+</Steps>
+
+## Install just the skill
+
+Only want shorter answers? This is output compression alone. No proxy, no Node.js 22 requirement.
+
+```bash
+npx skills add JuliusBrussee/caveman -g
+```
+
+Works in Claude Code, Codex, Gemini CLI, Cursor, Windsurf, Cline, Copilot, and 30+ more. Type `/caveman` (`$caveman` in Codex) if it does not start on its own. Say `stop caveman` to go back.
+
+## What to try next
+
+After install, run these commands to explore what Caveman can do:
+
+| Command | What it does |
+| --- | --- |
+| `caveman learn` | Rank where your tokens go, from agent history already on disk |
+| `caveman learn implement` | Apply the fixes one diff at a time, only on your yes |
+| `caveman trial -- claude` | A/B a real session on your own work |
+| `caveman shrink -- pnpm test` | Compress noisy command output |
+| `caveman browse <url>` | A compressed web page instead of a 15,000-token dump |
+| `caveman convert --dry-run` | Pixel mode: skills the model reads as images |
+| `caveman stats` | Your token history |
+
+## Building your own agent?
+
+Same shrinking, as one wrapper around the Vercel AI SDK, LangChain, OpenAI, or Anthropic call you already make:
+
+<CodeGroup>
+
+```bash TypeScript
+npm install @caveman-ai/middleware @caveman-ai/sdk
+```
+
+```bash Python
+pip install 'caveman-middleware[langchain]' caveman-sdk
+```
+
+</CodeGroup>
+
+See [Middleware](/caveman/middleware) and [SDKs and packages](/caveman/sdks-and-packages) for framework guides.

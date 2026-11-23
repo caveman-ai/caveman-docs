@@ -1,0 +1,200 @@
+---
+title: "Self-driving AI in Caveman Cloud: how the agents work"
+sidebarTitle: "Built-in AI"
+description: "Caveman Cloud runs a continuous self-driving loop over your traffic: observe, diagnose, generate, evaluate, and deploy, with human approval at every gate."
+---
+
+Caveman Cloud embeds AI agents directly into the product so they work for you, not instead of you. The system observes your production traffic, investigates anomalies, drafts evaluations, proposes changes, proves them on recorded cases, and surfaces every proposal as a reviewable pull request with an Evidence report. You remain the decision maker at every gate. This page explains how the self-driving loop works, what each built-in agent capability does, and where you control it.
+
+## The self-driving loop
+
+The product runs one continuous cycle against your traffic: **Observe, Diagnose, Generate, Evaluate, Deploy, Learn**. Every AI-powered feature is a step or a tool inside this loop.
+
+<Steps>
+  <Step title="Observe">
+    The gateway records every request, span, tool call, and error that passes through it. Traffic is grouped into subjects and workloads based on declared IDs, tool signatures, or prompt prefixes.
+  </Step>
+  <Step title="Diagnose">
+    Ask Caveman investigates anomalies on demand. Automation watches for regressions and waste. Both read traces and, when authorized, your connected repository.
+  </Step>
+  <Step title="Generate">
+    Improvement attempts find candidate changes: prompt edits, tool adjustments, and routing changes. Each candidate is scoped to one workload and produced by a dedicated coding agent.
+  </Step>
+  <Step title="Evaluate">
+    Candidate changes are replayed against recorded traffic and judged by fixed-code assertions, output graders, sandboxed checks, or qualified AI judges. The result is an Evidence report with paired proof.
+  </Step>
+  <Step title="Deploy">
+    Passing candidates surface as reviewable pull requests. You inspect the Evidence report and choose to merge, reject, or request more data. Nothing ships without your explicit action.
+  </Step>
+  <Step title="Learn">
+    Merged changes feed back into the loop. The system tracks cost per task, monitors live quality, and uses the new baseline for the next round.
+  </Step>
+</Steps>
+
+## Built-in AI capabilities
+
+### Ask Caveman
+
+**Ask Caveman** is the agent-assisted investigation surface. You open it in the console at **Ask** (or use `cvm agent run` from the CLI) and ask one question about a time window, from the page you are looking at. The answer can read your connected repository when you hold access and the project has exactly one connected repository.
+
+Ask Caveman helps you understand traffic patterns, trace failures, and workload behavior before deciding what to improve. It does not mutate production or open pull requests on its own. Follow-up turns use `parent_run_id` to continue a conversation.
+
+#### What Ask reads from your repository
+
+Ask and Factory agent runs work in a real git checkout of your connected repository at the commit Caveman admitted the run on. The checkout includes:
+
+- **Every file** in the repository at that commit, except the files listed below.
+- **Git history** to a default depth of 50 commits, so the agent can run `git log`, `git blame`, and `git show`. Operators change the depth with the Helm value `nativeAgents.source.historyDepth`. See [Security review](/solutions/security-review#agent-access-to-your-repository).
+- **Instruction files** such as `AGENTS.md`, `CLAUDE.md`, their nested copies, and skills. These stay readable, as in a developer's checkout.
+
+Caveman removes `.env*` files and every file that can change an agent's tools or permissions from the working tree. Examples include `.mcp.json`, `opencode.json`, `.opencode/`, `.claude/settings*.json`, `.claude/agents/`, `.claude/commands/`, `.codex/`, and `.cursor/mcp.json`. Removed files are still readable as data through git history within the history depth.
+
+#### Continuity across turns
+
+In a git checkout, changes the agent makes carry over to the next turn of the same Ask conversation. This includes edited files and local commits. Caveman saves the working copy after a turn that changed it, and the next turn continues on the same commit. Nothing is pushed to GitHub or exported, and the working copy never reaches another conversation.
+
+If your default branch moved on GitHub since the earlier turn, Ask still works on the earlier commit and tells you when the difference matters.
+
+Learn how to run investigations with the CLI in the [Improvements guide](/guides/improvements).
+
+### Improvements
+
+**Improvements** is the workspace where Caveman proposes concrete changes to your workloads. Each proposal is an **Improvement attempt** on a single subject. The system generates a candidate change, screens it, replays it on recorded traffic, runs evals, and packages the result as a reviewable PR with an **Evidence report**.
+
+The Evidence report contains one claim, the approach that produced it, a physics proof column, a judged proof column, evidence links, its proving cost, and one recommended action. Every surfaced proposal enters your **Inbox** for human decision.
+
+See how to prepare workloads and review attempts in the [Improvements guide](/guides/improvements).
+
+### Automation
+
+**Automation** covers four kinds of continuous agent work against your workloads:
+
+- **Repository scans**: read connected repositories to find improvement opportunities.
+- **Production investigations**: analyze live traffic patterns to detect regressions or waste.
+- **Pull-request reviews**: comment on your team's PRs with quality checks and recommendations.
+- **Repair pull requests**: generate proposed fixes and open them as reviewable PRs.
+
+All four are switched off by default and operator-gated. The installation's operator decides which models agent sessions may use and whether Ask Caveman, fixes, and improvement cases are switched on. A deployment that has not switched a kind of work on refuses it and says what is missing.
+
+Learn how to enable and manage Automation in the [Automation guide](/guides/automation).
+
+### Evals and AI judges
+
+Caveman drafts evals from your recorded traffic, builds reusable datasets, and runs them against candidate changes. You can open **Evals → Library** in the console to create datasets, evaluators, and workbenches, or do it from the CLI with `cvm datasets`, `cvm evaluators`, and `cvm evals`.
+
+**AI judges** are model-based criteria that score outputs against a rubric. A judge must be qualified on an independent reference set before it can decide anything. The qualification process checks agreement, sample adequacy, and errors within a cost budget. Only a trusted judge decides rollout verdicts.
+
+You can also configure **live monitors** that sample production traffic and alert on degrading quality. Activation depends on current qualification, budgets, and provider access.
+
+Learn more in the [Evals guide](/guides/evals).
+
+### Compare and route rollouts
+
+When you run optimizations such as model routing or compression, Caveman uses **Compare** to judge quality. Each Compare run pairs a baseline and a candidate, then scores them with a judge. The verdict is **Ship**, **Don't ship**, or **Need more data**.
+
+The judge must come from a different model family than the model under test. If you have stored provider keys, Caveman picks a cross-family key automatically. You can also connect a dedicated **decision model** (TypeSafe or a custom endpoint) for consistent, independent judgments.
+
+Learn how to configure judges and run Compare in the [Decision Models guide](/guides/decision-models) and [Control Optimizations guide](/guides/control-optimizations).
+
+### Dashboards
+
+Caveman can help build dashboards from the chart catalog and suggestions. The `caveman-cloud-dashboards` skill (exposed through CLI and web) lets you discover charts, verify each one before saving, and assemble saved views. Dashboards refresh on load and can be shared with your team.
+
+Open **Dashboards** in the console to browse existing views or create new ones.
+
+### Coding-agent skills
+
+Caveman Cloud exposes a rich set of agent skills that coding agents such as Claude Code, Cursor, and Codex can use over MCP or the CLI. The skills include:
+
+- **caveman-setup**: connect application telemetry and verify the first request.
+- **caveman-cloud-connect**: pair a coding agent with one Caveman Cloud project.
+- **caveman-cloud-project**: identify workflows, build grounded evals, record a baseline, and draft quality monitors.
+- **caveman-cloud-evals**: author, version, run, compare, and calibrate evaluations.
+- **caveman-cloud-traces**: inspect authorized traces and build drafts without inventing expectations.
+- **caveman-sql**: answer project questions with read-only SQL.
+- **caveman-cloud-dashboards**: build and verify dashboards.
+- **caveman-discover**: find and label every LLM workflow in a repository.
+- **caveman-optimize**: evaluate observations with paired evidence.
+
+These skills are served to agents at console URLs and through the [MCP server](/cli/mcp). You can connect your coding agent from the console or launch `cvm mcp` locally.
+
+Learn more in [Connect Coding Agent](/guides/connect-coding-agent) and [Automated Setup](/guides/ai-setup).
+
+## What data goes to which model
+
+Understanding where your data flows helps you stay compliant and in control.
+
+### Replays and proving
+
+When Caveman proves a candidate change, it replays recorded traffic against your stored provider keys. Replays run only on keys Caveman stores, not on per-request bring-your-own-key traffic.
+
+### Judging
+
+Judging uses either your stored provider keys or your connected decision model. For every Compare run or eval judgment:
+
+- If you have a connected decision model that fits (its model family differs from every model under test), Caveman uses it as the primary judge.
+- Otherwise, Caveman uses a stored provider key from a different model family than the model under test.
+- When both a decision model and a cross-family key exist, the cross-family key acts as a second opinion on pairs where the decision model is unsure.
+
+### Proving budget
+
+Caveman charges proving work against a monthly budget. The default is **10% of your last 30 days' model spend**, never more than **250 USD per month** unless you set a custom budget yourself. Setting the budget to **0 USD** turns proving off entirely. The current budget label is shown in the console and exposed through the CLI.
+
+## Stay in control
+
+Caveman Cloud is designed so agents do the work and humans approve. Here are the controls that keep you in charge.
+
+### Approvals and the Inbox
+
+Every proposal that needs a decision enters your **Inbox** as a typed action with attached evidence. The Inbox is an org-scoped feed that shows what Caveman noticed, what it did, and what it needs you to decide. You can approve, reject, or request more data for each item.
+
+### PRs are never auto-merged
+
+Repair pull requests, improvement attempts, and any other code changes surface as reviewable PRs. They wait for your explicit merge action. No agent merges code into your main branch without human approval.
+
+### Budgets and gates
+
+- **Proving budget** caps monthly agent spend on candidate generation and replay.
+- **Monitor caps** limit daily grading spend.
+- **Eval gates** block S1 and S3 optimizers from running until quality is proven unchanged.
+- **Operator switches** turn Automation features on or off at the installation level.
+
+### Consent and data
+
+You control whether payloads are captured, for how long, and who can read them. Encrypted data is kept until you delete it or until the retention period expires. Missing or expired captures stay unavailable, and Caveman never guesses at missing content.
+
+## Explore the self-driving features
+
+<CardGroup>
+  <Card title="Improvements" icon="wand-magic-sparkles" href="/guides/improvements">
+    Prepare workloads, review Evidence reports, and merge proposed changes.
+  </Card>
+
+  <Card title="Automation" icon="gear" href="/guides/automation">
+    Enable repository scans, investigations, and PR reviews.
+  </Card>
+
+  <Card title="Evals" icon="flask" href="/guides/evals">
+    Build datasets, run workbenches, and qualify judges.
+  </Card>
+
+  <Card title="Decision Models" icon="scale-balanced" href="/guides/decision-models">
+    Connect a judge for Compare and route rollouts.
+  </Card>
+
+  <Card title="Automated Setup" icon="robot" href="/guides/ai-setup">
+    Let a coding agent onboard your project with skills.
+  </Card>
+
+  <Card title="Connect Coding Agent" icon="terminal" href="/guides/connect-coding-agent">
+    Pair Claude Code, Cursor, or Codex with Caveman Cloud.
+  </Card>
+
+  <Card title="Control Optimizations" icon="sliders" href="/guides/control-optimizations">
+    Choose record mode or active optimizations per request.
+  </Card>
+
+  <Card title="MCP" icon="plug" href="/cli/mcp">
+    Connect coding agents over the Model Context Protocol.
+  </Card>
+</CardGroup>

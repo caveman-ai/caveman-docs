@@ -1,0 +1,182 @@
+---
+title: "Framework Integrations for Caveman Cloud"
+sidebarTitle: "Frameworks"
+description: "Route traffic from Vercel AI SDK, LangChain, LiteLLM, CrewAI, and Pydantic AI through Caveman Cloud. Each framework needs only a base URL and header change."
+---
+
+Caveman Cloud integrates with popular AI frameworks by changing the base URL and adding authentication headers. Each framework example below shows the minimal configuration needed to route calls through the gateway.
+
+## Prerequisites
+
+- A Caveman Cloud account with a gateway URL (`CAVE_GATEWAY_URL`)
+- Your Cave API key (`CAVE_API_KEY`)
+- Your model provider key (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
+
+<Tabs>
+  <Tab title="Vercel AI SDK">
+    Use `@ai-sdk/openai-compatible` for OpenAI-protocol models. The Anthropic provider takes a `baseURL` too. Either way, the gateway keeps each model on its native protocol.
+
+    ```typescript
+    import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+    import { generateText } from "ai";
+    
+    const caveman = createOpenAICompatible({
+      name: "caveman",
+      baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}/openai/v1`,
+      apiKey: process.env.OPENAI_API_KEY,
+      headers: {
+        "x-cave-api-key": process.env.CAVE_API_KEY!,
+        "x-cave-upstream-key": process.env.OPENAI_API_KEY!, // your provider key, per request
+      },
+    });
+    
+    const { text } = await generateText({
+      model: caveman("gpt-5.5"),
+      prompt: "Why is the sky blue?",
+    });
+    ```
+
+    For Anthropic models, keep the native protocol:
+
+    ```typescript
+    import { createAnthropic } from "@ai-sdk/anthropic";
+    
+    const anthropic = createAnthropic({
+      baseURL: `${process.env.CAVE_GATEWAY_URL}/w/{{app}}/v1`,
+      headers: {
+        "x-cave-api-key": process.env.CAVE_API_KEY!,
+        "x-cave-upstream-key": process.env.ANTHROPIC_API_KEY!,
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="LangChain">
+    Every LangChain chat model takes a `base_url`, and LangGraph inherits whatever model you pass it. Set the base URL to the gateway and calls route through it. Anthropic models keep their native protocol.
+
+    ```python
+    import os
+    from langchain_openai import ChatOpenAI
+    
+    llm = ChatOpenAI(
+        model="gpt-5.5",
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        default_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+        },
+    )
+    
+    llm.invoke("Why is the sky blue?")
+    ```
+
+    For Anthropic models:
+
+    ```python
+    from langchain_anthropic import ChatAnthropic
+    
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-5",
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+        default_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["ANTHROPIC_API_KEY"],
+        },
+    )
+    ```
+  </Tab>
+  <Tab title="LiteLLM">
+    LiteLLM routes through the gateway per call via `api_base`, or fleet-wide by pointing a model at the gateway in the LiteLLM proxy `config.yaml`.
+
+    ### Per-call
+
+    ```python
+    import os
+    import litellm
+    
+    res = litellm.completion(
+        model="openai/gpt-5.5",
+        api_base=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        extra_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+        },
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+    )
+    ```
+
+    ### LiteLLM proxy config
+
+    ```yaml
+    model_list:
+      - model_name: gpt-5.5
+        litellm_params:
+          model: openai/gpt-5.5
+          api_base: "${CAVE_GATEWAY_URL}/w/{{app}}/openai/v1"
+          api_key: "os.environ/OPENAI_API_KEY"
+          extra_headers:
+            x-cave-api-key: "os.environ/CAVE_API_KEY"
+            x-cave-upstream-key: "os.environ/OPENAI_API_KEY"
+    ```
+  </Tab>
+  <Tab title="CrewAI">
+    In CrewAI 1.0 and later, a `base_url` and `default_headers` on the LLM send every crew call through the gateway. Pass the LLM to your Agents and Crew as usual.
+
+    ```python
+    import os
+    from crewai import LLM
+    
+    llm = LLM(
+        model="openai/gpt-5.5",
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        default_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+        },
+    )
+    
+    # Pass llm to your Agents and Crew as usual.
+    ```
+  </Tab>
+  <Tab title="Pydantic AI">
+    Any Pydantic AI provider class that takes a `base_url` routes through the gateway. Wire the provider into a model and hand it to your Agent.
+
+    ```python
+    import os
+    from openai import AsyncOpenAI
+    from pydantic_ai import Agent
+    from pydantic_ai.models.openai import OpenAIChatModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+    
+    client = AsyncOpenAI(
+        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/w/{{app}}/openai/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        default_headers={
+            "x-cave-api-key": os.environ["CAVE_API_KEY"],
+            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],  # your provider key, per request
+        },
+    )
+    
+    model = OpenAIChatModel("gpt-5.5", provider=OpenAIProvider(openai_client=client))
+    agent = Agent(model)
+    result = agent.run_sync("Why is the sky blue?")
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  When your provider key is stored in Caveman Cloud, you can drop the `x-cave-upstream-key` header and pass `CAVE_API_KEY` in its place.
+</Tip>
+
+## Labeling traffic
+
+Add `x-cave-agent` or `x-cave-workflow` headers to identify different parts of your system in Traces. These labels do not grant access; they only tag requests for filtering and analysis.
+
+## Next steps
+
+- [Query your traces](/guides/traces-and-spend) with Caveman Cloud SQL
+- [Set up evaluations](/guides/evals) to measure workload quality
+- [Configure optimizations](/guides/control-optimizations) for eligible workloads
