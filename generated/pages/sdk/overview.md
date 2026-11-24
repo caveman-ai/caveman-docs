@@ -11,7 +11,7 @@ Building an agent locally without Cloud? Start with [Agent SDK](/docs/agent/over
 ```bash
 npm install -g @caveman-ai/cloud
 npm install @caveman-ai/sdk
-pip install caveman-sdk
+pip install https://github.com/caveman-ai/cloud-sdk/releases/download/v2.0.0/caveman_sdk-2.0.0-py3-none-any.whl
 go get github.com/caveman-ai/sdk-go
 ```
 

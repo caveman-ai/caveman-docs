@@ -7,7 +7,7 @@
 ## Install
 
 ```bash
-pip install caveman-sdk
+pip install https://github.com/caveman-ai/cloud-sdk/releases/download/v2.0.0/caveman_sdk-2.0.0-py3-none-any.whl
 ```
 
 ## Gateway tracing & Cloud client

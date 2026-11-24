@@ -10,10 +10,10 @@ This page covers installation, configuration, per-request controls, receipt pars
 
 ## Install
 
-Install the package from PyPI. It requires Python 3.13 or newer.
+Install the wheel directly from [GitHub Releases](https://github.com/caveman-ai/cloud-sdk/releases). It requires Python 3.13 or newer.
 
 ```bash
-python -m pip install caveman-sdk
+python -m pip install https://github.com/caveman-ai/cloud-sdk/releases/download/v2.0.0/caveman_sdk-2.0.0-py3-none-any.whl
 ```
 
 Import the `Cave` client and the types you need:
@@ -23,7 +23,7 @@ from caveman_cloud import Cave, CompressResult, ToolSearchResult
 ```
 
 <Tip>
-  The import package is always `caveman_cloud`, regardless of how you install it. The distribution name on PyPI is `caveman-sdk`.
+  The import package is always `caveman_cloud`, regardless of how you install it. The distribution name is `caveman-sdk`.
 </Tip>
 
 ## Configure the client
