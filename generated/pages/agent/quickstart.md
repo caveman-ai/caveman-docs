@@ -1,6 +1,6 @@
 # Quickstart
 
-> Source: caveman-ai/agents/docs/quickstart.mdx
+> Source: caveman-ai/agent-sdk/docs/quickstart.mdx
 
 Install `@caveman-ai/agent` and `@caveman-ai/harness` to run a tool-calling agent in-process with no external binary.
 

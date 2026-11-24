@@ -12,6 +12,6 @@ Other parts of the Caveman stack live in their own repositories:
 |---|---|
 | `JuliusBrussee/caveman` | Local efficiency layer: skill, proxy, Go compression engine, memory, MCP, `@caveman-ai/cli`, `@caveman-ai/middleware` |
 | `caveman-ai/caveman-code` | Caveman Code desktop app, `caveman-code` CLI, web, and mobile clients |
-| `caveman-ai/agents` | Open-source Agent SDK (`@caveman-ai/agent`), Harness v4 (`@caveman-ai/harness`), Session Protocol, and Evals |
+| `caveman-ai/agent-sdk` | Open-source Agent SDK (`@caveman-ai/agent`), Harness v4 (`@caveman-ai/harness`), Session Protocol, and Evals |
 | `caveman-ai/cloud-sdk` | Caveman Cloud `cvm` CLI, TypeScript/Python/Go SDKs, Router client, OpenAPI contracts, and Cloud skills |
 | `caveman-ai/docs` | Unified documentation aggregator serving `docs.caveman.so` |

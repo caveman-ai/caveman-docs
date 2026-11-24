@@ -1,6 +1,6 @@
 # Harness v4
 
-> Source: caveman-ai/agents/docs/harness.mdx
+> Source: caveman-ai/agent-sdk/docs/harness.mdx
 
 `@caveman-ai/harness` (Harness v4) is the open-source agent loop underneath `@caveman-ai/agent` and Caveman Code. It keeps prompt prefixes byte-stable across turns, loads only the tools a loadout needs, isolates secrets from shell and MCP subprocesses, and exits cleanly when parked between turns.
 

@@ -1,6 +1,6 @@
 # Sessions & Approvals
 
-> Source: caveman-ai/agents/docs/sessions.mdx
+> Source: caveman-ai/agent-sdk/docs/sessions.mdx
 
 A Session is one continuous conversation with one append-only event log. Use `cave.sessions.create()` for multi-turn interactions, live event streaming, custom tool callbacks, approvals, and interrupts.
 

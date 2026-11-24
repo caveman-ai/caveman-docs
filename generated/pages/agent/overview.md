@@ -1,6 +1,6 @@
 # Overview
 
-> Source: caveman-ai/agents/docs/index.mdx
+> Source: caveman-ai/agent-sdk/docs/index.mdx
 
 `@caveman-ai/agent` is the TypeScript SDK and open-source Harness v4 for building, testing, and running AI agents. It runs in-process on your machine with any Anthropic, OpenAI, or external tools model, and runs the same definition on Caveman Cloud when you supply a Cloud API key.
 

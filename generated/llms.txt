@@ -2,7 +2,7 @@
 
 > Aggregated directly from each product repository's docs/ folder. Zero private Cloud internals.
 
-## Caveman Agents (caveman-ai/agents)
+## Caveman Agents (caveman-ai/agent-sdk)
 - [Overview](https://docs.caveman.so/agent/overview.md): Build efficient AI agents locally on Harness v4 or run them on Caveman Cloud.
 - [Quickstart](https://docs.caveman.so/agent/quickstart.md): Install @caveman-ai/agent and run a tool-using agent in-process in five minutes.
 - [Harness v4](https://docs.caveman.so/agent/harness.md): Loadouts, cache-stable prefixes, tools, compaction, and environments.

@@ -27,7 +27,7 @@ Three sibling checkouts do:
 
 ```bash
 CAVEMAN_PUBLIC="${CAVEMAN_PUBLIC_REPO:-../caveman}"       # JuliusBrussee/caveman
-CAVEMAN_AGENTS="${CAVEMAN_AGENTS_REPO:-../agents}"        # caveman-ai/agents
+CAVEMAN_AGENTS="${CAVEMAN_AGENTS_REPO:-../agents}"        # caveman-ai/agent-sdk
 CAVEMAN_CODE="${CAVEMAN_CODE_REPO:-../caveman-code}"      # caveman-ai/caveman-code
 CAVEMAN_CLOUD_SDK="${CAVEMAN_CLOUD_SDK_REPO:-../cloud-sdk}" # caveman-ai/cloud-sdk
 ```
@@ -43,7 +43,7 @@ CAVEMAN_CLOUD_SDK="${CAVEMAN_CLOUD_SDK_REPO:-../cloud-sdk}" # caveman-ai/cloud-s
 | Cloud CLI & SDK API | `$CAVEMAN_CLOUD_SDK/packages/{cli,sdk-ts}/` and `$CAVEMAN_CLOUD_SDK/contracts/openapi.json` |
 
 Check the sibling repositories' current remotes and source before using an
-older monorepo path. The agent framework repository is `caveman-ai/agents`
+older monorepo path. The agent framework repository is `caveman-ai/agent-sdk`
 (Apache-2.0 / MIT); the Cloud CLI and SDK repository is `caveman-ai/cloud-sdk`.
 
 `content/external-capabilities.json` records the already-public SDK capabilities

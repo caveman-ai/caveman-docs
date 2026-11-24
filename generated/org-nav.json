@@ -4,7 +4,7 @@
     {
       "product": "agents",
       "label": "Caveman Agents",
-      "repo": "caveman-ai/agents",
+      "repo": "caveman-ai/agent-sdk",
       "visibility": "public-ready",
       "groups": [
         {

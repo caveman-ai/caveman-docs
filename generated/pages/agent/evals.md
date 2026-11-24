@@ -1,6 +1,6 @@
 # Evals & Graders
 
-> Source: caveman-ai/agents/docs/evals.mdx
+> Source: caveman-ai/agent-sdk/docs/evals.mdx
 
 `@caveman-ai/evals` (TypeScript) and `caveman-evals` (Python) ship 30 fail-closed graders sharing one machine-readable registry (`packages/protocol/schemas/grader-registry.json`). Unknown grader types, malformed regexes, invalid JSON Schemas, missing cost/token fields, and SSRF violations always fail closed rather than passing silently.
 

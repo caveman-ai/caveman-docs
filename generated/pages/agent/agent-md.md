@@ -1,6 +1,6 @@
 # AGENT.md & Builds
 
-> Source: caveman-ai/agents/docs/agent-md.mdx
+> Source: caveman-ai/agent-sdk/docs/agent-md.mdx
 
 An agent build is either a folder containing `AGENT.md` or a TypeScript `AgentDefinition`. Both compile to the same deterministic `agent.json` manifest and SHA-256 digest (`packages/agent/src/build.ts`).
 

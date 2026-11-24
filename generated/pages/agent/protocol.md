@@ -1,6 +1,6 @@
 # Session Protocol
 
-> Source: caveman-ai/agents/docs/protocol.mdx
+> Source: caveman-ai/agent-sdk/docs/protocol.mdx
 
 `@caveman-ai/protocol` defines the public wire contract shared by `@caveman-ai/agent`, `@caveman-ai/harness`, Caveman Code, and Caveman Cloud.
 

@@ -6,7 +6,7 @@ Serves `docs.caveman.so`. Product documentation lives beside the code inside eac
 
 | Product tab | Source folder |
 |---|---|
-| Caveman Agents | `caveman-ai/agents/docs/` |
+| Caveman Agents | `caveman-ai/agent-sdk/docs/` |
 | Caveman Code | `caveman-ai/caveman-code/docs/` |
 | Cloud SDK & CLI | `caveman-ai/cloud-sdk/docs/` |
 | Local Efficiency | `JuliusBrussee/caveman/docs/` |
