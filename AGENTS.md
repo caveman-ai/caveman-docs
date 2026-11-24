@@ -4,7 +4,7 @@ The public documentation site for Caveman and Caveman Cloud. Deploys to
 `docs.caveman.so`.
 
 This file is agent-neutral and is the canonical instruction set for anything
-working in this repository. `CLAUDE.md` is a copy of it, kept identical.
+working in this repository. `CLAUDE.md` is a symlink to this file.
 
 ---
 
@@ -23,11 +23,11 @@ backstop, not permission to stop thinking.
 ## Where the facts come from
 
 This repository holds no product code, so it cannot verify its own claims.
-Three sibling checkouts do:
+Four sibling checkouts do:
 
 ```bash
 CAVEMAN_PUBLIC="${CAVEMAN_PUBLIC_REPO:-../caveman}"       # JuliusBrussee/caveman
-CAVEMAN_AGENTS="${CAVEMAN_AGENTS_REPO:-../agents}"        # caveman-ai/agent-sdk
+CAVEMAN_AGENTS="${CAVEMAN_AGENTS_REPO:-../agent-sdk}"     # caveman-ai/agent-sdk
 CAVEMAN_CODE="${CAVEMAN_CODE_REPO:-../caveman-code}"      # caveman-ai/caveman-code
 CAVEMAN_CLOUD_SDK="${CAVEMAN_CLOUD_SDK_REPO:-../cloud-sdk}" # caveman-ai/cloud-sdk
 ```
