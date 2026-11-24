@@ -64,7 +64,16 @@ const PUBLIC_DEPLOY_FILES = ["docker-compose.yml", "kubernetes.yaml", "kubernete
 const PRIVATE_DEPLOY = new RegExp(
   String.raw`\bdeploy\/(?!(?:${PUBLIC_DEPLOY_FILES.map((f) => f.replace(/[.]/g, "\\.")).join("|")})(?![\w.\/-])|[^\w.\/-]|$)`,
 );
-const PRIVATE_PATHS = [/(?<![\w-])cloud\/[a-z]/, /\bdb\/(schema|migrations)/, PRIVATE_DEPLOY, /\bcaveman-cloud-spec\//, /(?<![\w-])cloud\/web\b/];
+const PRIVATE_PATHS = [
+  /(?<![\w-])cloud\/[a-z]/,
+  /\bdb\/(schema|migrations)/,
+  PRIVATE_DEPLOY,
+  /\bcaveman-cloud-spec\//,
+  /(?<![\w-])cloud\/web\b/,
+  /\b(?:Caveman-Cloud|caveman-code-app|agent-sdk-private|caveman-model-research|caveman-site|caveman-v5-staging)\b/,
+  /\/Users\/(?:julb|julius)\b/,
+  /\bfounder\s+(?:ruling|call)\b/i,
+];
 
 /* -- 1. docs.json and the pages it lists ---------------------------------- */
 const DOCS_JSON = join(ROOT, "docs.json");
