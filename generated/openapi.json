@@ -3183,6 +3183,385 @@
         ]
       }
     },
+    "/code/apps": {
+      "get": {
+        "summary": "GET /code/apps",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeApps",
+        "description": "GET /api/v1/code/apps on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/apps",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeApps",
+        "description": "POST /api/v1/code/apps on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/apps/{appId}": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/apps/{appId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeAppsAppId",
+        "description": "GET /api/v1/code/apps/{appId} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/apps/{appId}/archive": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/apps/{appId}/archive",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeAppsAppIdArchive",
+        "description": "POST /api/v1/code/apps/{appId}/archive on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/apps/{appId}/bridge": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "options": {
+        "summary": "OPTIONS /code/apps/{appId}/bridge",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "optionsCodeAppsAppIdBridge",
+        "description": "OPTIONS /api/v1/code/apps/{appId}/bridge on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: CORS preflight for isolated Tenant App origins calling the capability bridge.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "public-or-signed",
+        "security": []
+      },
+      "post": {
+        "summary": "POST /code/apps/{appId}/bridge",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeAppsAppIdBridge",
+        "description": "POST /api/v1/code/apps/{appId}/bridge on the Caveman Cloud control plane. Unauthenticated but rate-limited; it establishes or ends a session rather than reading tenant data. Not exposed to autonomous agents: Isolated tenant App bridge calls authenticate with a scoped app token (capp_...), never an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "endpoint-specific",
+        "security": []
+      }
+    },
+    "/code/apps/{appId}/fork": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/apps/{appId}/fork",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeAppsAppIdFork",
+        "description": "POST /api/v1/code/apps/{appId}/fork on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/apps/{appId}/render/{assetPath...}": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "assetPath...",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/apps/{appId}/render/{assetPath...}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeAppsAppIdRenderAssetPath",
+        "description": "GET /api/v1/code/apps/{appId}/render/{assetPath...} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/apps/{appId}/token": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/apps/{appId}/token",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeAppsAppIdToken",
+        "description": "POST /api/v1/code/apps/{appId}/token on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Tenant Apps, forks, scoped render tokens and CSP asset serving are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
     "/code/automations": {
       "get": {
         "summary": "List Cloud automations",
@@ -4351,6 +4730,27 @@
         ]
       }
     },
+    "/code/channels/email/inbound": {
+      "post": {
+        "summary": "POST /code/channels/email/inbound",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeChannelsEmailInbound",
+        "description": "POST /api/v1/code/channels/email/inbound on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: Signed inbound email webhooks authenticate with HMAC signatures, never an agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "public-or-signed",
+        "security": []
+      }
+    },
     "/code/channels/hooks/{hookId}": {
       "parameters": [
         {
@@ -4377,6 +4777,69 @@
         },
         "operationId": "postCodeChannelsHooksHookId",
         "description": "POST /api/v1/code/channels/hooks/{hookId} on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: Signed inbound deployment channel webhooks authenticate with per-hook HMAC signatures, never an agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "public-or-signed",
+        "security": []
+      }
+    },
+    "/code/channels/linear/events": {
+      "post": {
+        "summary": "POST /code/channels/linear/events",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeChannelsLinearEvents",
+        "description": "POST /api/v1/code/channels/linear/events on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: Signed inbound Linear webhooks authenticate with Linear webhook signing secrets.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "public-or-signed",
+        "security": []
+      }
+    },
+    "/code/channels/slack/events": {
+      "post": {
+        "summary": "POST /code/channels/slack/events",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeChannelsSlackEvents",
+        "description": "POST /api/v1/code/channels/slack/events on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: Signed inbound Slack Events API webhooks authenticate with Slack signing secrets, never an agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "public-or-signed",
+        "security": []
+      }
+    },
+    "/code/channels/slack/interactive": {
+      "post": {
+        "summary": "POST /code/channels/slack/interactive",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeChannelsSlackInteractive",
+        "description": "POST /api/v1/code/channels/slack/interactive on the Caveman Cloud control plane. Unauthenticated, or authenticated by a request signature rather than a session. Not exposed to autonomous agents: Signed inbound Slack Block Kit interactive approval actions authenticate with Slack signing secrets.",
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "public-or-signed",
         "security": []
@@ -4759,6 +5222,131 @@
         ],
         "x-caveman-required-scopes": [
           "code:read"
+        ]
+      }
+    },
+    "/code/computer-pools": {
+      "get": {
+        "summary": "GET /code/computer-pools",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeComputerPools",
+        "description": "GET /api/v1/code/computer-pools on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/computer-pools",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeComputerPools",
+        "description": "POST /api/v1/code/computer-pools on the Caveman Cloud control plane. Requires the org:update scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "org:update"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "org:update"
+        ]
+      }
+    },
+    "/code/computer-pools/{poolId}/archive": {
+      "parameters": [
+        {
+          "name": "poolId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/computer-pools/{poolId}/archive",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeComputerPoolsPoolIdArchive",
+        "description": "POST /api/v1/code/computer-pools/{poolId}/archive on the Caveman Cloud control plane. Requires the org:update scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "org:update"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "org:update"
         ]
       }
     },
@@ -6418,6 +7006,45 @@
         ],
         "x-caveman-required-scopes": [
           "code:write"
+        ]
+      }
+    },
+    "/code/computers/unified": {
+      "get": {
+        "summary": "GET /code/computers/unified",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeComputersUnified",
+        "description": "GET /api/v1/code/computers/unified on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
         ]
       }
     },
@@ -9232,6 +9859,190 @@
           }
         },
         "operationId": "postCodeDeploymentsDeploymentIdRollback",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/deployments/{deploymentId}/rollout": {
+      "parameters": [
+        {
+          "name": "deploymentId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/deployments/{deploymentId}/rollout",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeDeploymentsDeploymentIdRollout",
+        "description": "GET /api/v1/code/deployments/{deploymentId}/rollout on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Canary and shadow deployment rollout status is read by an operator with code:read permission.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/deployments/{deploymentId}/rollout",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeDeploymentsDeploymentIdRollout",
+        "description": "POST /api/v1/code/deployments/{deploymentId}/rollout on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Canary and shadow deployment rollouts are started and promoted by an operator with code:write permission.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/deployments/{deploymentId}/rollout/cancel": {
+      "parameters": [
+        {
+          "name": "deploymentId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/deployments/{deploymentId}/rollout/cancel",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeDeploymentsDeploymentIdRolloutCancel",
+        "description": "POST /api/v1/code/deployments/{deploymentId}/rollout/cancel on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Cancelling or rolling back an active canary or shadow rollout is driven by an operator with code:write permission.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/deployments/{deploymentId}/rollout/promote": {
+      "parameters": [
+        {
+          "name": "deploymentId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/deployments/{deploymentId}/rollout/promote",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeDeploymentsDeploymentIdRolloutPromote",
+        "description": "POST /api/v1/code/deployments/{deploymentId}/rollout/promote on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Promoting a candidate deployment revision requires an explicit operator action with code:write permission.",
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "rbac",
         "security": [
@@ -14656,6 +15467,444 @@
         ]
       }
     },
+    "/code/listener-hooks/{hookId}": {
+      "parameters": [
+        {
+          "name": "hookId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/listener-hooks/{hookId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeListenerHooksHookId",
+        "description": "POST /api/v1/code/listener-hooks/{hookId} on the Caveman Cloud control plane. Unauthenticated but rate-limited; it establishes or ends a session rather than reading tenant data. Not exposed to autonomous agents: Signed inbound dynamic listener webhooks authenticate with per-hook HMAC signatures, never an agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "endpoint-specific",
+        "security": []
+      }
+    },
+    "/code/listeners": {
+      "get": {
+        "summary": "GET /code/listeners",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeListeners",
+        "description": "GET /api/v1/code/listeners on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/listeners",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeListeners",
+        "description": "POST /api/v1/code/listeners on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "DELETE /code/listeners/{listenerId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "deleteCodeListenersListenerId",
+        "description": "DELETE /api/v1/code/listeners/{listenerId} on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      },
+      "get": {
+        "summary": "GET /code/listeners/{listenerId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeListenersListenerId",
+        "description": "GET /api/v1/code/listeners/{listenerId} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}/events": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/listeners/{listenerId}/events",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeListenersListenerIdEvents",
+        "description": "GET /api/v1/code/listeners/{listenerId}/events on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}/ingest": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/listeners/{listenerId}/ingest",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeListenersListenerIdIngest",
+        "description": "POST /api/v1/code/listeners/{listenerId}/ingest on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}/pause": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/listeners/{listenerId}/pause",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeListenersListenerIdPause",
+        "description": "POST /api/v1/code/listeners/{listenerId}/pause on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}/resume": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/listeners/{listenerId}/resume",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeListenersListenerIdResume",
+        "description": "POST /api/v1/code/listeners/{listenerId}/resume on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/listeners/{listenerId}/stats": {
+      "parameters": [
+        {
+          "name": "listenerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/listeners/{listenerId}/stats",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeListenersListenerIdStats",
+        "description": "GET /api/v1/code/listeners/{listenerId}/stats on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Dynamic TTL-bounded event listeners, filters, stats and event ingestion are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
     "/code/mail/ask": {
       "post": {
         "summary": "POST /code/mail/ask",
@@ -17459,6 +18708,1082 @@
         },
         "operationId": "postCodeReviewsOwnerNameNumberThreadsThreadUnresolve",
         "description": "POST /api/v1/code/reviews/{owner}/{name}/{number}/threads/{thread}/unresolve on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: The Review page from Cloud (cloud computers 2026-11-09): a person reads what waits on their review and approves, requests changes, comments or merges on their own session and their own GitHub link. Only a person's session reaches it (the browser, the Code app's sign-in); an agent never reviews, approves or merges a pull request from a control-plane connection, and a Cloud computer's runtime token and credits key reach none of it.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms": {
+      "get": {
+        "summary": "GET /code/rooms",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRooms",
+        "description": "GET /api/v1/code/rooms on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/rooms",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRooms",
+        "description": "POST /api/v1/code/rooms on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomId",
+        "description": "GET /api/v1/code/rooms/{roomId} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/archive": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/archive",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdArchive",
+        "description": "POST /api/v1/code/rooms/{roomId}/archive on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/grants": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/grants",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdGrants",
+        "description": "GET /api/v1/code/rooms/{roomId}/grants on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/grants",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdGrants",
+        "description": "POST /api/v1/code/rooms/{roomId}/grants on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/grants/{grantId}/revoke": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "grantId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/grants/{grantId}/revoke",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdGrantsGrantIdRevoke",
+        "description": "POST /api/v1/code/rooms/{roomId}/grants/{grantId}/revoke on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/threads",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdThreads",
+        "description": "GET /api/v1/code/rooms/{roomId}/threads on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreads",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/threads/{threadId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdThreadsThreadId",
+        "description": "GET /api/v1/code/rooms/{roomId}/threads/{threadId} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /code/rooms/{roomId}/threads/{threadId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "patchCodeRoomsRoomIdThreadsThreadId",
+        "description": "PATCH /api/v1/code/rooms/{roomId}/threads/{threadId} on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/claim": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads/{threadId}/claim",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreadsThreadIdClaim",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads/{threadId}/claim on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/complete": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads/{threadId}/complete",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreadsThreadIdComplete",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads/{threadId}/complete on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/messages": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/threads/{threadId}/messages",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdThreadsThreadIdMessages",
+        "description": "GET /api/v1/code/rooms/{roomId}/threads/{threadId}/messages on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads/{threadId}/messages",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreadsThreadIdMessages",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads/{threadId}/messages on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/release": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads/{threadId}/release",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreadsThreadIdRelease",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads/{threadId}/release on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/renew": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/threads/{threadId}/renew",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdThreadsThreadIdRenew",
+        "description": "POST /api/v1/code/rooms/{roomId}/threads/{threadId}/renew on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/rollup": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/threads/{threadId}/rollup",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdThreadsThreadIdRollup",
+        "description": "GET /api/v1/code/rooms/{roomId}/threads/{threadId}/rollup on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/threads/{threadId}/wait": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "threadId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/threads/{threadId}/wait",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdThreadsThreadIdWait",
+        "description": "GET /api/v1/code/rooms/{roomId}/threads/{threadId}/wait on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/watchers": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/rooms/{roomId}/watchers",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeRoomsRoomIdWatchers",
+        "description": "GET /api/v1/code/rooms/{roomId}/watchers on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/rooms/{roomId}/watchers",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeRoomsRoomIdWatchers",
+        "description": "POST /api/v1/code/rooms/{roomId}/watchers on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/rooms/{roomId}/watchers/{watcherId}": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "watcherId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "DELETE /code/rooms/{roomId}/watchers/{watcherId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "deleteCodeRoomsRoomIdWatchersWatcherId",
+        "description": "DELETE /api/v1/code/rooms/{roomId}/watchers/{watcherId} on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Rooms, decoupled threads, atomic leases, messages and watchers are driven by a code:run key or a signed-in person, never by an external control-plane agent connection.",
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "rbac",
         "security": [
@@ -21889,6 +24214,45 @@
         ]
       }
     },
+    "/code/service-accounts/personal-key": {
+      "post": {
+        "summary": "POST /code/service-accounts/personal-key",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeServiceAccountsPersonalKey",
+        "description": "POST /api/v1/code/service-accounts/personal-key on the Caveman Cloud control plane. Requires the org:update scope. Not exposed to autonomous agents: Bootstrapping a personal code:run key for 30-second CLI onboarding requires a signed-in person; no agent connection mints keys.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "org:update"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "org:update"
+        ]
+      }
+    },
     "/code/sessions": {
       "get": {
         "summary": "List Caveman Code sessions",
@@ -22268,6 +24632,149 @@
         ],
         "x-caveman-required-scopes": [
           "code:read"
+        ]
+      }
+    },
+    "/code/sessions/{sessionId}/computers": {
+      "parameters": [
+        {
+          "name": "sessionId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/sessions/{sessionId}/computers",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeSessionsSessionIdComputers",
+        "description": "GET /api/v1/code/sessions/{sessionId}/computers on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/sessions/{sessionId}/computers",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeSessionsSessionIdComputers",
+        "description": "POST /api/v1/code/sessions/{sessionId}/computers on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/sessions/{sessionId}/computers/{computerId}": {
+      "parameters": [
+        {
+          "name": "sessionId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "computerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "DELETE /code/sessions/{sessionId}/computers/{computerId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "deleteCodeSessionsSessionIdComputersComputerId",
+        "description": "DELETE /api/v1/code/sessions/{sessionId}/computers/{computerId} on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Organization computer pools, N:M session computer leases and unified computer listings are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
         ]
       }
     },
@@ -22719,6 +25226,55 @@
         },
         "operationId": "postCodeSessionsSessionIdMigrate",
         "description": "POST /api/v1/code/sessions/{sessionId}/migrate on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Migrating a parked session to a newer deployment revision is a person's explicit act in the console or CLI.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/sessions/{sessionId}/promote-to-dataset": {
+      "parameters": [
+        {
+          "name": "sessionId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/sessions/{sessionId}/promote-to-dataset",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeSessionsSessionIdPromoteToDataset",
+        "description": "POST /api/v1/code/sessions/{sessionId}/promote-to-dataset on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Promoting a recorded session and its VCR step fixtures into an Evals v2 dataset requires code:write permission.",
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "rbac",
         "security": [
@@ -24662,6 +27218,376 @@
         ],
         "x-caveman-required-scopes": [
           "code:read"
+        ]
+      }
+    },
+    "/code/workflows": {
+      "get": {
+        "summary": "GET /code/workflows",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeWorkflows",
+        "description": "GET /api/v1/code/workflows on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      },
+      "post": {
+        "summary": "POST /code/workflows",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflows",
+        "description": "POST /api/v1/code/workflows on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/workflows/{workflowId}/runs": {
+      "parameters": [
+        {
+          "name": "workflowId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/workflows/{workflowId}/runs",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflowsWorkflowIdRuns",
+        "description": "POST /api/v1/code/workflows/{workflowId}/runs on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/workflows/runs/{runId}": {
+      "parameters": [
+        {
+          "name": "runId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GET /code/workflows/runs/{runId}",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getCodeWorkflowsRunsRunId",
+        "description": "GET /api/v1/code/workflows/runs/{runId} on the Caveman Cloud control plane. Requires the code:read scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:read"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:read"
+        ]
+      }
+    },
+    "/code/workflows/runs/{runId}/finish": {
+      "parameters": [
+        {
+          "name": "runId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/workflows/runs/{runId}/finish",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflowsRunsRunIdFinish",
+        "description": "POST /api/v1/code/workflows/runs/{runId}/finish on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/workflows/runs/{runId}/steps/begin": {
+      "parameters": [
+        {
+          "name": "runId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/workflows/runs/{runId}/steps/begin",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflowsRunsRunIdStepsBegin",
+        "description": "POST /api/v1/code/workflows/runs/{runId}/steps/begin on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/workflows/runs/{runId}/steps/complete": {
+      "parameters": [
+        {
+          "name": "runId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/workflows/runs/{runId}/steps/complete",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflowsRunsRunIdStepsComplete",
+        "description": "POST /api/v1/code/workflows/runs/{runId}/steps/complete on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
+        ]
+      }
+    },
+    "/code/workflows/runs/{runId}/wait": {
+      "parameters": [
+        {
+          "name": "runId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "POST /code/workflows/runs/{runId}/wait",
+        "responses": {
+          "2XX": {
+            "description": "Successful response. Exact status depends on synchronous or durable delivery outcome."
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "postCodeWorkflowsRunsRunIdWait",
+        "description": "POST /api/v1/code/workflows/runs/{runId}/wait on the Caveman Cloud control plane. Requires the code:write scope. Not exposed to autonomous agents: Code-first durable workflow definitions, runs, replay steps and awakeables are driven by a code:run key or a signed-in person.",
+        "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
+        "x-caveman-handler-guard": "rbac",
+        "security": [
+          {
+            "oauth2": [
+              "code:write"
+            ]
+          },
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          },
+          {
+            "identityCookieAuth": []
+          }
+        ],
+        "x-caveman-required-scopes": [
+          "code:write"
         ]
       }
     },
@@ -27159,7 +30085,7 @@
         "operationId": "getInboxItems",
         "description": "GET /api/v1/inbox/items on the Caveman Cloud control plane. Requires the inbox:read scope. Exposed to autonomous agents as the list action of the caveman_inbox tool (read access). What Caveman noticed, did, and needs decided — the organization's decision queue.",
         "x-caveman-operation": "inbox.list",
-        "x-caveman-operation-contract": "41eb23675ac5b841afd13a0eea6ea43a91b3ad647e52584f4a0789eebf18c1d9",
+        "x-caveman-operation-contract": "4b0bddefebcf8ac60ed9c863741529110f3f9edfa572fcc3b15e5de79cf872b4",
         "parameters": [
           {
             "name": "cursor",
@@ -27273,7 +30199,7 @@
         "operationId": "postInboxItems",
         "description": "POST /api/v1/inbox/items on the Caveman Cloud control plane. Requires the inbox:write scope. Exposed to autonomous agents as the emit action of the caveman_inbox_write tool (write access). Emit an inbox item from an agent run, and archive/resolve/act on items.",
         "x-caveman-operation": "inbox.emit",
-        "x-caveman-operation-contract": "e054377c1a88dd438a76a0c182a25984dcdfd72677be31d74e11be13db89b347",
+        "x-caveman-operation-contract": "82a71000ba5d37791032b8ec724fd4d6b11fa92e749517ff7b4c714bbae1321a",
         "requestBody": {
           "required": true,
           "content": {
@@ -27396,7 +30322,7 @@
         "operationId": "getInboxItemsItemId",
         "description": "GET /api/v1/inbox/items/{itemId} on the Caveman Cloud control plane. Requires the inbox:read scope. Exposed to autonomous agents as the get action of the caveman_inbox tool (read access). What Caveman noticed, did, and needs decided — the organization's decision queue.",
         "x-caveman-operation": "inbox.get",
-        "x-caveman-operation-contract": "3a6bbdca65f51205867950222466910446e44ce3d2e6f47289898e7bba6800ba",
+        "x-caveman-operation-contract": "3c013fb502349967bd801aeb01139610050505cd82a88d9d9edd0d34abb29d80",
         "parameters": [],
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "rbac",
@@ -27456,7 +30382,7 @@
         "operationId": "postInboxItemsItemIdActionsActionKey",
         "description": "POST /api/v1/inbox/items/{itemId}/actions/{actionKey} on the Caveman Cloud control plane. Requires the inbox:write scope. Exposed to autonomous agents as the act action of the caveman_inbox_write tool (write access). Emit an inbox item from an agent run, and archive/resolve/act on items.",
         "x-caveman-operation": "inbox.act",
-        "x-caveman-operation-contract": "c7e2ef3dc68701ed674ebdf8a9f8453be6fa314bf49da1741fdba0b8599fb0cf",
+        "x-caveman-operation-contract": "d6bdc51b4e82cd175b8d2fffe21196052f02f489af4cf1a73845e82ce5a7ced7",
         "parameters": [],
         "x-caveman-router-source": "cloud/control-api/internal/httpapi/server.go",
         "x-caveman-handler-guard": "rbac",
@@ -83785,7 +86711,7 @@
       "name": "Proprietary",
       "url": "https://caveman.so/terms"
     },
-    "x-caveman-generated-operation-count": 954,
+    "x-caveman-generated-operation-count": 1020,
     "x-caveman-generated-gateway-operation-count": 2
   },
   "externalDocs": {
