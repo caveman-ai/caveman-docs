@@ -1,0 +1,64 @@
+---
+title: "Inference and Models: One Key, Every Model, One Balance"
+sidebarTitle: "Inference & Models"
+description: "Call any connected provider through one OpenAI and Anthropic compatible gateway with smart routing, failover, ZDR, caching, CCR compression, and unified Credits."
+---
+
+Caveman Inference provides one unified gateway endpoint (`https://gateway.caveman.so/v1`) across connected model providers plus Caveman's own optimization models (`caveman/auto`, `trim-1`, `compact-1`). One scoped API key and one organization Credits balance pay for inference, Sandboxes, Drives, and Managed Agents.
+
+## Call any model with a `maker/model` slug
+
+Send requests to `/v1/chat/completions`, `/v1/messages`, `/v1/responses`, or `/v1/embeddings` with a canonical `maker/model` identifier. The gateway selects the best healthy host for that exact model based on price, time-to-first-token, throughput, prompt-cache stickiness, and your data policy preferences.
+
+```ts
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.CAVEMAN_API_KEY,
+  baseURL: "https://gateway.caveman.so/v1",
+});
+
+const res = await client.chat.completions.create({
+  model: "anthropic/claude-sonnet-4-6",
+  messages: [{ role: "user", content: "Explain idempotency keys in one paragraph." }],
+});
+```
+
+### Provider preferences and fallback
+
+Control host selection per request using standard routing fields:
+
+- `provider.order`, `provider.only`, `provider.ignore`: constrain which hosts serve a model.
+- `provider.sort`: prioritize `price`, `throughput`, or `latency`.
+- `provider.zdr`: require zero-data-retention hosts only.
+- `models`: ordered fallback list when you explicitly want fallback across different models.
+
+A named model is never silently substituted for a different model. Same-model failover retries another host only before the first byte reaches the caller.
+
+## BYOK first, Credits everywhere else
+
+- **Connected provider keys (BYOK):** Your own connected provider keys pay first with zero markup.
+- **Unified Credits balance:** Top up once (or enable auto-reload) to reach every enabled provider at list price. Credits never block traffic routed on your own connected provider keys.
+
+## Caveman specialized models and optimizations
+
+Use the unified `Caveman` SDK to inspect the catalog, call specialized Caveman models, or read per-attempt generation metadata:
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+const models = await cv.inference.models();
+const decision = await cv.inference.route({ text: "Rename helper and update callers" });
+const trimmed = await cv.inference.trim(longBuildLog, "Why did tests fail?");
+const compacted = await cv.inference.compact(messages, { budgetTokens: 8000 });
+```
+
+Pass `x-cave-optimize: off` on any request to send bytes through untouched while preserving catalog slug resolution.
+
+## Related guides
+
+- [Model Routing](/guides/model-routing)
+- [Control Optimizations](/guides/control-optimizations)
+- [TypeScript SDK](/sdks/typescript)
+- [Python SDK](/sdks/python)

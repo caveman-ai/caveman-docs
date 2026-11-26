@@ -1,0 +1,64 @@
+---
+title: "Sessions: Durable Execution Logs, Approvals, and Time-Travel Fork"
+sidebarTitle: "Sessions"
+description: "Every agent run is a durable Session with one append-only event log, exact cost attribution, human approvals, time-travel fork, and one-click eval export."
+---
+
+A **Session** is one execution of an agent. Sessions are distinct from [Sandboxes](/platform/sandboxes): a Session owns the reasoning timeline, event log, cost ledger, and durability state, and may attach zero, one, or many Sandboxes over its lifetime.
+
+## Automatic durability and zero-idle parking
+
+When a Managed Agent runs on Caveman Cloud, every turn, tool call, wait condition, and human approval is recorded in one append-only journal:
+
+- **Resumable waits:** Sessions park at zero compute while waiting for timers, webhooks, or human decisions in the Inbox.
+- **Human approvals:** High-risk actions pause fail-closed until a person approves or denies them. Agents cannot approve their own gates.
+- **Time-travel fork:** Fork any Session from any sequence number with a new model, revision, or prompt to debug regressions cleanly.
+- **Session to Eval:** Export any real Session directly into a deterministic replay eval test case.
+
+## Stream and control Sessions with the SDK
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+
+const session = await cv.agents.run("triage", {
+  request_id: crypto.randomUUID(),
+  task: "Investigate checkout latency spike",
+});
+
+for await (const event of cv.sessions.stream(session.id)) {
+  console.log(event.seq, event.type, event.data);
+}
+```
+
+### Answer human approval checkpoints
+
+```ts
+await cv.sessions.approve(session.id, askId, crypto.randomUUID(), "Approved for staging");
+```
+
+For custom code or external agents that need server-enforced human approval gates, use `cv.approvals`:
+
+```ts
+const decision = await cv.approvals.require({
+  action: "stripe.refund",
+  summary: "Refund $42.00 for duplicate invoice #4411",
+  risk: "high",
+  costUsd: 42,
+});
+```
+
+## Operate Sessions from the CLI
+
+```bash
+cvm sessions waits SESSION_ID
+cvm sessions fork SESSION_ID --at 14 --model anthropic/claude-sonnet-4-6
+cvm sessions to-eval SESSION_ID --out ./regression.eval.json
+```
+
+## Related pages
+
+- [Managed Agents](/platform/managed-agents)
+- [Sandboxes](/platform/sandboxes)
+- [Evaluations](/guides/evals)

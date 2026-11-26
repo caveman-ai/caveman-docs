@@ -1,0 +1,77 @@
+---
+title: "Go SDK: Unified Caveman Cloud Client"
+sidebarTitle: "Go"
+description: "Install github.com/caveman-ai/sdk-go and call Inference, Agents, Sandboxes, Drives, Connectors, Secrets, Rooms, Apps, and Credits from one NewCaveman client."
+---
+
+`github.com/caveman-ai/sdk-go` is a standalone Go client for Caveman Cloud with zero external runtime dependencies beyond the Go standard library.
+
+## Install
+
+```bash
+go get github.com/caveman-ai/sdk-go
+```
+
+## Quickstart
+
+`NewCaveman` reads `CAVEMAN_API_KEY` (or `CAVE_TOKEN`) from the environment when `APIKey` is omitted.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	cavemancloud "github.com/caveman-ai/sdk-go"
+)
+
+func main() {
+	cv, err := cavemancloud.NewCaveman(cavemancloud.CavemanOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+
+	// Inference catalog
+	models, err := cv.ListModels(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	// Drives (zero-VM storage)
+	drives, err := cv.Drives.List(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	// Credits balance
+	credits, err := cv.Credits.Get(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(len(models), len(drives), credits)
+}
+```
+
+## Namespaces on `*cavemancloud.Caveman`
+
+| Field | Primitive |
+| --- | --- |
+| `cv.Inference` / `cv.ListModels` | Multi-provider gateway, streaming SSE, `Route`, `Trim`, `Compact` |
+| `cv.Agents` | Managed Agents, Deployments, revisions, rollbacks, Sessions, SSE streams |
+| `cv.Sandboxes` / `cv.Pools` | Firecracker microVMs, Exec/PTY streams, Snapshots, Ports, Pools |
+| `cv.Drives` | Durable versioned files, zero-VM grep, diffs, Changesets, session undo |
+| `cv.Connectors` | Team OAuth/MCP connectors and grants |
+| `cv.Secrets` | Write-only secrets (`List` metadata, `Set`, `Delete`) |
+| `cv.Rooms` | N:M threads, atomic leases, watchers, cost rollups |
+| `cv.Apps` | Isolated-origin tenant Apps and capability tokens |
+| `cv.Credits` | Unified organization Credits balance |
+| `cv.Cloud` | Generated control-plane operations with idempotency keys |
+
+## Next steps
+
+- [TypeScript SDK](/sdks/typescript)
+- [Python SDK](/sdks/python)
+- [cvm CLI](/cli/cvm)

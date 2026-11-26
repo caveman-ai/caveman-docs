@@ -1,0 +1,56 @@
+---
+title: "Managed Agents: Build, Deploy, and Trigger Autonomous Agents"
+sidebarTitle: "Managed Agents"
+description: "Author agents with AGENT.md or @caveman-ai/agent, deploy immutable revisions with rollbacks, and attach Triggers, Sandboxes, Drives, Connectors, Secrets, and Evals."
+---
+
+Caveman Managed Agents run your agent loop in Caveman's managed runtime outside the execution sandbox. Waiting on model turns costs zero sandbox compute, Drives are readable without booting a VM, and credentials never enter a sandbox.
+
+## Two authoring paths, one open build format
+
+Every agent compiles to the same deterministic build bundle (`AGENT.md` and `agent.json`):
+
+1. **Declarative (`AGENT.md` folder):** Define instructions, model policy, Sandbox tier (`none`, `code`, `linux`), Drive mounts, Connectors, Secrets, Skills, Triggers, and `*.eval.json` files with zero boilerplate.
+2. **TypeScript (`@caveman-ai/agent`):** Author typed tools, programmatic hooks, and local test loops in [caveman-ai/agent-sdk](https://github.com/caveman-ai/agent-sdk), then compile to the identical Cloud build bundle.
+
+An optional container build (`Dockerfile`) is also supported as an escape hatch for custom runtimes while keeping the same Deployment, Session, and event log contract.
+
+## Initialize, test locally, and deploy
+
+```bash
+cvm agent init pr-reviewer ./pr-reviewer
+cvm agent dev ./pr-reviewer
+cvm deploy ./pr-reviewer --name pr-reviewer --budget 2
+cvm run pr-reviewer "Review PR #412 for security regressions"
+```
+
+Every `cvm deploy` creates an immutable **Revision** under the named **Deployment** recording its trigger, commit SHA, and branch. Rolling back deploys an earlier revision cleanly without mutating history.
+
+## Drive deployments from the unified SDK
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+
+const deployments = await cv.agents.listDeployments();
+const session = await cv.agents.run("pr-reviewer", {
+  request_id: crypto.randomUUID(),
+  task: "Audit auth middleware changes on main",
+});
+
+for await (const event of cv.sessions.stream(session.id)) {
+  console.log(event.seq, event.type);
+}
+```
+
+## Triggers and channels
+
+Attach scheduled cron runs, webhooks, Git repository push deploys, Slack or Linear channels, and deterministic event filters directly to an Agent Deployment. Every trigger firing creates a standard durable [Session](/platform/sessions) under the deployment's budget and authority bounds.
+
+## Related pages
+
+- [Sessions](/platform/sessions)
+- [Sandboxes](/platform/sandboxes)
+- [Drives](/platform/drives)
+- [Connectors and Secrets](/platform/connectors-and-secrets)

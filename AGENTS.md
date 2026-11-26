@@ -57,6 +57,21 @@ Run `node scripts/aggregate-docs.mjs` to aggregate every product repository's
 
 ---
 
+## Cloud for AI documentation taxonomy
+
+Caveman Cloud documentation is organized around ten orthogonal primitives under
+`platform/`, `sdks/`, `cli/`, `guides/`, and `governance/`:
+
+1. **Inference:** `platform/inference-and-models.mdx` (`Models & Gateway`, `vendor/model` routing, Credits)
+2. **Managed Agents & Compute:** `platform/managed-agents.mdx`, `platform/sessions.mdx`, `platform/sandboxes.mdx`
+3. **State & Security:** `platform/drives.mdx` (separate from Sandboxes), `platform/connectors-and-secrets.mdx` (Connectors and Secrets strictly separate)
+4. **Multi-Agent Apps:** `platform/rooms-and-apps.mdx` (`Rooms`, `Apps`, and `sdks/app-bridge.mdx`)
+5. **Quality & Control:** `guides/evals.mdx`, `concepts/savings-evidence.mdx`, `governance/`
+6. **Unified SDKs & CLI:** `sdks/typescript.mdx`, `sdks/python.mdx`, `sdks/go.mdx`, `sdks/app-bridge.mdx`, `cli/cvm.mdx`, `cli/mcp.mdx`
+
+Do not add new Cloud onboarding around coding-agent laptop observability; keep
+local efficiency docs under `caveman/`.
+
 ## Structure
 
 The content is Mintlify's format, and this site renders it unchanged:

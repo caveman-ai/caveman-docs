@@ -1,0 +1,56 @@
+---
+title: "Drives: Durable Versioned Storage, Changesets, and Mounts"
+sidebarTitle: "Drives"
+description: "Versioned, org-scoped long-term filesystems for agents and teams with zero-VM read/edit/grep/diff, Sandbox and WebDAV desktop mounts, fork/merge, human-reviewable Changesets, and session undo."
+---
+
+**Drives** are Caveman Cloud's durable long-term storage primitive, strictly separate from ephemeral [Sandboxes](/platform/sandboxes). Every file write is versioned, attributed to its writer and origin (`person`, `agent`, or `agent_untrusted`), and auditable.
+
+## Why Drives beat raw object buckets for AI
+
+- **Zero-VM file operations:** Read, write, edit, grep, list, diff, and restore Drive files over API, SDK, CLI, or MCP without booting a Sandbox.
+- **Mount anywhere:** Mount a Drive directly inside any Firecracker Sandbox or mount it locally on macOS, Windows, or Linux with `cvm drive mount` (zero kernel extensions, read-only and protected-path-hidden by default).
+- **Human-reviewable Changesets:** Mount a Drive in review mode so an agent's writes land on an isolated fork as a pending Changeset. A person inspects the diff and approves or rejects before anything merges into the main Drive.
+- **Session Undo:** Revert every file change written by a specific agent Session in one command.
+- **Scoped Share Grants:** Issue time-bounded folder tokens for external collaborators or service accounts without exposing the rest of the Drive.
+
+## Use Drives from the unified SDK
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+await cv.drives.create({ name: "knowledge", description: "Team runbooks and docs" });
+
+const kb = cv.drives.drive("knowledge");
+await kb.write({ path: "/runbooks/refunds.md", content: "# Refund Policy\n..." });
+
+// Zero-VM regex search across the entire Drive
+const hits = await kb.grep({ pattern: "refund" });
+console.log(hits.matches);
+
+// Review and approve pending agent Changesets
+const { changesets } = await kb.changesets({ status: "pending" });
+if (changesets.length > 0) {
+  const view = await kb.getChangeset(changesets[0].id);
+  console.log(view.diff.files);
+}
+```
+
+## Use Drives from the CLI
+
+```bash
+cvm drive create knowledge
+cvm drive put ./docs knowledge/docs
+cvm drive grep "refund" knowledge/
+cvm drive diff knowledge --from 1 --to 5
+cvm drive review knowledge
+cvm drive undo knowledge --session SESSION_ID
+cvm drive mount knowledge ~/caveman-knowledge
+```
+
+## Related pages
+
+- [Sandboxes](/platform/sandboxes)
+- [Managed Agents](/platform/managed-agents)
+- [Rooms and Apps](/platform/rooms-and-apps)

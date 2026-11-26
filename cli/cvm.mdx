@@ -4,7 +4,31 @@ sidebarTitle: "cvm CLI"
 description: "Install cvm with npm, authenticate with caveman login, bind a project, and run traces, SQL, and Cloud operations from your terminal."
 ---
 
-The `cvm` CLI is the terminal interface for Caveman Cloud. It wraps every control plane operation so you can list projects, search traces, run SQL, start improvement attempts, and drive evals without leaving your shell.
+The `cvm` CLI is the terminal and stdio MCP interface for Caveman Cloud. Deploy Managed Agents, run Firecracker Sandboxes, mount and review Drives, configure Connectors, coordinate Rooms and Apps, and run eval CI gates from one binary.
+
+## Platform workflows
+
+```bash
+# Managed Agents & Sessions
+cvm agent init pr-reviewer ./pr-reviewer
+cvm agent dev ./pr-reviewer
+cvm deploy ./pr-reviewer --name pr-reviewer --budget 2
+cvm run pr-reviewer "Review PR #412"
+cvm sessions fork SESSION_ID --at 12
+
+# Sandboxes & Drives
+cvm sandbox create --name scratch --size 2cpu-4gb
+cvm sandbox exec SANDBOX_ID -- pytest
+cvm drive grep "refund" knowledge/
+cvm drive review knowledge
+cvm drive mount knowledge ~/caveman-knowledge
+
+# Connectors, Rooms, Apps & Evals
+cvm connect add github
+cvm room list
+cvm apps list
+cvm evals ci ./agent.eval.json
+```
 
 ## Install and sign in
 

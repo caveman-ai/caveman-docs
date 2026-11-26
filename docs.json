@@ -68,7 +68,7 @@
       {
         "product": "Caveman Cloud",
         "icon": "cloud",
-        "description": "See what your agents cost. Cut it, with proof.",
+        "description": "The Cloud for AI: Inference, Managed Agents, Sandboxes, Drives, Connectors, Secrets, Rooms, Apps, and Evals.",
         "tabs": [
           {
             "tab": "Documentation",
@@ -77,58 +77,52 @@
                 "group": "Get Started",
                 "pages": [
                   "index",
-                  "why-caveman",
                   "quickstart",
+                  "why-caveman",
                   "authentication"
                 ]
               },
               {
-                "group": "Self-Driving AI",
+                "group": "Inference",
                 "pages": [
-                  "concepts/built-in-ai",
-                  "guides/connect-coding-agent",
-                  "guides/ai-setup",
-                  "guides/improvements",
-                  "guides/automation",
-                  "guides/decision-models"
+                  "platform/inference-and-models",
+                  "guides/model-routing",
+                  "guides/control-optimizations"
                 ]
               },
               {
-                "group": "Core Concepts",
+                "group": "Managed Agents & Compute",
                 "pages": [
-                  "concepts/how-it-works",
-                  "concepts/workloads",
-                  "concepts/savings-evidence",
-                  "concepts/optimizations",
-                  "concepts/rollout-safety",
+                  "platform/managed-agents",
+                  "platform/sessions",
+                  "platform/sandboxes"
+                ]
+              },
+              {
+                "group": "State & Security",
+                "pages": [
+                  "platform/drives",
+                  "platform/connectors-and-secrets",
                   "concepts/data-and-privacy"
                 ]
               },
               {
-                "group": "Tutorials",
+                "group": "Multi-Agent Apps",
                 "pages": [
-                  "guides/connect-workload",
-                  "guides/control-optimizations",
-                  "guides/model-routing",
-                  "guides/traces-and-spend",
-                  "guides/query-with-sql",
-                  "guides/budgets-and-guardrails",
+                  "platform/rooms-and-apps"
+                ]
+              },
+              {
+                "group": "Evals & Quality",
+                "pages": [
                   "guides/evals",
-                  "guides/team-and-admin"
+                  "concepts/savings-evidence",
+                  "concepts/optimizations",
+                  "concepts/rollout-safety"
                 ]
               },
               {
-                "group": "Analytics",
-                "pages": [
-                  "analytics/overview",
-                  "analytics/coding-agents",
-                  "analytics/team-analytics",
-                  "analytics/apps",
-                  "analytics/custom-dashboards"
-                ]
-              },
-              {
-                "group": "Governance & Billing",
+                "group": "Governance & Credits",
                 "pages": [
                   "governance/overview",
                   "governance/api-keys",
@@ -140,8 +134,31 @@
                 ]
               },
               {
-                "group": "Help",
+                "group": "Telemetry & Dashboards",
                 "pages": [
+                  "guides/traces-and-spend",
+                  "guides/query-with-sql",
+                  "guides/budgets-and-guardrails",
+                  "guides/team-and-admin",
+                  "analytics/overview",
+                  "analytics/custom-dashboards",
+                  "analytics/team-analytics",
+                  "analytics/apps",
+                  "analytics/coding-agents"
+                ]
+              },
+              {
+                "group": "Additional Guides & Reference",
+                "pages": [
+                  "concepts/how-it-works",
+                  "concepts/workloads",
+                  "concepts/built-in-ai",
+                  "guides/connect-workload",
+                  "guides/connect-coding-agent",
+                  "guides/ai-setup",
+                  "guides/improvements",
+                  "guides/automation",
+                  "guides/decision-models",
                   "reference/troubleshooting",
                   "reference/faq",
                   "reference/glossary"
@@ -175,20 +192,12 @@
             "tab": "Integrations & SDKs",
             "groups": [
               {
-                "group": "Integrations",
-                "pages": [
-                  "integrations/openai",
-                  "integrations/anthropic",
-                  "integrations/google-and-http",
-                  "integrations/frameworks",
-                  "integrations/litellm"
-                ]
-              },
-              {
                 "group": "SDKs",
                 "pages": [
                   "sdks/typescript",
-                  "sdks/python"
+                  "sdks/python",
+                  "sdks/go",
+                  "sdks/app-bridge"
                 ]
               },
               {
@@ -196,6 +205,16 @@
                 "pages": [
                   "cli/cvm",
                   "cli/mcp"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "integrations/openai",
+                  "integrations/anthropic",
+                  "integrations/google-and-http",
+                  "integrations/frameworks",
+                  "integrations/litellm"
                 ]
               }
             ]
