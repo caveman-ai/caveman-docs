@@ -274,3 +274,17 @@ plain Next.js, for comparing behaviour.
 Set `NEXT_PUBLIC_SITE_URL` to the deployed origin, or canonical URLs and the
 sitemap point at the default `https://docs.caveman.so`. Last-changed dates need
 the git history: in a shallow clone they are left out rather than guessed.
+
+---
+
+## Workflow
+
+- Work in a clean branch or worktree off `origin/master`; never commit or push
+  directly to `master`.
+- Use scoped conventional commits (`docs(guides): ...`, `fix(site): ...`) and
+  stage explicit paths (`git commit --only -- <paths>`), never `git add -A`.
+- Run `npm run content && npm run check:public && npm test && npm run lint`
+  before pushing.
+- Open a pull request against `master` and squash-merge once `CI` is green.
+- Deploy from a clean `origin/master` checkout with `npm run deploy` only when
+  asked.
