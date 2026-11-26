@@ -1,22 +1,67 @@
 ---
-title: "TypeScript SDK: Install, Trace, and Control LLM Traffic"
+title: "TypeScript SDK: Unified Caveman Cloud Client"
 sidebarTitle: "TypeScript"
-description: "Install @caveman-ai/sdk, configure the gateway client, trace workflows, control optimizations per request, parse receipts, and manage Cloud resources."
+description: "Install @caveman-ai/sdk and use one unified Caveman client across Inference, Agents, Sessions, Sandboxes, Drives, Connectors, Secrets, Rooms, Apps, Evals, and Credits."
 ---
 
-The `@caveman-ai/sdk` package is a zero-runtime-dependency TypeScript client for Caveman Cloud. It wraps the gateway's `/sdk/v1/*` contract, so you can trace agent workflows, delegate compression, search tool catalogs, proxy provider calls, and export OpenTelemetry spans without adding extra dependencies to your project.
-
-This page covers installation, configuration, per-request controls, receipt parsing, Cloud control-plane resources, and error handling for the TypeScript SDK.
+The `@caveman-ai/sdk` package is a zero-runtime-dependency TypeScript SDK for Caveman Cloud. One unified `Caveman` client reaches all ten Cloud primitives using a single scoped API key (`CAVEMAN_API_KEY`).
 
 ## Install
 
-Install the package from npm. It ships as an ES module and requires Node.js 22.13 or newer.
+Install the package from npm. It supports both ESM `import` and CommonJS `require()` on Node.js 22.13 or newer.
 
 ```bash
 npm install @caveman-ai/sdk
 ```
 
-Import the `Cave` client and the types you need:
+## Unified client (`new Caveman()`)
+
+`new Caveman()` reads `CAVEMAN_API_KEY` (or `CAVE_TOKEN`) from the environment by default:
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+
+// Inference: list models or call route/trim/compact
+const models = await cv.inference.models();
+
+// Drives: zero-VM grep over versioned files
+const hits = await cv.drives.drive("knowledge").grep({ pattern: "refund" });
+
+// Sandboxes: $0-idle Firecracker microVMs
+const sb = await cv.sandboxes.create({ name: "scratch", size: "2cpu-4gb" });
+await cv.sandboxes.delete(sb.id);
+
+// Managed Agents & Sessions
+const session = await cv.agents.run("triage", {
+  request_id: crypto.randomUUID(),
+  task: "Summarize open incidents",
+});
+
+// Connectors, write-only Secrets, Rooms, Apps, Approvals, and Credits
+const connectors = await cv.connectors.list();
+const secrets = await cv.secrets.list();
+const rooms = await cv.rooms.list();
+const credits = await cv.credits.get();
+```
+
+| Namespace | Primitive |
+| --- | --- |
+| `cv.inference` | Unified Gateway (`models`, `generation`, `route`, `trim`, `compact`, provider clients) |
+| `cv.agents` | Managed Agents, immutable Deployments, revisions, rollbacks, `run` |
+| `cv.sessions` | Durable execution sessions, SSE streams, human approvals |
+| `cv.sandboxes` / `cv.pools` | Firecracker microVMs, Exec/PTY, Snapshots, Port URLs, Pools |
+| `cv.drives` | Versioned Drives, zero-VM read/edit/grep/diff, Changesets, undo |
+| `cv.connectors` | Team OAuth/MCP connectors and grants |
+| `cv.secrets` | Write-only org, repo, and runtime secrets (`list` metadata, `set`, `delete`) |
+| `cv.rooms` | N:M threads, atomic task leases (`withLease`), taint, cost rollups |
+| `cv.apps` | Isolated-origin tenant Apps and `capp_` capability tokens (pair with [`@caveman-ai/sdk/app-bridge`](/sdks/app-bridge)) |
+| `cv.evals` / `cv.approvals` / `cv.credits` | Eval workbenches, Gate approvals, and unified Credits balance |
+
+## Low-level gateway client (`Cave`)
+
+For direct gateway tracing, checkpoints, context packing, and OTel export without the full platform client, import `Cave` directly (also available at `cv.inference.gateway`):
 
 ```ts
 import { Cave } from "@caveman-ai/sdk";

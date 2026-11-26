@@ -1,0 +1,59 @@
+---
+title: "Sandboxes: On-Demand Firecracker MicroVMs"
+sidebarTitle: "Sandboxes"
+description: "Rent isolated Firecracker Linux sandboxes standalone or attach them lazily to Managed Agents, with $0-idle auto-pause, Exec/PTY streams, Snapshots, Environments, and Port URLs."
+---
+
+Caveman Sandboxes provide hardware-isolated Firecracker microVMs for running untrusted code, shell commands, test suites, and live preview servers. Sandboxes are billed only while actively running; a paused sandbox costs zero compute while keeping its disk intact.
+
+## Standalone or attached to Agents
+
+Sandboxes are distinct from [Sessions](/platform/sessions) and [Drives](/platform/drives):
+
+- **Rent standalone** from any backend, CI runner, or external agent framework via REST, SDK, CLI, or MCP.
+- **Attach lazily to Managed Agents** using `computer: code` or `computer: linux` so compute starts only when a tool call requires a shell.
+- **Scale with Pools and Environments:** Prebuild repository images as Environments and configure warm pools for sub-second claims.
+
+## Create, execute, snapshot, and expose ports
+
+<CodeGroup>
+
+```ts TypeScript
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+
+const sb = await cv.sandboxes.create({ name: "ci-runner", size: "2cpu-4gb" });
+await cv.sandboxes.wait(sb.id, "running");
+
+const result = await cv.sandboxes.run(sb.id, ["python3", "-c", "print('ok')"]);
+console.log(result.exitCode, result.stdout);
+
+const snap = await cv.sandboxes.snapshot(sb.id, { name: "clean-deps" });
+const port = await cv.sandboxes.url(sb.id, 3000, { ttlSeconds: 3600 });
+console.log(port.url);
+
+await cv.sandboxes.delete(sb.id);
+```
+
+```bash CLI
+cvm sandbox create --name ci-runner --size 2cpu-4gb
+cvm sandbox exec SANDBOX_ID -- pytest
+cvm sandbox snapshot SANDBOX_ID --name clean-deps
+cvm sandbox url SANDBOX_ID 3000
+cvm sandbox sleep SANDBOX_ID
+```
+
+</CodeGroup>
+
+## Security boundaries
+
+- Platform credentials and personal user logins never enter a Sandbox.
+- Named organization [Secrets](/platform/connectors-and-secrets#secrets) are injected per command at the execution boundary rather than baked into VM images.
+- Port URLs are private by default and require a short-lived `Caveman-Port-Token` header unless explicitly marked public by the creator.
+
+## Related pages
+
+- [Drives](/platform/drives)
+- [Managed Agents](/platform/managed-agents)
+- [Connectors and Secrets](/platform/connectors-and-secrets)

@@ -1,123 +1,123 @@
 ---
-title: "Quickstart: Send Your First Request to Caveman Cloud"
+title: "Quickstart: Start Building on Caveman Cloud"
 sidebarTitle: "Quickstart"
-description: "Go from zero to a live trace in Caveman Cloud: create an account, a project, and an API key, configure your client, send a request, and view it in Traces."
+description: "Start in minutes through any of three doors: call any model through the unified Inference Gateway, launch a Firecracker Sandbox and Drive, or deploy a Managed Agent."
 ---
 
-This guide takes you from creating an account to viewing your first trace in the Caveman Cloud console. You need an existing upstream model provider account (for example OpenAI) with an API key.
+Pick the entry door that matches what you are building today. All three use the same `CAVEMAN_API_KEY` and the same organization Credits balance.
 
-<Tip>
-  **Fastest path: let your coding agent do it.** In the console, open **Getting Started**, then **Send one request**, and choose the option where your coding agent does the wiring. Caveman Cloud gives you a prompt with your gateway URL and a fresh Cave key to paste into your agent. See [Connect your coding agent](/guides/connect-coding-agent) and [Automated AI setup](/guides/ai-setup). The manual steps below are the alternative.
-</Tip>
+## 1. Call any model (2 minutes, zero SDK)
 
-<Steps>
-  <Step title="Create an account or sign in">
-    Open your Caveman Cloud console in a browser. If you already have an account, sign in. Invited members land directly in the project they were invited to.
+Point an existing OpenAI or Anthropic client at `https://gateway.caveman.so/v1` and pass a `maker/model` slug. Your connected provider keys pay first with no fee; Caveman Credits cover any remaining providers at list price.
 
-    To create an account on hosted Caveman Cloud, choose **Create an account** and sign up with email and password, Google, or GitHub. Accept the Free notice, then confirm your email if you signed up with a password. At your first sign-in, Caveman Cloud creates a personal Free workspace that you own, with a project named **Default**. See [Create an account](/authentication#create-an-account).
-  </Step>
-  <Step title="Create a project">
-    Use the **Default** project, or create a new project from the console and name it. The project is the scope for all traces, keys, and workloads you will inspect.
-  </Step>
-  <Step title="Create a Cave API key">
-    Go to **Gateway, Connect** and generate a Cave API key. Copy the key value and the gateway URL. The gateway URL is the origin for your installation, with no trailing slash. For example: `https://gateway.caveman.so`.
+```bash
+export CAVEMAN_API_KEY="cave_live_..."
+```
 
-    <Note>
-      Keep the Cave API key secret. It authenticates you to Caveman Cloud. It is separate from your upstream provider key.
-    </Note>
-  </Step>
-  <Step title="Set environment variables">
-    Export the key and gateway URL in your shell. Keep your upstream provider key available separately.
+<CodeGroup>
 
-    ```bash
-    export CAVE_API_KEY="cave_live_..."
-    export CAVE_GATEWAY_URL="https://gateway.caveman.so"
-    export OPENAI_API_KEY="sk-..."
-    ```
-  </Step>
-  <Step title="Configure your client">
-    Point your OpenAI client at the gateway with a base-URL swap. Send the upstream provider key in the `x-cave-upstream-key` header when it is not stored in Caveman Cloud.
+```ts TypeScript
+import OpenAI from "openai";
 
-    <CodeGroup>
+const client = new OpenAI({
+  apiKey: process.env.CAVEMAN_API_KEY,
+  baseURL: "https://gateway.caveman.so/v1",
+});
 
-    ```typescript TypeScript
-    import OpenAI from "openai";
-    
-    const client = new OpenAI({
-      apiKey: process.env.CAVE_API_KEY,
-      baseURL: `${process.env.CAVE_GATEWAY_URL}/openai/v1`,
-      defaultHeaders: {
-        "x-cave-upstream-key": process.env.OPENAI_API_KEY!,
-        "x-cave-agent": "support-agent",
-        "x-cave-workflow": "resolve-ticket",
-      },
-    });
-    
-    const response = await client.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: "Hello, Caveman" }],
-    });
-    
-    console.log(response.choices[0].message.content);
-    ```
+const response = await client.chat.completions.create({
+  model: "anthropic/claude-sonnet-4-6",
+  messages: [{ role: "user", content: "Summarize our SLA in two bullets." }],
+});
 
-    ```python Python
-    import os
-    from openai import OpenAI
-    
-    client = OpenAI(
-        api_key=os.environ["CAVE_API_KEY"],
-        base_url=f"{os.environ['CAVE_GATEWAY_URL']}/openai/v1",
-        default_headers={
-            "x-cave-upstream-key": os.environ["OPENAI_API_KEY"],
-            "x-cave-agent": "support-agent",
-            "x-cave-workflow": "resolve-ticket",
-        },
-    )
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "Hello, Caveman"}],
-    )
-    
-    print(response.choices[0].message.content)
-    ```
+console.log(response.choices[0].message.content);
+```
 
-    ```bash curl
-    curl "${CAVE_GATEWAY_URL}/openai/v1/chat/completions" \
-      -H "authorization: Bearer ${CAVE_API_KEY}" \
-      -H "x-cave-upstream-key: ${OPENAI_API_KEY}" \
-      -H "x-cave-agent: support-agent" \
-      -H "x-cave-workflow: resolve-ticket" \
-      -H "content-type: application/json" \
-      -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hello, Caveman"}]}'
-    ```
+```python Python
+import os
+from openai import OpenAI
 
-    </CodeGroup>
+client = OpenAI(
+    api_key=os.environ["CAVEMAN_API_KEY"],
+    base_url="https://gateway.caveman.so/v1",
+)
 
-    The `x-cave-agent` and `x-cave-workflow` headers label traffic for reporting. They do not grant access.
-  </Step>
-  <Step title="View the trace">
-    Open **Traces** in the console and look for the request you just sent. You should see the model, tokens, latency, cost, and the agent and workflow labels you attached.
-  </Step>
-</Steps>
+response = client.chat.completions.create(
+    model="anthropic/claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Summarize our SLA in two bullets."}],
+)
+
+print(response.choices[0].message.content)
+```
+
+```bash curl
+curl https://gateway.caveman.so/v1/chat/completions \
+  -H "authorization: Bearer ${CAVEMAN_API_KEY}" \
+  -H "content-type: application/json" \
+  -d '{"model":"anthropic/claude-sonnet-4-6","messages":[{"role":"user","content":"Hello, Caveman"}]}'
+```
+
+</CodeGroup>
+
+## 2. Use Sandboxes, Drives, and Secrets with the unified SDK
+
+Install `@caveman-ai/sdk` (TypeScript), `caveman-sdk` (Python), or `github.com/caveman-ai/sdk-go` (Go) to compose every primitive from one `Caveman` client.
+
+<CodeGroup>
+
+```ts TypeScript
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman(); // reads CAVEMAN_API_KEY
+
+// Search a versioned Drive without booting a VM
+const hits = await cv.drives.drive("knowledge").grep({ pattern: "refund" });
+
+// Run isolated code in a $0-idle Firecracker Sandbox
+const sb = await cv.sandboxes.create({ name: "scratch", size: "2cpu-4gb" });
+const out = await sb.exec(["python3", "-c", "print(2 + 2)"]);
+console.log(out.stdout, hits.matches.length);
+await sb.delete();
+```
+
+```python Python
+from caveman_cloud import Caveman
+
+cv = Caveman()  # reads CAVEMAN_API_KEY
+hits = cv.drives.drive("knowledge").grep({"pattern": "refund"})
+models = cv.inference.models()
+print(len(models), len(hits["matches"]))
+```
+
+</CodeGroup>
+
+## 3. Deploy a Managed Agent
+
+Author an agent declaratively with an `instructions.md` + `agent.json` folder (or in TypeScript with `@caveman-ai/agent`), test locally with `cvm agent dev`, and deploy an immutable revision with `cvm deploy`.
+
+```bash
+npm install -g @caveman-ai/cloud
+cvm login
+cvm agent init pr-reviewer ./pr-reviewer
+cvm deploy ./pr-reviewer --name pr-reviewer --budget 2
+cvm run pr-reviewer "Review the latest changes on main"
+```
 
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Connect a Workload" icon="plug" href="/guides/connect-workload">
-    Learn how to route production agent or application traffic through the Gateway.
+  <Card title="Inference and Models" icon="bolt" href="/platform/inference-and-models">
+    Smart routing, same-model failover, ZDR, BYOK vs Credits, and Caveman models.
   </Card>
 
-  <Card title="Traces and Spend" icon="magnifying-glass" href="/guides/traces-and-spend">
-    Filter, search, and understand request-level cost and latency.
+  <Card title="Managed Agents" icon="rocket" href="/platform/managed-agents">
+    Immutable deployments, triggers, durable Sessions, and `@caveman-ai/agent`.
   </Card>
 
-  <Card title="Query with SQL" icon="database" href="/guides/query-with-sql">
-    Run read-only SELECT over your project's requests, spans, and tool events.
+  <Card title="Drives and Changesets" icon="folder" href="/platform/drives">
+    Versioned long-term filesystems, zero-VM grep, WebDAV mounts, and human review.
   </Card>
 
-  <Card title="Evaluations" icon="check-circle" href="/guides/evals">
-    Build test cases and evaluate candidate changes against your traffic.
+  <Card title="Rooms and Apps" icon="grid" href="/platform/rooms-and-apps">
+    Build full multi-agent workspaces and isolated-origin interactive UIs.
   </Card>
 </CardGroup>

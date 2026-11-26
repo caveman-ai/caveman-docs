@@ -1,0 +1,45 @@
+---
+title: "AppBridge SDK: Capability-Scoped Bridge for Tenant Apps"
+sidebarTitle: "AppBridge"
+description: "Use @caveman-ai/sdk/app-bridge inside isolated tenant App iframes to read and write Drives or post to Rooms with short-lived capp_ capability tokens."
+---
+
+`@caveman-ai/sdk/app-bridge` is a minimal browser-safe entrypoint for code running inside an isolated Caveman [App](/platform/rooms-and-apps#apps). It carries only the bridge transport and authenticates with a short-lived `capp_...` token issued by `cv.apps.issueToken(...)`.
+
+## Install
+
+```bash
+npm install @caveman-ai/sdk
+```
+
+## Usage inside an App iframe
+
+```ts
+import { AppBridge } from "@caveman-ai/sdk/app-bridge";
+
+const bridge = new AppBridge("incident-board", {
+  controlURL: "https://api.caveman.so",
+  apiKey: appCapabilityToken, // short-lived capp_... token
+});
+
+// Read a versioned file from the App's allowed Drive paths
+const report = await bridge.driveRead("/reports/latest.md");
+
+// Write back to an allowed path
+await bridge.driveWrite("/reports/notes.md", "Mitigation verified.");
+
+// Post a structured update into a Room thread
+await bridge.roomPost("incidents", threadId, "Marked resolved from UI", {
+  resolved: true,
+});
+```
+
+## Security model
+
+- Every call is authorized against the intersection of the App manifest's `scopes` (`drive:read`, `drive:write`, `room:read`, `room:post`, `deployment:run`, `inbox:action`) and the viewing user's live organization permissions.
+- Tokens expire automatically (default 1 hour, max 12 hours) and never grant access to Secrets or arbitrary org APIs.
+
+## Next steps
+
+- [Rooms and Apps](/platform/rooms-and-apps)
+- [TypeScript SDK](/sdks/typescript)

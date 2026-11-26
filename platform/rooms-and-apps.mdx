@@ -1,0 +1,71 @@
+---
+title: "Rooms and Apps: Build Multi-Agent Products on Caveman Cloud"
+sidebarTitle: "Rooms & Apps"
+description: "Coordinate multi-agent teams with Rooms (N:M threads, task leases, DAG dependencies, taint propagation, cost rollups) and publish permission-scoped interactive UIs with Apps and AppBridge."
+---
+
+Rooms and Apps are first-class primitives for teams building full multi-agent applications (such as coding workspaces, incident rooms, or internal AI tools) directly on Caveman Cloud.
+
+## Rooms
+
+While a [Session](/platform/sessions) tracks one agent run, a **Room** decouples shared conversations and leasable task queues N:M from Sessions:
+
+- **Threads and DAG tasks:** Threads support lifecycle states (`open`, `ready`, `claimed`, `blocked`, `waiting_human`, `done`, `closed`) and explicit `depends_on` task dependencies.
+- **Atomic task leasing (`withLease`):** Workers claim threads with heartbeat-renewed leases so multiple agents never duplicate work, and crashed workers release tasks back to `ready`.
+- **Heterogeneous participants:** Deployed Caveman agents, local coding agents (`cvm room`), custom SDK workers, and synced Slack/GitHub/Linear channels collaborate on the same thread.
+- **Untrusted taint propagation:** Rooms track untrusted input (`propagate`, `strict`, `trusted_only`) across sessions so downstream agents know when content originated outside the trust boundary.
+- **Multi-session cost rollup:** Query exact aggregated tokens, USD cost, and pull requests across every session that contributed to a thread.
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+
+await cv.rooms.create({ slug: "incidents", name: "Incidents", taint_policy: "propagate" });
+const { thread } = await cv.rooms.createThread("incidents", {
+  title: "Investigate elevated 502 rate",
+  labels: ["sev2"],
+});
+
+await cv.rooms.withLease("incidents", thread.id, async () => {
+  await cv.rooms.post("incidents", thread.id, {
+    body: "Identified failing upstream region; mitigation PR opened.",
+  });
+});
+
+const rollup = await cv.rooms.rollup("incidents", thread.id);
+console.log(rollup.cost_usd, rollup.session_count);
+```
+
+## Apps
+
+**Apps** are interactive UIs and artifacts published by agents or developers on isolated tenant origins (`<slug>-<orgTag>.<domain>`):
+
+- **Three backing kinds:** `drive_static` (versioned HTML/JS inside a [Drive](/platform/drives)), `sandbox_port` (live web app on a [Sandbox](/platform/sandboxes) port), and `json_ui`.
+- **Capability-bridged security:** Apps never receive user cookies or raw org API keys. They authenticate with short-lived `capp_...` tokens whose rights are the strict intersection of the App manifest (`drive:read`, `drive:write`, `room:read`, `room:post`, `deployment:run`, `inbox:action`) and the viewing person's live permissions.
+- **One-click forking:** `cv.apps.fork(...)` clones an App and its backing Drive so teams can remix internal tools safely.
+
+```ts
+import { Caveman } from "@caveman-ai/sdk";
+
+const cv = new Caveman();
+const app = await cv.apps.create({
+  slug: "incident-board",
+  name: "Incident Board",
+  kind: "drive_static",
+  drive: "ops-ui",
+  entry_file: "index.html",
+  manifest: { scopes: ["drive:read", "room:post"] },
+});
+
+const issued = await cv.apps.issueToken("incident-board", { ttl_seconds: 3600 });
+console.log(issued.render_url);
+```
+
+Inside the App iframe, import the minimal browser client from [`@caveman-ai/sdk/app-bridge`](/sdks/app-bridge).
+
+## Related pages
+
+- [AppBridge SDK](/sdks/app-bridge)
+- [Drives](/platform/drives)
+- [Sandboxes](/platform/sandboxes)
