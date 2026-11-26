@@ -36,7 +36,7 @@ const billing = defineAgent({
 });
 ```
 
-## 3. Run in-process on Harness v4
+## 3. Run in-process on Caveman Harness
 
 ```ts
 const result = await runInProcess({

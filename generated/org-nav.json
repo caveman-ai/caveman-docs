@@ -14,7 +14,7 @@
               "slug": "agent/overview",
               "title": "Overview",
               "file": "index.mdx",
-              "blurb": "Build efficient AI agents locally on Harness v4 or run them on Caveman Cloud."
+              "blurb": "Build efficient AI agents locally on Caveman Harness or run them on Caveman Cloud."
             },
             {
               "slug": "agent/quickstart",
@@ -29,7 +29,7 @@
           "items": [
             {
               "slug": "agent/harness",
-              "title": "Harness v4",
+              "title": "Caveman Harness",
               "file": "harness.mdx",
               "blurb": "Loadouts, cache-stable prefixes, tools, compaction, and environments."
             },
@@ -86,7 +86,7 @@
               "slug": "code/overview",
               "title": "Overview",
               "file": "index.mdx",
-              "blurb": "Desktop, CLI, Web, and Mobile coding agent powered by Harness v4."
+              "blurb": "Desktop, CLI, Web, and Mobile coding agent powered by Caveman Harness."
             },
             {
               "slug": "code/desktop",

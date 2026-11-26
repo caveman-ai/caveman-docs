@@ -3,9 +3,9 @@
 > Aggregated directly from each product repository's docs/ folder. Zero private Cloud internals.
 
 ## Caveman Agents (caveman-ai/agent-sdk)
-- [Overview](https://docs.caveman.so/agent/overview.md): Build efficient AI agents locally on Harness v4 or run them on Caveman Cloud.
+- [Overview](https://docs.caveman.so/agent/overview.md): Build efficient AI agents locally on Caveman Harness or run them on Caveman Cloud.
 - [Quickstart](https://docs.caveman.so/agent/quickstart.md): Install @caveman-ai/agent and run a tool-using agent in-process in five minutes.
-- [Harness v4](https://docs.caveman.so/agent/harness.md): Loadouts, cache-stable prefixes, tools, compaction, and environments.
+- [Caveman Harness](https://docs.caveman.so/agent/harness.md): Loadouts, cache-stable prefixes, tools, compaction, and environments.
 - [AGENT.md & Builds](https://docs.caveman.so/agent/agent-md.md): Author agents in Markdown or TypeScript and compile deterministic agent.json builds.
 - [Sessions & Approvals](https://docs.caveman.so/agent/sessions.md): Multi-turn conversations, streaming events, custom tools, and durable parking.
 - [Sandboxes](https://docs.caveman.so/agent/sandboxes.md): Run agent commands in LocalEnv, DockerEnv, or Caveman Cloud SandboxEnv.
@@ -13,7 +13,7 @@
 - [Session Protocol](https://docs.caveman.so/agent/protocol.md): NDJSON wire contract for SessionEvent, UserEvent, and exit codes 0 through 6.
 
 ## Caveman Code (caveman-ai/caveman-code)
-- [Overview](https://docs.caveman.so/code/overview.md): Desktop, CLI, Web, and Mobile coding agent powered by Harness v4.
+- [Overview](https://docs.caveman.so/code/overview.md): Desktop, CLI, Web, and Mobile coding agent powered by Caveman Harness.
 - [Desktop App](https://docs.caveman.so/code/desktop.md): Parallel coding threads, structured transcripts, diffs, and approval controls.
 - [CLI & Daemon](https://docs.caveman.so/code/cli.md): Run caveman-code from the terminal on the exact same runtime as Desktop.
 - [Cloud Computers](https://docs.caveman.so/code/cloud-computers.md): Persistent Firecracker computers that keep running with your laptop closed.
