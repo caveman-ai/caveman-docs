@@ -2,7 +2,7 @@
 
 > Source: caveman-ai/agent-sdk/docs/sandboxes.mdx
 
-Harness v4 separates the agent loop from where commands execute through the `ExecEnv` interface (`packages/harness/src/env/types.ts`). Three environments ship in `@caveman-ai/harness`.
+Caveman Harness separates the agent loop from where commands execute through the `ExecEnv` interface (`packages/harness/src/env/types.ts`). Three environments ship in `@caveman-ai/harness`.
 
 ## Environments
 

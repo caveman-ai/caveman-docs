@@ -2,7 +2,7 @@
 
 > Source: caveman-ai/caveman-code/docs/index.mdx
 
-Caveman Code is a coding agent client for Desktop, CLI, Web, and Mobile. It runs the open-source [Caveman Harness v4](/docs/agent/harness) alongside first-class connectors for Claude Agent, Codex, Pi, OpenCode, and ACP agents, all on one structured transcript.
+Caveman Code is a coding agent client for Desktop, CLI, Web, and Mobile. It runs the open-source [Caveman Harness](/docs/agent/harness) alongside first-class connectors for Claude Agent, Codex, Pi, OpenCode, and ACP agents, all on one structured transcript.
 
 Building a custom non-interactive agent in TypeScript? Use [Agent SDK](/docs/agent/overview).
 
