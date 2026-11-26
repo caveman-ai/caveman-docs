@@ -6,7 +6,7 @@ description: "One API key, one prepaid Credits balance, and ten orthogonal primi
 
 Caveman Cloud is a Cloud for AI. One scoped API key and one prepaid Credits balance power both standalone infrastructure primitives and a full Managed Agents platform.
 
-Start with any single primitive, or compose all ten together. Use the unified Inference Gateway with zero SDK changes, rent Firecracker Sandboxes and versioned Drives from your existing backend, or deploy autonomous agents with `AGENT.md` and `@caveman-ai/agent`.
+Start with any single primitive, or compose all ten together. Use the unified Inference Gateway with zero SDK changes, rent Firecracker Sandboxes and versioned Drives from your existing backend, or deploy autonomous agents with an `instructions.md` + `agent.json` folder or `@caveman-ai/agent`.
 
 ## The ten primitives
 
@@ -15,7 +15,7 @@ Every capability is available independently over REST, SSE, WebSockets, the unif
 | Layer | Primitive | What it does |
 | --- | --- | --- |
 | Inference | [Models and Gateway](/platform/inference-and-models) | Multi-provider OpenAI and Anthropic gateway with smart routing, failover, ZDR, caching, CCR, and Caveman models (`auto`, `trim-1`, `compact-1`). |
-| Managed Agents | [Agents](/platform/managed-agents) | Versioned agent builds (`AGENT.md` or `@caveman-ai/agent`), immutable Deployments, rollbacks, Skills, and Triggers. |
+| Managed Agents | [Agents](/platform/managed-agents) | Versioned agent builds (`instructions.md` + `agent.json` or `@caveman-ai/agent`), immutable Deployments, rollbacks, Skills, and Triggers. |
 | Managed Agents | [Sessions](/platform/sessions) | Durable execution timelines with append-only logs, automatic step durability, human approvals, time-travel fork, and one-click eval promotion. |
 | Managed Agents | [Sandboxes](/platform/sandboxes) | On-demand Firecracker microVMs (`code` and `linux`), $0-idle auto-pause, Exec/PTY, Environments, Snapshots, and Port URLs. |
 | State and Access | [Drives](/platform/drives) | Durable, versioned long-term filesystems with zero-VM read/edit/grep/diff, Sandbox and WebDAV mounts, human-reviewable Changesets, and session undo. |
@@ -37,7 +37,7 @@ Every capability is available independently over REST, SSE, WebSockets, the unif
   </Card>
 
   <Card title="Deploy a Managed Agent" icon="rocket" href="/platform/managed-agents">
-    Ship an `AGENT.md` folder or TypeScript `@caveman-ai/agent` build with durable Sessions, Connectors, Secrets, and Evals.
+    Ship an `instructions.md` + `agent.json` folder or TypeScript `@caveman-ai/agent` build with durable Sessions, Connectors, Secrets, and Evals.
   </Card>
 </CardGroup>
 

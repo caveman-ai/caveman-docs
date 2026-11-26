@@ -1,19 +1,58 @@
 ---
 title: "Managed Agents: Build, Deploy, and Trigger Autonomous Agents"
 sidebarTitle: "Managed Agents"
-description: "Author agents with AGENT.md or @caveman-ai/agent, deploy immutable revisions with rollbacks, and attach Triggers, Sandboxes, Drives, Connectors, Secrets, and Evals."
+description: "Author agents with instructions.md and agent.json (or @caveman-ai/agent), deploy immutable revisions with rollbacks, and attach Triggers, Sandboxes, Drives, Connectors, Secrets, and Evals."
 ---
 
 Caveman Managed Agents run your agent loop in Caveman's managed runtime outside the execution sandbox. Waiting on model turns costs zero sandbox compute, Drives are readable without booting a VM, and credentials never enter a sandbox.
 
+## Canonical agent folder layout
+
+Every agent lives in a clean, language-agnostic folder with one obvious home for each concern and zero runtime dependencies:
+
+```text
+my-agent/
+├── instructions.md       # Required. Pure Markdown system prompt (no YAML frontmatter)
+├── agent.json            # Optional. Typed config validated by JSON Schema ($schema)
+├── tools/                # Optional. Executable code tools (.ts, .js, .mjs, .py)
+├── skills/               # Optional. On-demand playbooks (<name>/SKILL.md)
+├── subagents/            # Optional. Child agents (<name>/instructions.md + agent.json)
+└── evals/                # Optional. Regression suites (<name>.eval.json or .yaml)
+```
+
+Start with just `instructions.md` and run `cvm deploy` (defaults to `caveman/auto` and a Linux Sandbox). Add `agent.json` whenever you want explicit model routing, Sandbox tier, Connectors, Drive mounts, Secrets, schedules, channels, or structured `output_schema`:
+
+```json
+{
+  "$schema": "https://docs.caveman.so/schemas/agent.json",
+  "name": "support-triage",
+  "model": "anthropic/claude-sonnet-4-6",
+  "sandbox": "none",
+  "connectors": {
+    "linear": {
+      "tools": ["list_issues", "create_issue"],
+      "after_untrusted": "approve"
+    }
+  },
+  "drives": {
+    "/kb": "support-kb",
+    "/memory": { "drive": "support-memory", "write": true }
+  },
+  "secrets": ["STRIPE_API_KEY"],
+  "channels": {
+    "slack": { "events": ["app_mention", "direct_message"], "thread_mode": "session" }
+  }
+}
+```
+
 ## Two authoring paths, one open build format
 
-Every agent compiles to the same deterministic build bundle (`AGENT.md` and `agent.json`):
+Every authoring path compiles deterministically to the same `caveman.agent.build.v1` bundle:
 
-1. **Declarative (`AGENT.md` folder):** Define instructions, model policy, Sandbox tier (`none`, `code`, `linux`), Drive mounts, Connectors, Secrets, Skills, Triggers, and `*.eval.json` files with zero boilerplate.
+1. **Declarative (`instructions.md` + `agent.json`):** Zero-dependency folder with IDE autocomplete via `$schema`, deterministic Git-push deploys, and clean PR diffs separating prompt edits from permissions. Legacy single-file `AGENT.md` folders remain supported for backwards compatibility.
 2. **TypeScript (`@caveman-ai/agent`):** Author typed tools, programmatic hooks, and local test loops in [caveman-ai/agent-sdk](https://github.com/caveman-ai/agent-sdk), then compile to the identical Cloud build bundle.
 
-An optional container build (`Dockerfile`) is also supported as an escape hatch for custom runtimes while keeping the same Deployment, Session, and event log contract.
+An optional container build (`image` pinned by digest in `agent.json`) is also supported as an escape hatch for custom runtimes while keeping the same Deployment, Session, and event log contract.
 
 ## Initialize, test locally, and deploy
 
@@ -46,7 +85,7 @@ for await (const event of cv.sessions.stream(session.id)) {
 
 ## Triggers and channels
 
-Attach scheduled cron runs, webhooks, Git repository push deploys, Slack or Linear channels, and deterministic event filters directly to an Agent Deployment. Every trigger firing creates a standard durable [Session](/platform/sessions) under the deployment's budget and authority bounds.
+Attach scheduled cron runs, webhooks, Git repository push deploys, Slack or Linear channels, and deterministic event filters directly in `agent.json`. Every trigger firing creates a standard durable [Session](/platform/sessions) under the deployment's budget and authority bounds.
 
 ## Related pages
 
