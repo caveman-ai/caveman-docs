@@ -13,20 +13,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The job name "CI" is the required status check; keep it.
   ci:
     name: CI
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # build-content.mjs reads per-page last-commit dates and ignores
+          # shallow history, so it needs the full history.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
-      - run: npm run content
+      # npm ci was the slowest step. Cache the installed tree keyed on the
+      # exact lockfile, OS, arch and Node major; any change reinstalls clean.
+      - id: node-modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+      # lint starts with `npm run content`, so content is generated once here
+      # for the steps after it instead of twice.
+      - run: npm run lint
       - run: npm run check:public
       - run: npm test
-      - run: npm run lint
