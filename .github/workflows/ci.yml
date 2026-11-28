@@ -28,13 +28,16 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-      # npm ci was the slowest step. Cache the installed tree keyed on the
-      # exact lockfile, OS, arch and Node major; any change reinstalls clean.
+      # npm ci was the slowest step. Cache the installed tree keyed on
+      # package.json, the lockfile, OS, arch and Node major. package.json is in
+      # the key so an edit to it without a regenerated lockfile misses the
+      # cache and npm ci runs its sync check. The cache is only saved after a
+      # green job, so a hit means npm ci already passed on these exact files.
       - id: node-modules
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package.json', 'package-lock.json') }}
       - if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       # lint starts with `npm run content`, so content is generated once here
